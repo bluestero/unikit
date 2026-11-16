@@ -54,8 +54,8 @@ ui_unknown() {
 # A fix to run, shown after a problem: "expired → okcli refresh"
 ui_hint() { printf '%s→ %s%s' "$C_DIM" "$*" "$C_RESET"; }
 
-# the pink of gum's installer prompts: frame, title, pointer and prompt (bright magenta)
-UI_ASK_COLORS="pointer:13,prompt:13,label:13,border:13"
+# the pink of gum's installer prompts: frame, title and prompt in bright magenta, the chosen row filled with it
+UI_ASK_COLORS="pointer:16,prompt:13,label:13,border:13,fg+:16:bold,bg+:13"
 
 confirm() {
   local prompt="$1" default="${2:-y}" reply
