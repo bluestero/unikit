@@ -19,12 +19,21 @@ tk() {
   return $rc
 }
 
+# every installer part: the toolkit's own and each layer's (layers/*/components.sh)
+_tk_root=$_work_root   # init unsets _work_root once loaded; Tab needs it later
+_tk_components() {
+  local f
+  for f in "$_tk_root/lib/components.sh" "$_tk_root"/layers/*/components.sh; do
+    [ -r "$f" ] && sed -n 's/^COMPONENTS+\{0,1\}=(\(.*\))$/\1/p' "$f"
+  done
+}
+
 _tk_complete() {
   local cur="${COMP_WORDS[COMP_CWORD]}" words
   if [ "$COMP_CWORD" -eq 1 ]; then words="ls status doctor install uninstall update configs layer version help"
   else
     case "${COMP_WORDS[1]}" in
-      install|uninstall) words="ls help --dry-run --details --yes --plain $(sed -n 's/^COMPONENTS=(\(.*\))$/\1/p' "$(dirname "$(command -v tk)")/../lib/components.sh" 2>/dev/null)" ;;
+      install|uninstall) words="ls help --dry-run --details --yes --plain $(_tk_components)" ;;
       layer|layers) words="ls add rm" ;;
       *) words="" ;;
     esac
