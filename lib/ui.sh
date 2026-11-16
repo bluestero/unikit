@@ -54,6 +54,9 @@ ui_unknown() {
 # A fix to run, shown after a problem: "expired → okcli refresh"
 ui_hint() { printf '%s→ %s%s' "$C_DIM" "$*" "$C_RESET"; }
 
+# the pink of gum's installer prompts: frame, title, pointer and prompt (bright magenta)
+UI_ASK_COLORS="pointer:13,prompt:13,label:13,border:13"
+
 confirm() {
   local prompt="$1" default="${2:-y}" reply
   [[ -t 0 ]] || return 1   # never act on a default without a human to ask
@@ -64,7 +67,7 @@ confirm() {
     if [[ "$default" == y ]]; then first=$yes second=$no; else first=$no second=$yes; fi
     local q; q=$(fold -s -w $(( $(ui_cols) - 10 )) <<<"$prompt" | sed "s/^/${C_BOLD}/; s/\$/${C_RESET}/")
     reply=$(printf '%s\n%s\n' "$first" "$second" | ui_fzf "${UI_CONFIRM_LABEL:-confirm}" \
-      --height=~60% --info=hidden --no-separator --prompt='  ' --header="$q") || return 1
+      --height=~60% --info=hidden --no-separator --no-input --color="$UI_ASK_COLORS" --header="$q") || return 1
     [[ "$reply" == "$yes" ]]; return
   fi
   if [[ "$default" == y ]]; then read -r -p "$prompt [Y/n] " reply </dev/tty
@@ -81,7 +84,7 @@ ui_ask() {
   if command -v fzf >/dev/null; then
     q=$(fold -s -w $(( $(ui_cols) - 10 )) <<<"$q" | sed "s/^/${C_BOLD}/; s/\$/${C_RESET}/")
     out=$(: | ui_fzf "${UI_CONFIRM_LABEL:-answer}" --height=~60% --info=hidden --no-separator --disabled \
-      --print-query --query="$pre" --prompt='> ' --header="$q"$'\n'"${C_DIM}enter: ok · esc: cancel${C_RESET}")
+      --print-query --query="$pre" --prompt='> ' --color="$UI_ASK_COLORS" --header="$q"$'\n'"${C_DIM}enter: ok · esc: cancel${C_RESET}")
     rc=$?
     (( rc == 0 || rc == 1 )) || return 1   # 1 = enter with no list to pick from
     out=${out%%$'\n'*}
