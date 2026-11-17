@@ -1,4 +1,4 @@
-/* Default colours. With feelkit installed, k-rofi replaces this file with colours taken from the kitty theme and background. */
+/* Default colours. With a look layer's k-rofi (bluefeel's), this file is replaced with colours taken from the kitty theme and background. */
 * {
     bg:     #16161ef0;
     fg:     #dddddd;

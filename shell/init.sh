@@ -21,7 +21,7 @@ export PATH
 [ -r "$_work_root/shell/common.sh" ] && . "$_work_root/shell/common.sh"
 # Your starship patch (tk configs: edit my patch) laid over the preset: starship can't read
 # two files, so they're merged into one, made again when either changes. Before the
-# layers: feelkit's k-bg colours this file when it's there.
+# layers: a look layer's k-bg colours this file when it's there.
 _ss_out="$HOME/.local/state/work-toolkit/starship.toml"
 _ss_patch="$HOME/.config/work-toolkit/patches/starship.toml"
 if [ -f "$_ss_patch" ] && [ -f "$HOME/.config/starship.toml" ] && command -v python3 >/dev/null 2>&1; then

@@ -1,4 +1,4 @@
-"""Installer parts' own checks, in a scratch copy of the repo (feelkit included) with a scratch
+"""Installer parts' own checks, in a scratch copy of the repo (bluefeel included) with a scratch
 HOME: Claude parts in every profile, the PROD guard without tk, looks (a missing preset, files
 copied out of the repo), kitty accents without a background.conf, tk layer rm's advice."""
 import os
@@ -85,12 +85,12 @@ def test_a_missing_look_is_never_applied(sb):
 
 def test_a_look_file_is_copied_out_of_the_repo(sb):
     repo = copy(sb)
-    look = repo + "/layers/feelkit/gnome/dash-to-panel/settings.dconf"
+    look = repo + "/layers/bluefeel/gnome/dash-to-panel/settings.dconf"
     out = sh(sb, repo, f'look_apply /org/x/ {look} dash-to-panel && look_file {look} | grep show-apps-icon-file')
     copied = sb.path("~/.local/share/work-toolkit/looks/dash-to-panel/apps-button.svg")
     assert os.path.isfile(copied), out
     assert copied in out and repo not in out, out
-    shutil.rmtree(repo + "/layers/feelkit/gnome/dash-to-panel")   # the layer's files gone: the icon stays
+    shutil.rmtree(repo + "/layers/bluefeel/gnome/dash-to-panel")   # the layer's files gone: the icon stays
     assert os.path.isfile(copied)
 
 
@@ -105,7 +105,7 @@ def test_kitty_accents_need_a_background_conf(sb):
 
 def test_layer_rm_names_the_layers_own_uninstall(sb):
     repo = copy(sb)
-    p = subprocess.run([repo + "/bin/tk", "layer", "rm", "feelkit"], env=sb.env, cwd=sb.home, capture_output=True,
+    p = subprocess.run([repo + "/bin/tk", "layer", "rm", "bluefeel"], env=sb.env, cwd=sb.home, capture_output=True,
                        text=True, timeout=60, stdin=subprocess.DEVNULL)
     assert "fk uninstall" in p.stdout + p.stderr, p.stdout + p.stderr
-    assert os.path.isdir(repo + "/layers/feelkit"), "no terminal to confirm in: nothing removed"
+    assert os.path.isdir(repo + "/layers/bluefeel"), "no terminal to confirm in: nothing removed"

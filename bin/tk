@@ -23,14 +23,11 @@ TOOLS=(
   "ws|Editor|open workspaces (repos) in your IDE|"
   "k-config|Kitty|edit kitty.conf|kitty"
 )
-# plus each layer's commands (<layer>/tools, same format; feelkit's k-bg, k-theme, k-icon come this way)
+# plus the tk commands layers add (<layer>/tools, same format; fk's are in fk's picker)
 # shellcheck source=../lib/layers.sh
 . "$ROOT/lib/layers.sh"
-while IFS= read -r _l; do
-  [[ -r $_l/tools ]] || continue
-  while IFS= read -r _t; do [[ -z $_t || $_t == \#* ]] || TOOLS+=("$_t"); done <"$_l/tools"
-done < <(layer_dirs "$ROOT")
-unset _l _t
+while IFS= read -r _t; do TOOLS+=("$_t"); done < <(layer_tools "$ROOT" tk)
+unset _t
 field() { cut -d'|' -f"$2" <<<"$1"; }
 
 # "✓ ready" or why not
@@ -74,8 +71,8 @@ cmd_pick() {
 
 # ---------------------------------------------------------------- status ---
 # Which installer components are in place. First line, the toolkit's (./install.sh):
-# "installed total not-yet-names"; then one per standalone layer (fk install):
-# "<layer> <command> installed total"
+# "installed total not-yet-names"; then one per other kit (fk install):
+# "<kit name> <command> installed total"
 toolkit_state() {
   (
     repo=$ROOT mode=dry details=0
@@ -94,10 +91,13 @@ toolkit_state() {
       done
     }
     count $(main_parts); printf '%s %s %s\n' "$n" "$total" "$left"
-    for l in "${!STANDALONE[@]}"; do count $(layer_parts "$l"); printf '%s %s %s %s\n' "$l" "${STANDALONE[$l]}" "$n" "$total"; done
+    for l in "${!KIT_LABEL[@]}"; do   # one line per kit besides tk, when it has parts
+      [[ $l == tk ]] && continue
+      count $(kit_parts "$l"); (( total )) && printf '%s %s %s %s\n' "${KIT_LABEL[$l]}" "$l" "$n" "$total"
+    done
   )
 }
-# "feelkit  6 of 11 set up → fk install" for each standalone layer, from toolkit_state's lines
+# "feelkit  6 of 11 set up → fk install" for each other kit, from toolkit_state's lines
 layer_lines() {
   local l c n total
   while read -r l c n total; do
@@ -126,6 +126,7 @@ cmd_status() {
 # (with their fix) when not.
 declare -A OKS=() PROBLEMS=()
 ORDER=()
+FIXES=()   # installer parts that repair a break (not "parts left"), offered after the box
 check() {  # check <tool> <ok|bad> <text> [fix]
   [[ " ${ORDER[*]} " == *" $1 "* ]] || ORDER+=("$1")
   if [[ "$2" == ok ]]; then OKS[$1]=$(( ${OKS[$1]:-0} + 1 ))
@@ -150,6 +151,16 @@ cmd_doctor() {
   if ! type -P twingate >/dev/null; then check twin bad "twingate isn't installed" "tk install twingate"
   elif [[ "$(twingate status -d 2>/dev/null | head -n1)" == online ]]; then check twin ok "connected"
   else check twin bad "Twingate isn't connected" "open the Twingate app"; fi
+  # rofi's config @imports files (colours, your patch); a missing one makes rofi open with an error box
+  if [[ -r ~/.config/rofi/config.rasi ]]; then
+    local imp miss=""
+    while IFS= read -r imp; do
+      imp=${imp/#\~/$HOME}; [[ $imp == /* ]] || imp=$HOME/.config/rofi/$imp
+      [[ -e $imp ]] || miss+="${imp/#$HOME/\~} "
+    done < <(sed -n 's/^[[:space:]]*@import[[:space:]]*"\(.*\)".*/\1/p' ~/.config/rofi/config.rasi)
+    if [[ -z $miss ]]; then check rofi ok "config files all there"
+    else check rofi bad "config needs ${miss% }, which is missing" "tk install rofi"; FIXES+=(rofi); fi
+  fi
   for t in "${TOOLS[@]}"; do
     tool=$(field "$t" 1); need=$(field "$t" 4)
     [[ " okcli kx twin " == *" $tool "* ]] && continue
@@ -165,7 +176,7 @@ cmd_doctor() {
   read -r n total left <<<"${state%%$'\n'*}"
   if [[ -z "$left" ]]; then check tk ok parts
   else check tk bad "$n of $total installer parts set up" "tk install ${left% }"; fi
-  # a standalone layer (feelkit): its own line, with its command when parts are left
+  # each other kit (fk): its own line, with its command when parts are left
   while read -r l c n total; do
     [[ -n $l ]] || continue
     if (( n == total )); then check "$l" ok parts; else check "$l" bad "$n of $total parts set up" "$c install"; fi
@@ -189,6 +200,9 @@ cmd_doctor() {
 
   local foot; (( bad )) && foot="${C_YELLOW}$bad to fix${C_RESET}" || foot="${C_GREEN}all good${C_RESET}"
   printf '%s' "$rows" | { if [[ -t 1 ]]; then print_table 3 | ui_box "tk doctor" "" 0 "$foot"; else print_table 3; fi; }
+  if (( bad )) && [[ -t 1 && ${#FIXES[@]} -gt 0 ]]; then
+    confirm "Fix it now? (tk install ${FIXES[*]})" y && "$ROOT/install.sh" "${FIXES[@]}"
+  fi
   (( bad == 0 ))
 }
 
@@ -220,7 +234,7 @@ pull_one() {
   git -C "$1" diff --name-only "$before" HEAD | sed "s#^#$1/#" >>"$3"
 }
 
-# parts_now: "id repo state" for every installer part, the standalone layers' too
+# parts_now: "id repo state" for every installer part, fk's too
 parts_now() {
   (
     repo=$ROOT mode=dry details=0
@@ -325,7 +339,7 @@ layer_add() {
   ok "layer $name added: ${dir/#$HOME/\~}"
   info "${C_DIM}Its commands and settings load in new terminals.${C_RESET}"
   local later="tk install --layer=$name"
-  [[ -f $dir/standalone ]] && later="$(head -1 "$dir/standalone") install"   # set up on its own (fk install)
+  [[ -f $dir/kit && $(head -1 "$dir/kit") != tk ]] && later="$(head -1 "$dir/kit") install"   # its parts are fk's (fk install)
   confirm "Set up its parts now?" y && exec "$ROOT/install.sh" --layer="$name"
   info "Later: $later"
 }
@@ -344,7 +358,7 @@ layer_rm() {
     warn "layers/$name isn't a git clone, so deleting it can't be undone"
   fi
   local undo="tk uninstall --layer=$name"
-  [[ -f $dir/standalone ]] && undo="$(head -1 "$dir/standalone") uninstall"   # set up on its own (fk uninstall)
+  [[ -f $dir/kit && $(head -1 "$dir/kit") != tk ]] && undo="$(head -1 "$dir/kit") uninstall"   # its parts are fk's (fk uninstall)
   info "${C_DIM}Parts it set up stay set up; to remove them first: $undo${C_RESET}"
   confirm "Remove the $name layer (delete ${dir/#$HOME/\~})?" n || { info "Kept."; return 0; }
   rm -rf "$dir" && ok "layer $name removed · open a new terminal"

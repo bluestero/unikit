@@ -6,7 +6,7 @@
 set -uo pipefail
 
 repo="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-mode=ask details=0 list=0 help=0 layer="" update=""
+mode=ask details=0 list=0 help=0 layer="" kit="" update=""
 wanted=()
 for arg in "$@"; do
   case "$arg" in
@@ -17,6 +17,7 @@ for arg in "$@"; do
     -d|--details)   details=1 ;;
     -p|--plain)     export WORK_TOOLKIT_PLAIN=1 ;;
     --layer=*)      layer=${arg#--layer=} ;;
+    --kit=*)        kit=${arg#--kit=} ;;
     --update=*)     update=${arg#--update=} ;;   # tk update: what the pull changed (lib/update.sh)
     -*) printf '✗ unknown option %s · see: ./install.sh help\n' "$arg" >&2; exit 2 ;;
     *)  wanted+=("$arg") ;;
@@ -45,7 +46,8 @@ if (( help )); then
 --details	also show diffs (e.g. ~/.bashrc) before asking
 --yes	no questions, for scripted setups
 --plain	don't use or offer gum (the nicer-looking lists)
---layer=<name>	only that layer's parts (tk layer add and fk install use it)
+--layer=<name>	only that layer's parts (tk layer add uses it)
+--kit=<tk|fk>	only that kit's parts, from the toolkit and every layer (fk install uses it)
 
 ./install.sh ls names every component; ./uninstall.sh undoes any of them.
 Log: ~/.local/state/work-toolkit/setup.log
@@ -53,11 +55,15 @@ EOF
   exit 0
 fi
 
-# What this run may touch: one layer's parts (--layer), else everything but standalone layers' (fk install)
+# What this run may touch: one layer's parts (--layer), one kit's (--kit), else the tk parts
 if [[ -n $layer ]]; then
   layer_path "$repo" "$layer" >/dev/null || { printf '✗ no layer %s · see: tk layer ls\n' "'$layer'" >&2; exit 2; }
   mapfile -t allowed < <(layer_parts "$layer")
-elif [[ -n $update ]]; then allowed=("${COMPONENTS[@]}")   # tk update: every repo's parts, standalone layers' too
+elif [[ -n $kit ]]; then
+  [[ -v KIT_LABEL[$kit] ]] || { printf '✗ no kit %s (tk or fk)\n' "'$kit'" >&2; exit 2; }
+  mapfile -t allowed < <(kit_parts "$kit")
+  (( ${#allowed[@]} )) || { echo "$kit has no parts yet: no layer brings any. Add one: tk layer add <git-url>"; exit 0; }
+elif [[ -n $update ]]; then allowed=("${COMPONENTS[@]}")   # tk update: every part, fk's too
 else mapfile -t allowed < <(main_parts); fi
 for w in "${wanted[@]}"; do
   [[ " ${allowed[*]} " == *" $w "* ]] && continue
@@ -68,9 +74,10 @@ done
 named=${#wanted[@]}
 (( named )) || wanted=("${allowed[@]}")
 [[ -n $layer ]] && (( ! ${#wanted[@]} )) && { echo "The $layer layer has nothing to set up."; exit 0; }
-# how to set a part up again, and undo it: ./install.sh, or a standalone layer's own command
+# how to set a part up again, and undo it: ./install.sh, or its kit's own command
 again=./install.sh undo=./uninstall.sh
-[[ -n $layer && -n ${STANDALONE[$layer]:-} ]] && again="${STANDALONE[$layer]} install" undo="${STANDALONE[$layer]} uninstall"
+if [[ -n $layer ]]; then _k=${LAYER_KIT[$layer]:-tk}; else _k=${kit:-tk}; fi
+[[ $_k != tk ]] && again="$_k install" undo="$_k uninstall"
 
 # tk update with no terminal: where things stand, and nothing changed
 [[ -n $update && "$mode" == ask && ! -t 0 ]] && list=1

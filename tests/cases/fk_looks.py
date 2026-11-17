@@ -3,15 +3,15 @@ dconf and gsettings are fakes: no real setting is read or changed."""
 import os
 
 from term import Term
-from worlds import FK
+from worlds import FK, FK_LAYER
 
 VITALS = "Vitals@CoreCoding.com"
 VITALS_PATH = "/org/gnome/shell/extensions/vitals/"
 
 
 def skip():
-    if not os.path.exists(FK):
-        return "the feelkit layer isn't in layers/feelkit"
+    if not os.path.exists(FK_LAYER):
+        return f"no look layer in {FK_LAYER}"
 
 
 def start(sb):
@@ -84,7 +84,7 @@ def test_keep_changes_nothing(sb):
 
 
 def test_keep_my_changes_as_my_patch(sb):
-    preset = open(os.path.join(os.path.dirname(os.path.dirname(FK)), "gnome/vitals/settings.dconf")).read()
+    preset = open(os.path.join(FK_LAYER, "gnome/vitals/settings.dconf")).read()
     assert "hide-zeros=false" in preset
     sb.write(sb.fix + "/dump", preset.replace("hide-zeros=false", "hide-zeros=true"))
     sb.fake("dconf", '[ "$1" = dump ] && cat "$TK_FIX/dump"; exit 0')

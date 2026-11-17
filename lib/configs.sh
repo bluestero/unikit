@@ -186,10 +186,10 @@ cfg_ss_merge() {
 }
 # what has to notice the change
 cfg_after() {
-  local fk; fk=$(layer_path "$repo" feelkit 2>/dev/null)
+  local kbg; kbg=$(layer_bin "$repo" k-bg)
   case $id in
     starship) cfg_ss_merge >/dev/null   # (an error shows when you edit the patch)
-      [[ -x $fk/bin/k-bg ]] && "$fk/bin/k-bg" __sync_prompt >/dev/null 2>&1 ;;   # its accent copy is what starship reads
+      [[ -n $kbg ]] && "$kbg" __sync_prompt >/dev/null 2>&1 ;;   # its accent copy is what starship reads
     kitty) echo "  (kitty: ctrl+shift+f5 reloads it)" ;;
   esac
   return 0
@@ -299,10 +299,10 @@ case "${1:-}" in
   __edited)   # after the editor: what the patch feeds, then back to the list with how it went
     [[ -z ${NO_COLOR:-} ]] && ui_color; cfg_row "${2:-}" || exit 0
     case $id in
-      starship) err=$(cfg_ss_merge); fk=$(layer_path "$repo" feelkit 2>/dev/null)
-        [[ -x $fk/bin/k-bg ]] && "$fk/bin/k-bg" __sync_prompt >/dev/null 2>&1
+      starship) err=$(cfg_ss_merge); kbg=$(layer_bin "$repo" k-bg)
+        [[ -n $kbg ]] && "$kbg" __sync_prompt >/dev/null 2>&1
         if [[ -n $err ]]; then cfg_to_list "$(head -1 <<<"$err")"
-        else cfg_to_list "✓ starship: your patch saved (new terminals pick it up; with feelkit, this one too)"; fi ;;
+        else cfg_to_list "✓ starship: your patch saved (new terminals pick it up; with k-bg, this one too)"; fi ;;
       btop) bt_build; cfg_to_list "✓ btop: your patch saved (btop reads it when it starts)" ;;
       kitty) cfg_to_list "✓ kitty: your patch saved (ctrl+shift+f5 reloads kitty)" ;;
       *) cfg_to_list "✓ $nice: your patch saved" ;;

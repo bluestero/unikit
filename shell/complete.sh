@@ -40,7 +40,7 @@ _work_complete_hat() {
 if [ -n "${ZSH_VERSION:-}" ]; then
   autoload -U +X bashcompinit 2>/dev/null && bashcompinit
 fi
-for _c in ctx hat k-config dex $(sed -n 's/^\([a-z][a-z0-9-]*\)|.*/\1/p' "$_work_root"/layers/*/tools 2>/dev/null); do
+for _c in ctx hat k-config fk dex $(sed -n 's/^\([a-z][a-z0-9-]*\)|.*/\1/p' "$_work_root"/layers/*/tools 2>/dev/null); do
   if [ -n "${ZSH_VERSION:-}" ]; then
     (( ${+_comps[$_c]} )) && continue
   else

@@ -6,7 +6,7 @@
 set -uo pipefail
 
 repo="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-mode=ask details=0 list=0 help=0 layer=""
+mode=ask details=0 list=0 help=0 layer="" kit=""
 wanted=()
 for arg in "$@"; do
   case "$arg" in
@@ -16,6 +16,7 @@ for arg in "$@"; do
     -y|--yes)       mode=yes ;;
     -p|--plain)     export WORK_TOOLKIT_PLAIN=1 ;;
     --layer=*)      layer=${arg#--layer=} ;;
+    --kit=*)        kit=${arg#--kit=} ;;
     -*) printf '✗ unknown option %s · see: ./uninstall.sh help\n' "$arg" >&2; exit 2 ;;
     *)  wanted+=("$arg") ;;
   esac
@@ -36,7 +37,8 @@ if (( help )); then
 --dry-run	show what would be removed; changes nothing
 --yes	no questions (components must be named)
 --plain	don't use gum even if it's installed
---layer=<name>	only that layer's parts (fk uninstall uses it)
+--layer=<name>	only that layer's parts
+--kit=<tk|fk>	only that kit's parts, from the toolkit and every layer (fk uninstall uses it)
 
 You get your own setup back: replaced files, the lines taken out of ~/.bashrc,
 your default terminal, Ctrl+Alt+T and login shell. Repo files are never deleted.
@@ -46,13 +48,18 @@ EOF
 fi
 use_gum
 
-# What this run may touch: one layer's parts (--layer), else everything but standalone layers' (fk uninstall)
+# What this run may touch: one layer's parts (--layer), one kit's (--kit), else the tk parts
 if [[ -n $layer ]]; then
   layer_path "$repo" "$layer" >/dev/null || { printf '✗ no layer %s · see: tk layer ls\n' "'$layer'" >&2; exit 2; }
   mapfile -t allowed < <(layer_parts "$layer")
+elif [[ -n $kit ]]; then
+  [[ -v KIT_LABEL[$kit] ]] || { printf '✗ no kit %s (tk or fk)\n' "'$kit'" >&2; exit 2; }
+  mapfile -t allowed < <(kit_parts "$kit")
+  (( ${#allowed[@]} )) || { echo "$kit has no parts yet: no layer brings any. Add one: tk layer add <git-url>"; exit 0; }
 else mapfile -t allowed < <(main_parts); fi
 again=./install.sh
-[[ -n $layer && -n ${STANDALONE[$layer]:-} ]] && again="${STANDALONE[$layer]} install"
+if [[ -n $layer ]]; then _k=${LAYER_KIT[$layer]:-tk}; else _k=${kit:-tk}; fi
+[[ $_k != tk ]] && again="$_k install"
 for w in "${wanted[@]}"; do
   [[ " ${allowed[*]} " == *" $w "* ]] && continue
   if [[ " ${COMPONENTS[*]} " == *" $w "* ]]; then printf '✗ %s is removed with: %s %s\n' "'$w'" "$(setup_cmd "$w" | sed 's/ install$/ uninstall/; s/install.sh$/uninstall.sh/')" "$w" >&2

@@ -7,7 +7,8 @@ OKCLI = os.path.join(REPO, "okta/bin/okcli")
 KX = os.path.join(REPO, "kube/bin/kx")
 WS = os.path.join(REPO, "ws/bin/ws")
 HAT = os.path.join(REPO, "bin/hat")
-FK = os.path.join(REPO, "layers/feelkit/bin/fk")
+FK = os.path.join(REPO, "bin/fk")
+FK_LAYER = os.path.join(REPO, "layers/bluefeel")   # the look layer the fk tests use
 
 
 def aws(sb):

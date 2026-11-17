@@ -15,8 +15,8 @@ Every command speaks the same words: `<tool>` picker, `<tool> <name>` switch, `l
 | `ctx` | One screen: AWS profile, cluster/namespace, Twingate, defaults and repo pin. `ctx plain` gives the same as labelled lines, (what Claude Code gets). Both show the folder's hat too: its GitHub account (flagged when git's email or `gh` doesn't match it) and Claude profile. |
 | `k-icon` | Kitty app icon: picker, `k-icon <name>`, `k-icon ls`. |
 | `k-config` | Edit `kitty/kitty.conf` (the file kitty reads through the link) in `$EDITOR` (else nano); warns if the link is missing. kitty reloads it by itself on save (0.47+). |
-| `k-bg` | Kitty background picker: the image previews live as you move through the list; ←/→ image brightness, shift+←/→ opacity (live); Enter keeps it, Esc puts the old one back. `k-bg <name>` / `k-bg off` / `k-bg bright 40` / `k-bg opacity 85` / `k-bg ls` / `k-bg status` / `k-bg accents on\|off`. Images live in `feelkit/backgrounds/`. |
-| `k-theme` | Kitty colour theme picker with two tabs, ←/→ to switch: **Mine** (your short list, `~/.config/k-theme/mine`, everyone has their own; it always opens here) and **All** (every other theme: yours plus kitty's 400+). Colours preview live as you move; type to search. `ctrl-a` in All moves a theme to Mine, `ctrl-d` in Mine moves it back (Tab ticks several first). `ctrl-f` shows all → only dark → only light, in both tabs (your own themes are sorted by their background colour). Enter keeps the theme, Esc puts the old one back. Import a downloaded theme: drop the `.conf` in `~/.config/kitty/themes/` (or the team's `feelkit/themes/`), or `k-theme add <file or URL> [name]`. `k-theme add <name>` / `rm <name>` / `<name>` / `default` / `ls [all]` / `status` / `update`. Only colour lines are taken from a theme, and k-bg accents still win for the cursor, selection and tabs. The tabs need fzf 0.60+ (`./install.sh fzf`); older fzf gets one list. |
+| `k-bg` | Kitty background picker: the image previews live as you move through the list; ←/→ image brightness, shift+←/→ opacity (live); Enter keeps it, Esc puts the old one back. `k-bg <name>` / `k-bg off` / `k-bg bright 40` / `k-bg opacity 85` / `k-bg ls` / `k-bg status` / `k-bg accents on\|off`. Images live in `bluefeel/backgrounds/`. |
+| `k-theme` | Kitty colour theme picker with two tabs, ←/→ to switch: **Mine** (your short list, `~/.config/k-theme/mine`, everyone has their own; it always opens here) and **All** (every other theme: yours plus kitty's 400+). Colours preview live as you move; type to search. `ctrl-a` in All moves a theme to Mine, `ctrl-d` in Mine moves it back (Tab ticks several first). `ctrl-f` shows all → only dark → only light, in both tabs (your own themes are sorted by their background colour). Enter keeps the theme, Esc puts the old one back. Import a downloaded theme: drop the `.conf` in `~/.config/kitty/themes/` (or the team's `bluefeel/themes/`), or `k-theme add <file or URL> [name]`. `k-theme add <name>` / `rm <name>` / `<name>` / `default` / `ls [all]` / `status` / `update`. Only colour lines are taken from a theme, and k-bg accents still win for the cursor, selection and tabs. The tabs need fzf 0.60+ (`./install.sh fzf`); older fzf gets one list. |
 | starship | `starship/starship.toml`: git (plus the GitHub account when it isn't your default), Python virtualenv, k8s context/namespace, AWS profile and expiry, loud **PROD** markers. |
 
 ## Set it up on your machine (teammates)
@@ -36,7 +36,7 @@ it if it's there) and adds the `tk` command. Nothing else changes yet.
 bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unix-toolkit/main/bootstrap.sh)
 ```
 
-`--dir <folder>` puts the toolkit elsewhere. `--layer feelkit` (or `--layer <git URL>` for any other
+`--dir <folder>` puts the toolkit elsewhere. `--layer bluefeel` (or `--layer <git URL>` for any other
 layer; repeat it for more) adds a layer in the same go.
 
 Or step by step, to see what each part does (over SSH: needs an SSH key on your GitHub account,
@@ -94,7 +94,7 @@ ACME=~/work/acme                  # where the "acme" layer's repos go; change it
 A new list starts with one such pair per layer you have. New team repos go in the layer's
 `workspaces` file, so everyone gets them on `tk update`.
 
-**Updates:** `tk update` looks for updates to the toolkit and every layer (feelkit too) and lists the ones with new commits (each one's commits under the cursor), all ticked: untick one to hold it back (keep the toolkit ticked when you pull a layer: layers may need it), enter pulls the rest. Then it lists every part, one tab per repo: up to date, updated (the pull changed its files; nothing to do), needs a fix (the pull broke it, or a link it made now points nowhere), new, or removed upstream (it cleans up the links that part left). Fixes and clean-ups start ticked; new parts don't; each change still asks. Nothing changes without asking, and a second run changes nothing. Maintainers: rename, move or drop a part's files freely: the installer records every link it makes (`~/.local/state/work-toolkit/links`), so `tk update` finds the ones left pointing nowhere. What isn't a link (dconf, apt, dotfile blocks) a dropped part can't clean up after the pull, so drop those by hand. Maintainers: bump `VERSION` (1.2.0 → 1.3.0 for new things, → 1.2.1 for fixes) when you push something the team will notice.
+**Updates:** `tk update` looks for updates to the toolkit and every layer (bluefeel too) and lists the ones with new commits (each one's commits under the cursor), all ticked: untick one to hold it back (keep the toolkit ticked when you pull a layer: layers may need it), enter pulls the rest. Then it lists every part, one tab per repo: up to date, updated (the pull changed its files; nothing to do), needs a fix (the pull broke it, or a link it made now points nowhere), new, or removed upstream (it cleans up the links that part left). Fixes and clean-ups start ticked; new parts don't; each change still asks. Nothing changes without asking, and a second run changes nothing. Maintainers: rename, move or drop a part's files freely: the installer records every link it makes (`~/.local/state/work-toolkit/links`), so `tk update` finds the ones left pointing nowhere. What isn't a link (dconf, apt, dotfile blocks) a dropped part can't clean up after the pull, so drop those by hand. Maintainers: bump `VERSION` (1.2.0 → 1.3.0 for new things, → 1.2.1 for fixes) when you push something the team will notice.
 
 **Removing it:** `tk uninstall` shows a checklist of what's installed, and puts back what you had
 before (see [Going back to your own setup](#going-back-to-your-own-setup)).
@@ -115,34 +115,37 @@ Copying a folder into `layers/` works too (no updates then). Everything in a lay
 
 | In the layer | What the toolkit does with it |
 |---|---|
-| `bin/` | on PATH in every shell |
+| `bin/` | on PATH in every shell; `bin/fk-<name>` is also `fk <name>` (fk's own words, `install`, `uninstall`, `help`, stay fk's) |
 | `shell/init.sh` | sourced by bash and zsh before the tools load: settings they read (`OKTA_AWSCLI_ORG_DOMAIN`, `OKTA_AWSCLI_OIDC_CLIENT_ID`, `OKCLI_NAMING_DEFAULT`, `KX_ALIAS_RULES`), aliases |
 | `components.sh` | installer components (`COMPONENTS+=(…)` and the usual functions; `group_<id>` names its installer tab, `GROUP_ABOUT[<group>]="…"` says what a new group is) |
-| `tools` | commands for `tk ls` and the `tk` picker: `name\|group\|what it does\|program it needs` |
+| `tools` | commands for the kit's picker and help (`tk ls`, `tk`; `fk`): `name\|group\|what it does\|program it needs[\|kit]`; without the kit, the layer's |
 | `workspaces` | a shared `ws` list; `@<name>` in your own list brings it in |
 | `claude/skills/<skill>/` | Claude Code skills, linked by the `claude-skill` component |
-
-| `standalone` | the layer is set up on its own: the file holds its command (feelkit's says `fk`), so `fk install` / `fk uninstall` set up and remove its parts, and `tk install`, `tk uninstall` and `./install.sh ls` leave them out; `tk status` and `tk doctor` give it one line ("6 of 11 parts set up → fk install") |
+| `kit` | one line, `tk` or `fk`: the kit this layer's parts go to unless a part says otherwise (`kit_<id>() { echo fk; }`; `tk` without the file). `tk install` sets up the tk parts and `fk install` the fk parts, from the toolkit and every layer, and each leaves the other's out; `tk status` and `tk doctor` give each other kit one line ("6 of 11 parts set up → fk install") |
 
 `lib/layers.sh` has the same list for whoever writes one. A layer's components can also say what
 they need from the machine (`requires_<id>`: `gnome`, `apt`, `linux`) and list themselves in
 `LOOK_PARTS+=(…)` to get the keep / re-apply / reset settings menu, or name two parts that shouldn't both be in
 (`CLASHES+=("id id|the question")`: the installer's summary asks once, default No).
 
-### Layers that come with it
+### Two kits: tk and fk
 
-**feelkit** holds everything that is only about looks, so the toolkit itself stays about work:
-the kitty background, theme, accents and icons (`k-bg`, `k-theme`, `k-icon`), where new windows
-open, and the GNOME presets (Dash to Panel, Dash2Dock, Vitals, Blur my Shell, rounded corners, no
-animations). The toolkit works without it: rofi and btop just keep their default colours.
-It's optional and set up on its own: `tk install` never shows its parts.
+`tk` (toolkit) is what you work with; `fk` (feelkit) is how it looks. `fk` comes empty: its parts,
+commands and subcommands all come from layers whose kit is `fk`. With none, `fk` says so and
+`fk install` has nothing to set up. `fk` opens a picker of the layers' fk commands (like `tk`);
+`fk help` lists them; `fk install` / `fk uninstall` set up and remove the fk parts.
 
-It lives in its own repo, [unix-feelkit](https://github.com/bluestero/unix-feelkit):
+**bluefeel** is one such layer, optional: the kitty background, theme, accents and icons (`k-bg`,
+`k-theme`, `k-icon`), where new windows open, and the GNOME presets (Dash to Panel, Dash2Dock,
+Vitals, Blur my Shell, rounded corners, no animations), with `fk looks` and `fk dash2dock`.
+The toolkit works without it: rofi and btop just keep their default colours.
+
+It lives in its own repo, [unix-feelkit](https://github.com/bluestero/unix-feelkit) (to be renamed bluefeel):
 
 ```bash
-tk layer add https://github.com/bluestero/unix-feelkit.git   # clones into layers/feelkit, offers to set it up
-fk install                                                   # its own installer: Kitty looks, GNOME looks, Summary
-fk uninstall                                                 # removes its parts, your own settings put back
+tk layer add https://github.com/bluestero/unix-feelkit.git bluefeel   # clones into layers/bluefeel, offers to set it up
+fk install                                                            # the fk installer: Kitty looks, GNOME looks, Summary
+fk uninstall                                                          # removes the fk parts, your own settings put back
 ```
 
 ## Install / uninstall
@@ -157,14 +160,14 @@ fk uninstall                                                 # removes its parts
 ```
 
 The installer opens on a tab per group (Recommended, Kitty, Optional, Desktop, Cloud, Workspaces,
-Claude Code, then each layer's own; a standalone layer such as feelkit has its own: `fk install`). A tab says in one line what the group is, then lists its parts
+Claude Code, then each layer's own; the fk kit's parts, bluefeel's among them, have their own: `fk install`). A tab says in one line what the group is, then lists its parts
 with their state (installed, partly, not installed, needs <part>, not supported here) and what each gets you;
 a part that needs another one (yazi-keys needs yazi) can still be ticked: ticking it ticks that one too,
 and the run sets it up first. Not supported here means this machine can't run it (no GNOME, say); the
 footer shows what the part under the cursor touches on disk. ←/→ change tabs, Tab ticks,
 Enter goes to the **Summary** tab: everything that will be set up, with what `--dry-run` prints for the
 part under the cursor. Enter there sets it up; Esc anywhere leaves with nothing changed. Parts that
-shouldn't both be in (feelkit's Dash2Dock and Dash to Panel: `fk install`), one ticked and the other
+shouldn't both be in (bluefeel's Dash2Dock and Dash to Panel: `fk install`), one ticked and the other
 ticked or already in, make the summary ask once whether to keep both (No goes back to their tab). Needs fzf 0.63+ (`./install.sh fzf`);
 with an older fzf it's one checklist instead. Nothing starts ticked: you pick every part yourself.
 If [gum](https://github.com/charmbracelet/gum) isn't installed, the installer offers to fetch it
@@ -191,7 +194,7 @@ The first time the installer changes something of yours, it keeps what you had i
 | login shell | the one you had before (else bash) |
 | Claude Code `settings.json` | only the toolkit's hook entry is removed |
 
-feelkit's parts (kitty backgrounds, themes, accents, icons and the GNOME looks) are in
+bluefeel's parts (kitty backgrounds, themes, accents, icons and the GNOME looks) are in
 [its own README](https://github.com/bluestero/unix-feelkit#parts) and set up with `fk install`.
 
 | Component | What it sets up |
@@ -214,7 +217,7 @@ feelkit's parts (kitty backgrounds, themes, accents, icons and the GNOME looks) 
 | `alt-tab-desktop` | GNOME extension in `gnome/`: after Super+D (show desktop), Alt+Tab returns to the window you minimized instead of the one before it; log out once after installing |
 | `hide-docker-tray` | Small GNOME extension (`gnome/hide-docker-tray@work-toolkit`, linked in) that hides Docker Desktop's tray item: no icon, empty menu, three dots that do nothing on click; log out once after installing |
 | `app-keys` | Super+1..9 for the Nth pinned dock app: launches it, brings it to the front, or minimizes it when it is already in front (`bin/k-appkey`, one short process per key press, no background process; uses Window Calls). Only windows on the current desktop count: with none there, it launches a new one. Turns GNOME's own Super+number off; the uninstall puts it back; asked with default No |
-| `rofi` | apt `rofi`; `~/.config/rofi/config.rasi` → `rofi/config.rasi` (minimal; `colors.rasi` is written by `feelkit/bin/k-rofi` from the kitty colours in use, and `k-theme` / `k-bg` re-run it on every change); GNOME shortcuts Alt+Space (open windows first, then apps; pick a window to focus it), Alt+Shift+Space (ssh), Super+S (speaker, mic, wifi, bluetooth: pick a row to switch; Bluetooth earbuds get a row per mode, Headset for music and Handsfree for calls with the mic; Ctrl+Tab / Ctrl+Shift+Tab cycle the four; a new secured wifi network asks for its password in the list) and Super+X (power: lock, suspend, hibernate, log out, restart, shut down; the last three ask first). Inside: Tab / Ctrl+Tab switches between apps, ssh, files and power; Esc closes. The shortcuts use `-normal-window` so it gets the keyboard on Wayland |
+| `rofi` | apt `rofi`; `~/.config/rofi/config.rasi` → `rofi/config.rasi` (minimal; `colors.rasi` is written by `bluefeel/bin/k-rofi` from the kitty colours in use, and `k-theme` / `k-bg` re-run it on every change); GNOME shortcuts Alt+Space (open windows first, then apps; pick a window to focus it), Alt+Shift+Space (ssh), Super+S (speaker, mic, wifi, bluetooth: pick a row to switch; Bluetooth earbuds get a row per mode, Headset for music and Handsfree for calls with the mic; Ctrl+Tab / Ctrl+Shift+Tab cycle the four; a new secured wifi network asks for its password in the list) and Super+X (power: lock, suspend, hibernate, log out, restart, shut down; the last three ask first). Inside: Tab / Ctrl+Tab switches between apps, ssh, files and power; Esc closes. The shortcuts use `-normal-window` so it gets the keyboard on Wayland |
 | `okta-aws-cli` | latest okta-aws-cli from GitHub (sha256-checked) in `~/.local/bin`, for `okcli`. Skipped if you already have one |
 | `aws-cli` | latest AWS CLI v2 from AWS (its own installer) in `~/.local/aws-cli`, `aws` in `~/.local/bin`, for `okcli whoami` and kx's EKS sign-in. Needs unzip |
 | `kubectl` | latest stable kubectl from dl.k8s.io (sha256-checked) in `~/.local/bin`, for `kx` |

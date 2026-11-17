@@ -1,5 +1,5 @@
-"""./install.sh's tab view, in a scratch copy of the repo (feelkit included: a standalone
-layer, so only fk install / --layer=feelkit shows it) with a scratch HOME and a fake GNOME.
+"""./install.sh's tab view, in a scratch copy of the repo (bluefeel included: a layer whose kit is fk,
+so only fk install / --kit=fk shows it) with a scratch HOME and a fake GNOME.
 Nothing is set up: each test stops at the first question of the run, or before."""
 import os
 import re
@@ -88,13 +88,13 @@ def test_feelkit_stays_out_of_the_main_install(sb):
     assert code == 2 and "fk install kitty-bg" in out, out
     code, out = run(sb, repo, "uninstall.sh", "kitty-bg")
     assert code == 2 and "fk uninstall kitty-bg" in out, out
-    _, out = run(sb, repo, "install.sh", "--layer=feelkit", "ls")
+    _, out = run(sb, repo, "install.sh", "--layer=bluefeel", "ls")
     rows = set(re.findall(r"^  (\S+) ", out, re.M))
     assert "kitty-bg" in rows and "kitty-config" not in rows, out
 
 
 def test_both_bars_ask_and_no_goes_back(sb):
-    _, t = start(sb, "--layer=feelkit")
+    _, t = start(sb, "--layer=bluefeel")
     t.key("right")                                        # GNOME looks: dash2dock, dash-to-panel first
     t.wait(lambda t: "dash2dock" in t.cursor_line(), what="the cursor on dash2dock")
     t.key("tab", "down", "tab")
@@ -113,7 +113,7 @@ def test_both_bars_ask_and_no_goes_back(sb):
 
 
 def test_both_bars_yes_sets_up(sb):
-    _, t = start(sb, "--plain", "--layer=feelkit")
+    _, t = start(sb, "--plain", "--layer=bluefeel")
     t.key("right")                                        # GNOME looks: dash2dock, dash-to-panel first
     t.wait(lambda t: "dash2dock" in t.cursor_line(), what="the cursor on dash2dock")
     t.key("tab", "down", "tab")
@@ -154,3 +154,51 @@ def test_all_set_still_opens_the_tabs(sb):
     t.key("enter")
     assert t.wait_exit() == 0
     assert "Everything is already set up" in t.text()
+
+
+def _mixed_layer(repo, kit_file=None, odd_kit="fk"):
+    """A layer with a tk part and a part that names its kit (the layer's default is tk)."""
+    d = repo + "/layers/mix"
+    os.makedirs(d)
+    if kit_file:
+        with open(d + "/kit", "w") as f:
+            f.write(kit_file + "\n")
+    with open(d + "/components.sh", "w") as f:
+        f.write('COMPONENTS+=(mix-work mix-look)\n')
+        for p in ("work", "look"):
+            f.write(f'group_mix_{p}() {{ echo Mix; }}; label_mix_{p}() {{ echo {p}; }}; title_mix_{p}() {{ echo {p}; }}\n'
+                    f'detail_mix_{p}() {{ echo x; }}; state_mix_{p}() {{ STATE=missing NOTE=""; }}\n'
+                    f'install_mix_{p}() {{ :; }}; uninstall_mix_{p}() {{ :; }}\n')
+        f.write(f'kit_mix_look() {{ echo {odd_kit}; }}\n')
+
+
+def test_a_layer_feeds_both_kits(sb):
+    repo = copy(sb)
+    _mixed_layer(repo)
+    _, out = run(sb, repo, "install.sh", "ls")                       # tk: its default-kit part only
+    rows = set(re.findall(r"^  (\S+) ", out, re.M))
+    assert "mix-work" in rows and "mix-look" not in rows, out
+    _, out = run(sb, repo, "install.sh", "--kit=fk", "ls")           # fk: bluefeel's parts and mix-look
+    rows = set(re.findall(r"^  (\S+) ", out, re.M))
+    assert "mix-look" in rows and "kitty-bg" in rows and "mix-work" not in rows, out
+    code, out = run(sb, repo, "install.sh", "mix-look")
+    assert code == 2 and "fk install mix-look" in out, out
+    code, out = run(sb, repo, "uninstall.sh", "mix-look")
+    assert code == 2 and "fk uninstall mix-look" in out, out
+
+
+def test_a_layer_can_default_to_fk_and_a_part_can_pick_tk(sb):
+    repo = copy(sb)
+    _mixed_layer(repo, kit_file="fk", odd_kit="tk")
+    _, out = run(sb, repo, "install.sh", "ls")
+    rows = set(re.findall(r"^  (\S+) ", out, re.M))
+    assert "mix-look" in rows and "mix-work" not in rows, out
+
+
+def test_an_unknown_kit_is_said_and_falls_back_to_tk(sb):
+    repo = copy(sb)
+    _mixed_layer(repo, odd_kit="gk")
+    code, out = run(sb, repo, "install.sh", "ls")
+    assert "names the kit 'gk'" in out and "mix-look" in out, out
+    code, out = run(sb, repo, "install.sh", "--kit=gk", "ls")
+    assert code == 2 and "no kit 'gk'" in out, out

@@ -67,7 +67,8 @@ unset _id
 group_of() { repo_of "$1"; }
 GROUP_ABOUT[toolkit]="The toolkit's own parts."
 for _l in $(printf '%s\n' "${LAYER_OF[@]}" | sort -u); do
-  GROUP_ABOUT[$_l]="The $_l layer's parts${STANDALONE[$_l]:+ (on its own: ${STANDALONE[$_l]} install sets it up)}."
+  GROUP_ABOUT[$_l]="The $_l layer's parts."
+  [[ ${LAYER_KIT[$_l]:-tk} == tk ]] || GROUP_ABOUT[$_l]="The $_l layer's parts (on their own: ${LAYER_KIT[$_l]} install sets them up)."
 done
 unset _l
 

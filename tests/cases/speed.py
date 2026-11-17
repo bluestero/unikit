@@ -13,7 +13,7 @@ import time
 
 from fixture import REPO
 from term import Term
-from worlds import FK, HAT, KX, OKCLI, WS, aws, kube
+from worlds import FK, FK_LAYER, HAT, KX, OKCLI, WS, aws, kube
 
 MOVE, CALLBACK, OPEN, COMMAND = 50, 150, 300, 300
 RESULTS = []   # (what, ms, budget)
@@ -129,7 +129,7 @@ def test_hat(sb):
 
 
 def test_fk_looks(sb):
-    if not os.path.exists(FK):
+    if not os.path.exists(FK_LAYER):
         return
     vitals = "Vitals@CoreCoding.com"
     os.makedirs(sb.path(f"~/.local/share/gnome-shell/extensions/{vitals}"))

@@ -28,7 +28,7 @@ WORKSPACE_PARTS=(repos)
 CLAUDE_PARTS=(claude-skill claude-hook claude-guard claude-guidelines)
 CLOUD_PARTS=(okta-aws-cli aws-cli kubectl eks-clusters twingate)
 APP_PARTS=(gh clipboard zed vscode)
-# Which repo a component comes from: the toolkit, or the layer that adds it (feelkit, ...).
+# Which repo a component comes from: the toolkit, or the layer that adds it (bluefeel, ...).
 repo_of() { echo "${LAYER_OF[$1]:-toolkit}"; }
 group_of() {
   # a layer's component names its own group (group_<id>)
@@ -420,7 +420,7 @@ bt_merge() {   # the preset, your patch's "key = value" lines in place of its ow
 bt_kv() { grep -E '^[A-Za-z_]+[[:space:]]*=' "$@" | sed -E 's/[[:space:]]*=[[:space:]]*/ = /' | sort; }   # the settings alone
 bt_ours() { [[ -f $bt && ! -L $bt && "$(bt_kv "$bt")" == "$(bt_merge | bt_kv)" ]]; }   # the preset (and patch) as written
 bt_build() { mkdir -p "${bt%/*}" "${bt_made%/*}"; rm -f "$bt"; bt_merge >"$bt" && sha256sum "$bt" | cut -d' ' -f1 >"$bt_made"; }
-kth="$(layer_path "$repo" feelkit 2>/dev/null)/bin/k-theme"   # feelkit's; colours follow the theme only when it is there
+kth="$(layer_bin "$repo" k-theme)"   # a layer's; colours follow the theme only when one has it
 label_btop() { echo "btop"; }
 title_btop() { echo "btop system monitor, set up to follow your kitty colour theme"; }
 detail_btop() { echo "btop (apt) if missing; ~/.config/btop/btop.conf -> btop/btop.conf; kitty.theme written by k-theme"; }
@@ -444,8 +444,8 @@ install_btop() {
     ask "Use the toolkit's btop settings? (your own are kept as a backup)" || { skip; return 0; }
     dry || { [[ -f $bt && ! -L $bt ]] && backup "$bt" >/dev/null; bt_build; } && ok "set ${D}(your own changes: tk configs → btop → Edit my patch)${R}"
   fi
-  if [[ -x $kth ]]; then dry || "$kth" btop >>"$log_file" 2>&1 && ok "colours follow k-theme ${D}(theme: $("$kth" current 2>/dev/null))${R}"
-  else ok "colours follow the kitty theme once feelkit is installed"; fi
+  if [[ -n $kth ]]; then dry || "$kth" btop >>"$log_file" 2>&1 && ok "colours follow k-theme ${D}(theme: $("$kth" current 2>/dev/null))${R}"
+  else ok "colours follow the kitty theme once a look layer with k-theme is set up (fk install)"; fi
 }
 uninstall_btop() {
   rm -f "$HOME/.config/btop/themes/kitty.theme"
@@ -762,25 +762,26 @@ ext_download() {
   else rm -f "$tmp"; fail "download or install failed (see the log)"; return 1; fi
   rm -f "$tmp"
 }
-# The launcher entry (gives rofi's window an icon in a dock or panel); shared by rofi and feelkit's docks
+# The launcher entry (gives rofi's window an icon in a dock or panel); shared by rofi and a look layer's docks
 launcher_icon_dir="$HOME/.local/share/icons/hicolor/512x512/apps"; launcher_icon="$launcher_icon_dir/k-launch.png"
-# feelkit (and any layer) can ask to keep it by defining feelkit_wants_launcher_entry
-launcher_entry_wanted() { kb_has rofi-launcher || { declare -F feelkit_wants_launcher_entry >/dev/null && feelkit_wants_launcher_entry; }; }
+# a layer can ask to keep it by defining wants_launcher_entry
+launcher_entry_wanted() { kb_has rofi-launcher || { declare -F wants_launcher_entry >/dev/null && wants_launcher_entry; }; }
 remove_launcher_entry() {
   launcher_entry_wanted && return 0
   rm -f "$HOME/.local/share/applications/k-launch.desktop" "$HOME/.local/share/applications/rofi.desktop" "$launcher_icon" "$HOME/.local/share/icons/hicolor/scalable/apps/k-launch.svg"
 }
 launcher_entry_set() { [[ -f "$launcher_icon" ]] && grep -qxF "Exec=$repo/rofi/bin/k-launch apps" "$HOME/.local/share/applications/k-launch.desktop" 2>/dev/null &&
+  grep -qxF "Icon=k-launch" "$HOME/.local/share/applications/k-launch.desktop" &&
   [[ -f "$HOME/.local/share/applications/rofi.desktop" ]]; }
 install_launcher_entry() {
   mkdir -p "$launcher_icon_dir" "$HOME/.local/share/applications"
   convert "$repo/rofi/rofi-icon.png" -resize 512x512 "$launcher_icon" 2>>"$log_file" ||
     install -m 644 "$repo/rofi/rofi-icon.png" "$launcher_icon"
   printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=Launcher" "Comment=App launcher (Alt+Space)" \
-    "Exec=$repo/rofi/bin/k-launch apps" "Icon=$launcher_icon" "Terminal=false" "Categories=Utility;" "StartupWMClass=Rofi" \
+    "Exec=$repo/rofi/bin/k-launch apps" "Icon=k-launch" "Terminal=false" "Categories=Utility;" "StartupWMClass=Rofi" \
     >"$HOME/.local/share/applications/k-launch.desktop"
   # GNOME's panel matches rofi's window to the system rofi.desktop (a gear icon); this copy wins over it
-  sed "s|^Icon=.*|Icon=$launcher_icon|" /usr/share/applications/rofi.desktop >"$HOME/.local/share/applications/rofi.desktop"
+  sed "s|^Icon=.*|Icon=k-launch|" /usr/share/applications/rofi.desktop >"$HOME/.local/share/applications/rofi.desktop"
 }
 
 # -------------------------------------------------------- window-calls ---
@@ -950,7 +951,8 @@ state_rofi() { NOTE=""
   linked "$rofi_conf" "$rofi_src" && (( n++ ))
   rofi_keys_on && (( n++ ))
   launcher_entry_set && (( n++ ))
-  if (( n == 4 )); then STATE=installed; elif (( n )); then STATE=partial; else STATE=missing; fi; }
+  [[ -e $HOME/.config/work-toolkit/patches/rofi.rasi ]] && (( n++ ))   # config.rasi @imports it
+  if (( n == 5 )); then STATE=installed; elif (( n )); then STATE=partial; else STATE=missing; fi; }
 k_launch="$repo/rofi/bin/k-launch"
 rofi_keys_on() { kb_runs rofi-launcher "$k_launch apps" && kb_runs rofi-ssh "$k_launch ssh" &&
   kb_runs rofi-power "$k_launch power" && kb_runs rofi-devices "$k_launch settings"; }
@@ -962,9 +964,12 @@ install_rofi() {
   fi
   if linked "$rofi_conf" "$rofi_src"; then ok "rofi style already linked"
   else ask "Use the toolkit's rofi style? (your own is kept as a backup)" && link_file "$rofi_conf" "$rofi_src" || { skip; return 0; }; fi
-  local k_rofi; k_rofi="$(layer_path "$repo" feelkit 2>/dev/null)/bin/k-rofi"
-  if [[ -x $k_rofi ]]; then dry || "$k_rofi" >>"$log_file" 2>&1 && ok "colours follow k-theme and k-bg"
-  elif [[ ! -e ${rofi_conf%/*}/colors.rasi ]]; then dry || cp "$repo/rofi/colors-default.rasi" "${rofi_conf%/*}/colors.rasi" && ok "default colours (feelkit makes them follow the kitty theme)"; fi
+  # config.rasi @imports your patch and rofi errors when it is missing, so it must exist
+  local rp="$HOME/.config/work-toolkit/patches/rofi.rasi"
+  [[ -e $rp ]] || dry || { mkdir -p "${rp%/*}" && printf "// Your patch for rofi: read after the toolkit's preset, so what you set here wins.\n" >"$rp"; }
+  local k_rofi; k_rofi="$(layer_bin "$repo" k-rofi)"
+  if [[ -n $k_rofi ]]; then dry || "$k_rofi" >>"$log_file" 2>&1 && ok "colours follow k-theme and k-bg"
+  elif [[ ! -e ${rofi_conf%/*}/colors.rasi ]]; then dry || cp "$repo/rofi/colors-default.rasi" "${rofi_conf%/*}/colors.rasi" && ok "default colours (a look layer with k-rofi makes them follow the kitty theme)"; fi
   if launcher_entry_set; then ok "launcher icon already installed"
   else dry || install_launcher_entry && ok "launcher icon installed (log out and back in if the dock still shows none)"; fi
   if rofi_keys_on; then ok "shortcuts already set"
@@ -1632,17 +1637,26 @@ uninstall_claude_guidelines() { local l
 # Parts that shouldn't both be in: "id id|the question" (a layer adds its own; the installer's
 # summary asks it once, default No).
 CLASHES=()
-# A standalone layer (a file "standalone" holding its own command, e.g. fk) is set up on its
-# own: <command> install / uninstall. ./install.sh and ./uninstall.sh leave its parts out.
-declare -gA LAYER_OF=() STANDALONE=()
+# Every part belongs to a kit: tk, or fk (lib/layers.sh). A layer's parts go to the kit in its
+# "kit" file (tk without one), or to the one a part names with kit_<id>(). ./install.sh sets
+# up the tk parts; fk install the fk parts; neither touches the other's.
+declare -gA LAYER_OF=() KIT_OF=() LAYER_KIT=()
 while IFS= read -r _layer; do
   _n=${#COMPONENTS[@]}
   # shellcheck disable=SC1090
   [[ -r $_layer/components.sh ]] && . "$_layer/components.sh"
-  for _id in "${COMPONENTS[@]:_n}"; do LAYER_OF[$_id]=${_layer##*/}; done
-  [[ -f $_layer/standalone ]] && STANDALONE[${_layer##*/}]=$(head -1 "$_layer/standalone")
+  _lk=tk; [[ -f $_layer/kit ]] && _lk=$(head -1 "$_layer/kit")
+  LAYER_KIT[${_layer##*/}]=$_lk
+  for _id in "${COMPONENTS[@]:_n}"; do
+    LAYER_OF[$_id]=${_layer##*/}
+    _k=$_lk; declare -F "$(fn kit "$_id")" >/dev/null && _k=$("$(fn kit "$_id")")
+    [[ -v KIT_LABEL[$_k] ]] || { printf "✗ layer %s: %s names the kit '%s' (tk or fk); using tk\n" "${_layer##*/}" "$_id" "$_k" >&2; _k=tk; }
+    KIT_OF[$_id]=$_k
+  done
 done < <(layer_dirs "$repo")
-unset _layer _n _id
+unset _layer _n _id _lk _k
+# kit_of <id>: the kit a part belongs to
+kit_of() { echo "${KIT_OF[$1]:-tk}"; }
 # A layer's components land at the end of COMPONENTS; bring each group together again, groups
 # in the order they first appear and components in their order inside a group.
 _regroup() {
@@ -1664,10 +1678,13 @@ layer_parts() {
   local d; d=$(layer_path "$repo" "$1") && compgen -G "$d/claude/skills/*/" >/dev/null && echo claude-skill
   return 0
 }
-# main_parts: what plain ./install.sh and ./uninstall.sh offer (no standalone layer's parts)
-main_parts() {
-  local id l
-  for id in "${COMPONENTS[@]}"; do l=${LAYER_OF[$id]:-}; [[ -n $l && -n ${STANDALONE[$l]:-} ]] || echo "$id"; done
+# kit_parts <kit>: the components that kit sets up, from the toolkit and every layer
+kit_parts() {
+  local id
+  for id in "${COMPONENTS[@]}"; do [[ $(kit_of "$id") == "$1" ]] && echo "$id"; done
+  return 0
 }
-# setup_cmd <id>: how to set it up again: "./install.sh", or its standalone layer's "fk install"
-setup_cmd() { local l=${LAYER_OF[$1]:-}; if [[ -n $l && -n ${STANDALONE[$l]:-} ]]; then echo "${STANDALONE[$l]} install"; else echo ./install.sh; fi; }
+# main_parts: what plain ./install.sh and ./uninstall.sh offer (the tk parts)
+main_parts() { kit_parts tk; }
+# setup_cmd <id>: how to set it up again: "./install.sh", or its kit's "fk install"
+setup_cmd() { local k; k=$(kit_of "$1"); if [[ $k == tk ]]; then echo ./install.sh; else echo "$k install"; fi; }
