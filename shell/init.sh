@@ -8,14 +8,16 @@
 _work_root="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")/.." && pwd)"
 if [ -n "${ZSH_VERSION:-}" ]; then _work_sh=zsh; else _work_sh=bash; fi
 
-case ":$PATH:" in *":$_work_root/bin:"*) ;; *) PATH="$_work_root/bin:$PATH" ;; esac
 # Layers (lib/layers.sh): extra parts in layers/<name>/, each from its own repo.
 # Listed with ls, not a glob: an empty glob is an error in zsh.
 # (Loops use $(...) because zsh doesn't split a plain variable into words.)
+# Each folder goes in front, so the last one comes first: unikit's own, a layer can't take
+# one of its command names (uk doctor names a layer that tries).
 _work_layers() { command ls -1 "$_work_root/layers" 2>/dev/null | sed 's|^|layers/|'; }
-for _d in okta kube twingate ws kitty $(_work_layers); do
+for _d in $(_work_layers) kitty ws twingate kube okta; do
   case ":$PATH:" in *":$_work_root/$_d/bin:"*) ;; *) [ -d "$_work_root/$_d/bin" ] && PATH="$_work_root/$_d/bin:$PATH" ;; esac
 done
+case ":$PATH:" in *":$_work_root/bin:"*) ;; *) PATH="$_work_root/bin:$PATH" ;; esac
 export PATH
 
 [ -r "$_work_root/shell/common.sh" ] && . "$_work_root/shell/common.sh"

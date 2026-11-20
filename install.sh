@@ -232,6 +232,16 @@ for id in "${todo[@]}"; do
       continue
     fi
   fi
+  if clash=$(touch_clash "$id"); then   # another layer's part has set up the same thing: ask, never replace silently
+    o=${clash%%$'\t'*}; t=${clash#*$'\t'}; t=${t%%$'\n'*}
+    opts=("Skip it" "Replace $o's")
+    declare -F "$(fn addboth "$id")" >/dev/null && opts+=("Add both")
+    pick=$(choose "${t/#$HOME/\~} is set up by $o ($(layer_name "$o")); $id ($(layer_name "$id")) would change it too." "${opts[@]}")
+    case $pick in
+      "Skip it")  skip "$o keeps it"; continue ;;
+      "Add both") TK_PART=$id; "$(fn addboth "$id")"; continue ;;
+    esac
+  fi
   TK_PART=$id   # links it makes are recorded as its (lib/setup.sh)
   if [[ -n $update && ! -v U_GONE[$id] ]] && u_dead "$id" | grep -q .; then   # links it left pointing nowhere first
     u_clean "$id"; component_state "$id"; [[ $STATE == installed ]] && continue

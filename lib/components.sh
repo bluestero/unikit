@@ -32,6 +32,25 @@ APP_PARTS=(gh clipboard zed vscode)
 repo_of() { echo "${LAYER_OF[$1]:-toolkit}"; }
 # the layer a part comes from, for the installers' LAYER column (unikit: the base's own)
 layer_name() { echo "${LAYER_OF[$1]:-unikit}"; }
+# Two layers (or a layer and unikit) setting up the same thing. A part says what it changes
+# with touches_<id> (one per line: a file, or dconf:/a/path/); before it changes something a
+# part of another layer has set up, the installer asks: skip it (the default; --yes too),
+# replace (backups as always), or add both, when the part can sit beside the other (addboth_<id>).
+touches_of() { local f; f=$(fn touches "$1"); declare -F "$f" >/dev/null && "$f"; return 0; }
+# touch_clash <id>: "part TAB thing" for each set-up part of another layer that changes what it does; 1 when none
+touch_clash() {
+  local id=$1 o t mine rc=1 STATE NOTE NEED
+  mine=$(touches_of "$id"); [[ -n $mine ]] || return 1
+  for o in "${COMPONENTS[@]}"; do
+    [[ $o == "$id" || $(layer_name "$o") == "$(layer_name "$id")" ]] && continue
+    while IFS= read -r t; do
+      [[ -n $t ]] && grep -qxF -- "$t" <<<"$mine" || continue
+      component_state "$o" >/dev/null 2>&1
+      [[ $STATE == installed || $STATE == partial ]] && { printf '%s\t%s\n' "$o" "$t"; rc=0; }
+    done < <(touches_of "$o")
+  done
+  return "$rc"
+}
 group_of() {
   # a layer's component names its own group (group_<id>)
   if declare -F "$(fn group "$1")" >/dev/null; then "$(fn group "$1")"
@@ -193,6 +212,7 @@ state_keys() { NOTE=""; if linked "$HOME/.inputrc" "$inputrc_src"; then STATE=in
 install_keys() { linked "$HOME/.inputrc" "$inputrc_src" && { ok "already linked"; return; }
   ask "Link ~/.inputrc to shell/inputrc?" && link_file "$HOME/.inputrc" "$inputrc_src" || skip; }
 uninstall_keys() { unlink_file "$HOME/.inputrc" "$inputrc_src"; }
+touches_keys() { echo "$HOME/.inputrc"; }
 
 # ------------------------------------------------------------ commands ---
 cmd_bins=(okta/bin/okcli kube/bin/kx twingate/bin/twin bin/ctx bin/uk bin/tk bin/fk ws/bin/ws)
@@ -262,6 +282,7 @@ install_starship() {
 fetch_starship() { local a; case "$(dl_arch)" in amd64) a=x86_64 ;; arm64) a=aarch64 ;; esac
   gh_tool starship/starship "starship-$a-unknown-linux-musl.tar.gz" starship; }
 uninstall_starship() { unlink_file "$ss" "$ss_src"; drop_tool starship; }
+touches_starship() { echo "$ss"; }
 
 # ----------------------------------------------------------------- fzf ---
 # Every toolkit picker runs on fzf. A current release in ~/.local/bin (ahead of
@@ -418,6 +439,7 @@ install_kitty_config() { linked "$kc" "$kc_src" && { ok "already linked"; return
     (( details )) && diff -u "$kc" "$kc_src" | sed 's/^/    /'
   fi
   ask "Link kitty.conf to the repo copy?" && link_file "$kc" "$kc_src" || skip; }
+touches_kitty_config() { echo "$kc"; }
 uninstall_kitty_config() {
   points_at "$kc" "$kc_src" || return 0
   rm -f "$kc"
@@ -472,6 +494,7 @@ install_btop() {
   if [[ -n $kth ]]; then dry || "$kth" btop >>"$log_file" 2>&1 && ok "colours follow k-theme ${D}(theme: $("$kth" current 2>/dev/null))${R}"
   else ok "colours follow the kitty theme once a look layer with k-theme is set up (fk install)"; fi
 }
+touches_btop() { echo "$bt"; }
 uninstall_btop() {
   rm -f "$HOME/.config/btop/themes/kitty.theme"
   unlink_file "$bt" "$bt_src"
@@ -1006,6 +1029,7 @@ install_rofi() {
     ok "Alt+Space = apps, Alt+Shift+Space = ssh, Super+X = power menu, Super+S = speaker/mic/wifi/bluetooth"
   else skip; fi
 }
+touches_rofi() { echo "$rofi_conf"; }
 uninstall_rofi() {
   kb_has rofi-launcher && kb_del rofi-launcher
   kb_has rofi-ssh && kb_del rofi-ssh
@@ -1676,8 +1700,22 @@ CLASHES=()
 declare -gA LAYER_OF=() KIT_OF=() LAYER_KIT=()
 while IFS= read -r _layer; do
   _n=${#COMPONENTS[@]}
-  # shellcheck disable=SC1090
-  [[ -r $_layer/components.sh ]] && . "$_layer/components.sh"
+  if [[ -r $_layer/components.sh ]]; then
+    # A part name that's taken (unikit's or an earlier layer's) would replace that part's
+    # functions: such a layer's parts are left out. Its names are read first, in a subshell.
+    _dup=""
+    # shellcheck disable=SC1090
+    for _id in $( ( COMPONENTS=(); . "$_layer/components.sh" >/dev/null 2>&1; printf '%s\n' "${COMPONENTS[@]}" ) ); do
+      [[ " ${COMPONENTS[*]} " == *" $_id "* ]] && _dup+="${_dup:+, }$_id"
+    done
+    if [[ -n $_dup ]]; then
+      printf '✗ layer %s: its parts are left out: %s %s taken (unikit or another layer has a part of that name)\n' \
+        "${_layer##*/}" "$_dup" "$([[ $_dup == *,* ]] && echo are || echo is)" >&2
+    else
+      # shellcheck disable=SC1090
+      . "$_layer/components.sh"
+    fi
+  fi
   _lk=tk; [[ -f $_layer/kit ]] && _lk=$(head -1 "$_layer/kit")
   LAYER_KIT[${_layer##*/}]=$_lk
   for _id in "${COMPONENTS[@]:_n}"; do
@@ -1687,7 +1725,7 @@ while IFS= read -r _layer; do
     KIT_OF[$_id]=$_k
   done
 done < <(layer_dirs "$repo")
-unset _layer _n _id _lk _k
+unset _layer _n _id _lk _k _dup
 # kit_of <id>: the kit a part belongs to
 kit_of() { echo "${KIT_OF[$1]:-tk}"; }
 # A layer's components land at the end of COMPONENTS; bring each group together again, groups

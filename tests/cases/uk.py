@@ -103,7 +103,7 @@ def test_doctor_passes_a_good_layer_and_names_a_broken_ones_faults(sb):
         f.write("nowhere|Work|a command it doesn't have|\nhalf|Work\n")
     code, out = run(sb, repo, "uk", "doctor")
     assert code == 1, out
-    for fault in ("kit file says 'gk'", "bin/fk-install never runs", "bin/tk: unikit has a tk too",
+    for fault in ("kit file says 'gk'", "bin/fk-install never runs", "bin/tk never runs: unikit's tk comes first",
                   "bin/hello-good: bad has a hello-good too", "bin/notrun isn't executable",
                   "there's no bin/nowhere", "tools line 'half|Work' needs"):
         assert fault in out or fault.replace("bad has", "good has") in out, (fault, out)

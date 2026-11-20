@@ -2,12 +2,17 @@
 # (uk layer add <git-url>; layers/ is gitignored). The toolkit finds them; there
 # is nothing to register. A layer can have any of these, all optional:
 #
-#   bin/              its commands, put on PATH; bin/fk-<name> is also fk <name> (fk's own
-#                     words, install, uninstall and help, stay fk's)
+#   bin/              its commands, put on PATH after unikit's (a command unikit has stays
+#                     unikit's); bin/fk-<name> is also fk <name> (fk's own words, install,
+#                     uninstall and help, stay fk's)
 #   shell/init.sh     sourced by every shell (bash and zsh) before the tools load:
 #                     settings the tools read (OKTA_AWSCLI_*, KX_ALIAS_RULES, ...), aliases
-#   components.sh     installer components: COMPONENTS+=(id ...), the usual
+#   components.sh     installer components: COMPONENTS+=(id ...), names no one else has (a layer
+#                     with a taken name has its parts left out), the usual
 #                     label_/title_/detail_/state_/install_/uninstall_ functions,
+#                     touches_<id> for what it changes (a file, or dconf:/a/path/: the installer
+#                     asks before changing what another layer's part set up; addboth_<id> if it
+#                     can sit beside that one),
 #                     group_<id> to name its group (its installer tab), and
 #                     GROUP_ABOUT[<group>]="one line" for a group of its own
 #                     CLASHES+=("id id|question") for two parts that shouldn't both be in
@@ -17,6 +22,8 @@
 #   tools             its commands for the kit's picker and help:
 #                       name|group|what it does|program it needs[|kit]
 #                     (kit: tk or fk; without it, the layer's kit)
+#   requires          the layers it needs, one name per line (uk doctor and uk layer add say
+#                     when one isn't there). A layer needs only unikit and itself, unless it says so here
 #   workspaces        a shared ws list; "@<name>" in your own list brings it in
 #   claude/skills/*/  Claude Code skills, linked by the claude-skill component
 #
@@ -57,3 +64,7 @@ layer_bin() {
 own_repo() { [[ "$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" == "$(cd "$1" && pwd -P)" ]]; }
 # layer_kit <dir>: the kit its parts go to unless a part says otherwise
 layer_kit() { local k=tk; [[ -f $1/kit ]] && k=$(head -1 "$1/kit"); printf '%s\n' "$k"; }
+# layer_requires <dir>: the layers it needs (its requires file), one per line
+layer_requires() { [[ -r $1/requires ]] && grep -v '^[[:space:]]*\(#\|$\)' "$1/requires"; return 0; }
+# layer_missing <dir>: the ones of those that aren't here
+layer_missing() { local t; while IFS= read -r t; do [[ -d ${1%/layers/*}/layers/$t ]] || echo "$t"; done < <(layer_requires "$1"); }

@@ -164,8 +164,10 @@ lay_key() {   # key value query
           err=$(GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes" git clone -q "$url" "$dir" 2>&1) ||
             { rm -rf "$dir"; ip_reask "couldn't clone it: $(grep -v '^$' <<<"$err" | tail -1)"; return; }
           ip_set cur "$name"; ip_set saved_q ""
+          local miss note=""; miss=$(layer_missing "$dir" | paste -sd' ')
+          [[ -n $miss ]] && note="${C_YELLOW}! it needs layers that aren't here: $miss; alt-a adds them${C_RESET}"
           ip_join "$(ip_fz reload-sync "bash $(printf %q "$SELF") __relist")" \
-            "$(ip_confirm "Added $name (its commands load in new terminals). Set up its parts now?" setup y)" ;;
+            "$(ip_confirm "Added $name (its commands load in new terminals). Set up its parts now?" setup y "$note")" ;;
       esac ;;
     confirm)
       local a; a=$(ip_answer "$k"); [[ -n $a ]] || return 0
@@ -251,6 +253,7 @@ layer_add() {
   mkdir -p "$ROOT/layers"
   git clone -q "$url" "$dir" || die "couldn't clone $url (no access? check: ssh -T git@github.com)"
   ok "layer $name added: ${dir/#$HOME/\~}"
+  local t; for t in $(layer_missing "$dir"); do warn "it needs the $t layer, which isn't here: uk layer add <its git URL>"; done
   info "${C_DIM}Its commands and settings load in new terminals.${C_RESET}"
   later="tk install --layer=$name"
   [[ $(layer_kit "$dir") != tk ]] && later="$(layer_kit "$dir") install"   # its parts are fk's (fk install)
@@ -319,6 +322,11 @@ cmd_doctor() {
       k=$(head -1 "$d/kit")
       if [[ -v KIT_LABEL[$k] ]]; then check "$l" ok kit; else check "$l" bad "its kit file says '$k' (tk or fk)"; fi
     fi
+    while IFS= read -r t; do   # the layers it needs (its requires file)
+      [[ -z $t || $t == \#* ]] && continue
+      if [[ -d $ROOT/layers/$t ]]; then check "$l" ok "needs $t"
+      else check "$l" bad "needs the $t layer, which isn't here" "uk layers, alt-a adds it"; fi
+    done < <(layer_requires "$d")
     if [[ -r $d/components.sh ]]; then
       if t=$(bash -n "$d/components.sh" 2>&1); then check "$l" ok components.sh
       else check "$l" bad "components.sh doesn't parse: $(head -1 <<<"$t")"; fi
@@ -340,20 +348,15 @@ cmd_doctor() {
       [[ -x $f ]] || check "$l" bad "bin/$c isn't executable" "chmod +x $f"
       case $c in fk-install|fk-uninstall|fk-help)
         check "$l" bad "bin/$c never runs: fk ${c#fk-} is fk's own"; continue ;; esac
-      if [[ -v owner[$c] ]]; then check "$l" bad "bin/$c: ${owner[$c]} has a $c too; which one runs depends on PATH"
+      if [[ ${owner[$c]:-} == unikit ]]; then check "$l" bad "bin/$c never runs: unikit's $c comes first on PATH"
+      elif [[ -v owner[$c] ]]; then check "$l" bad "bin/$c: ${owner[$c]} has a $c too; the one first on PATH runs"
       else owner[$c]=$l; fi
     done
   done < <(layer_dirs "$ROOT")
-  # the loader's own words (a part naming an unknown kit), and parts that come twice
+  # the loader's own words: a part naming an unknown kit, a layer whose part names are taken
   while IFS= read -r t; do
     [[ $t =~ ^✗\ layer\ ([^:]+):\ (.*)$ ]] && check "${BASH_REMATCH[1]}" bad "${BASH_REMATCH[2]}"
   done <<<"$err"
-  while IFS= read -r id; do
-    [[ -n $id ]] || continue
-    l=$(awk -F'\t' -v id="$id" '$3 == id { print $1; exit }' "$parts")
-    check "${l:-unikit}" bad "the part $id comes twice (unikit's own or another layer's has that name); the last one loaded wins"
-  done < <( ( repo=$ROOT mode=dry details=0; . "$ROOT/lib/setup.sh" >/dev/null 2>&1; . "$ROOT/lib/components.sh" >/dev/null 2>&1
-             printf '%s\n' "${COMPONENTS[@]}" | sort | uniq -d ) )
   rm -f "$parts"
 
   for name in "${ORDER[@]}"; do

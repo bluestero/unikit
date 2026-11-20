@@ -1,0 +1,114 @@
+"""What keeps layers from stepping on each other, in a scratch copy of the repo with the test's
+own layers: a part name that's taken leaves that layer's parts out; two layers' parts that
+change the same file ask first (skip by default, --yes skips too); unikit's commands come
+first on PATH; a layer's requires file names the layers it needs."""
+import os
+import shutil
+import subprocess
+
+from fixture import REPO
+from term import Term
+
+
+def copy(sb):
+    dst = sb.root + "/repo"
+    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "tests", "tasks", "layers", "*.zip"))
+    return dst
+
+
+def layer(repo, name, body, **files):
+    d = f"{repo}/layers/{name}"
+    os.makedirs(d, exist_ok=True)
+    with open(d + "/components.sh", "w") as f:
+        f.write(body)
+    for k, v in files.items():
+        os.makedirs(os.path.dirname(f"{d}/{k}"), exist_ok=True)
+        with open(f"{d}/{k}", "w") as f:
+            f.write(v)
+    return d
+
+
+def part(pid, file, extra=""):
+    """A part that writes <file> with its name in it; set up when the file says so."""
+    fn = pid.replace("-", "_")
+    return (f'COMPONENTS+=({pid})\ngroup_{fn}() {{ echo Demo; }}; label_{fn}() {{ echo {pid}; }}\n'
+            f'title_{fn}() {{ echo "writes {file}"; }}; detail_{fn}() {{ echo {file}; }}\n'
+            f'state_{fn}() {{ NOTE=""; if grep -qx {pid} "{file}" 2>/dev/null; then STATE=installed; else STATE=missing; fi; }}\n'
+            f'install_{fn}() {{ dry || {{ echo {pid} >"{file}"; ok "wrote it"; }}; }}; uninstall_{fn}() {{ rm -f "{file}"; }}\n'
+            f'touches_{fn}() {{ echo "{file}"; }}\n{extra}')
+
+
+def run(sb, repo, *args):
+    p = subprocess.run([repo + "/" + args[0], *args[1:]], env=sb.env, cwd=sb.home, capture_output=True,
+                       text=True, stdin=subprocess.DEVNULL, timeout=60)
+    return p.returncode, p.stdout + p.stderr
+
+
+def test_a_taken_part_name_leaves_the_layers_parts_out(sb):
+    repo = copy(sb)
+    layer(repo, "sneaky", part("starship", sb.home + "/x") + part("sneaky-own", sb.home + "/y"))
+    _, out = run(sb, repo, "install.sh", "ls")
+    assert "layer sneaky: its parts are left out: starship is taken" in out, out
+    assert "sneaky-own" not in out, out
+    code, out = run(sb, repo, "bin/uk", "doctor")
+    assert code == 1 and "its parts are left out: starship is taken" in out, out
+
+
+def test_the_same_file_asks_and_skips_by_default(sb):
+    repo = copy(sb)
+    f = sb.home + "/shared.conf"
+    layer(repo, "one", part("one-conf", f))
+    layer(repo, "two", part("two-conf", f))
+    run(sb, repo, "install.sh", "--yes", "one-conf")
+    assert open(f).read().strip() == "one-conf"
+    _, out = run(sb, repo, "install.sh", "--yes", "two-conf")      # --yes never replaces
+    assert "is set up by one-conf (one)" in out and "one-conf keeps it" in out, out
+    assert open(f).read().strip() == "one-conf"
+    t = Term([repo + "/install.sh", "--plain", "two-conf"], sb.env, cols=130, rows=30, cwd=sb.home)
+    t.wait_for("would change it too")
+    assert "Skip it" in t.text() and "Replace one-conf's" in t.text() and "Add both" not in t.text(), t.text()
+    t.key("enter")                                                     # the default: skip
+    t.wait_exit(timeout=20)
+    assert open(f).read().strip() == "one-conf"
+
+
+def test_replace_and_add_both(sb):
+    repo = copy(sb)
+    f = sb.home + "/shared.conf"
+    layer(repo, "one", part("one-conf", f))
+    layer(repo, "two", part("two-conf", f, extra=f'addboth_two_conf() {{ echo two-extra >"{f}.two"; ok "beside it"; }}\n'))
+    run(sb, repo, "install.sh", "--yes", "one-conf")
+    t = Term([repo + "/install.sh", "--plain", "two-conf"], sb.env, cols=130, rows=30, cwd=sb.home)
+    t.wait_for("Add both")
+    t.key("down", "down", "enter")
+    t.wait_exit(timeout=20)
+    assert open(f).read().strip() == "one-conf" and os.path.exists(f + ".two"), t.text()
+    t = Term([repo + "/install.sh", "--plain", "two-conf"], sb.env, cols=130, rows=30, cwd=sb.home)
+    t.wait_for("Replace one-conf's")
+    t.key("down", "enter")
+    t.wait_exit(timeout=20)
+    assert open(f).read().strip() == "two-conf", t.text()
+
+
+def test_unikits_commands_come_first_on_path(sb):
+    repo = copy(sb)
+    d = layer(repo, "shadow", "")
+    os.makedirs(d + "/bin")
+    for name in ("tk", "shadow-cmd"):
+        with open(f"{d}/bin/{name}", "w") as f:
+            f.write("#!/bin/sh\necho shadow\n")
+        os.chmod(f"{d}/bin/{name}", 0o755)
+    out = subprocess.run(["bash", "-c", f'. "{repo}/shell/init.sh" >/dev/null 2>&1; type -P tk; type -P shadow-cmd'],
+                         env=sb.env, cwd=sb.home, capture_output=True, text=True, timeout=60).stdout.split()
+    assert out == [repo + "/bin/tk", d + "/bin/shadow-cmd"], out
+
+
+def test_requires_names_a_missing_layer(sb):
+    repo = copy(sb)
+    sb.add_path(repo + "/bin")
+    layer(repo, "needy", "", requires="# what it builds on\nbase-team\n")
+    code, out = run(sb, repo, "bin/uk", "doctor")
+    assert code == 1 and "needs the base-team layer, which isn't here" in out, out
+    layer(repo, "base-team", "")
+    code, out = run(sb, repo, "bin/uk", "doctor")
+    assert "needs the base-team layer" not in out, out

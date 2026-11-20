@@ -47,6 +47,29 @@ ask() {
   [[ "$reply" =~ ^[Yy] ]]
 }
 
+# choose "<question>" <option>... → prints the one picked. The first is the default (also on
+# esc); a dry run and --yes take it without asking. A small picker, like ask's.
+choose() {
+  local q="$1" r i; shift
+  case "$mode" in
+    dry) say "  ${C}?${R} $q ${D}$1 (dry run: not asked)${R}" >&2; printf '%s' "$1"; return ;;
+    yes) say "  ${C}?${R} $q ${D}$1 (--yes)${R}" >&2; printf '%s' "$1"; return ;;
+  esac
+  if [[ -n "${GUM:-}" ]]; then
+    r=$("$GUM" choose --header="$(printf '%s' "$q" | sed 's/\x1b\[[0-9;]*m//g')" "$@" </dev/tty 2>/dev/tty)
+  elif command -v fzf >/dev/null && [[ -e /dev/tty ]]; then
+    r=$(printf '%s\n' "$@" | ui_fzf "${UI_CONFIRM_LABEL:-choose}" --height=~60% --info=hidden --no-separator --no-input \
+      --color="$UI_ASK_COLORS" --header="$(fold -s -w $(( $(ui_cols) - 10 )) <<<"$q" | sed "s/^/${B}/; s/\$/${R}/")")
+  else
+    i=1; for r in "$@"; do say "    $i) $r" >&2; i=$((i + 1)); done
+    read -r -p "  ${C}?${R} $q [1-$#, default: 1] " r </dev/tty
+    [[ $r =~ ^[0-9]+$ ]] && (( r >= 1 && r <= $# )) && r=${!r} || r=$1
+  fi
+  r=${r:-$1}
+  say "  ${C}?${R} $q ${D}$r${R}" >&2
+  printf '%s' "$r"
+}
+
 # ask_text "<question>" "<prefill>" → ANSWER (1 = cancelled). --yes and dry runs
 # take the prefill without asking.
 ask_text() {

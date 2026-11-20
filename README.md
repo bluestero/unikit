@@ -116,10 +116,11 @@ Copying a folder into `layers/` works too (no updates then). Everything in a lay
 
 | In the layer | What the toolkit does with it |
 |---|---|
-| `bin/` | on PATH in every shell; `bin/fk-<name>` is also `fk <name>` (fk's own words, `install`, `uninstall`, `help`, stay fk's) |
+| `bin/` | on PATH in every shell, after unikit's own (a command unikit has stays unikit's; `uk doctor` names a layer that tries); `bin/fk-<name>` is also `fk <name>` (fk's own words, `install`, `uninstall`, `help`, stay fk's) |
 | `shell/init.sh` | sourced by bash and zsh before the tools load: settings they read (`OKTA_AWSCLI_ORG_DOMAIN`, `OKTA_AWSCLI_OIDC_CLIENT_ID`, `OKCLI_NAMING_DEFAULT`, `KX_ALIAS_RULES`), aliases |
-| `components.sh` | installer components (`COMPONENTS+=(…)` and the usual functions; `group_<id>` names its installer tab, `GROUP_ABOUT[<group>]="…"` says what a new group is) |
+| `components.sh` | installer components (`COMPONENTS+=(…)` and the usual functions; `group_<id>` names its installer tab, `GROUP_ABOUT[<group>]="…"` says what a new group is). A part name unikit or another layer already has leaves this layer's parts out. `touches_<id>` says what a part changes (a file, or `dconf:/a/path/`): before it changes something another layer's part set up, the installer asks: skip it (the default, and what `--yes` does), replace, or add both (when the part has `addboth_<id>`) |
 | `tools` | commands for the kit's picker and help (`tk ls`, `tk`; `fk`): `name\|group\|what it does\|program it needs[\|kit]`; without the kit, the layer's |
+| `requires` | the layers it needs, one name per line. A layer needs only unikit and itself unless it says so here; `uk doctor` and `uk layer add` say when one isn't there |
 | `workspaces` | a shared `ws` list; `@<name>` in your own list brings it in |
 | `claude/skills/<skill>/` | Claude Code skills, linked by the `claude-skill` component |
 | `kit` | one line, `tk` or `fk`: the kit this layer's parts go to unless a part says otherwise (`kit_<id>() { echo fk; }`; `tk` without the file). `tk install` sets up the tk parts and `fk install` the fk parts, from the toolkit and every layer, and each leaves the other's out; `tk status` and `tk doctor` give each other kit one line ("6 of 11 parts set up → fk install") |
