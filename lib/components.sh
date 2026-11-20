@@ -1429,7 +1429,7 @@ claude_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 claude_dirs() {   # every profile folder, one per line (none there yet: where claude will make one)
   local d
   for d in "${CLAUDE_CONFIG_DIR:-}" "$HOME/.claude" "${CLAUDE_PROFILES_DIR:-$HOME/.claude-profiles}"/*/; do
-    [[ -n $d && -d $d ]] && readlink -m "$d"
+    if [[ -n $d && -d $d ]]; then readlink -m "$d"; fi   # (an && here fails the loop: pipefail then printed the fallback too)
   done | awk '!seen[$0]++' | grep . || { type -P claude >/dev/null && echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"; }
   return 0
 }
@@ -1472,7 +1472,15 @@ cs_install() { local l t
     [[ -e "$l" && ! -L "$l" ]] && { warn "${l/#$HOME/\~} exists and isn't a link; left alone"; continue; }
     ask "Teach Claude Code the $(basename "$l") skill? (in ${claude_dir/#$HOME/\~}/skills)" && { dry || link_file "$l" "$t"; } || skip
   done < <(cs_pairs); }
-install_claude_skill() { claude_each cs_install; }
+# In a terminal: a picker of the skills, then the profiles (lib/skills.sh); otherwise one
+# question per skill and profile (--yes links them all, a dry run says what it would ask).
+install_claude_skill() {
+  if [[ $mode == ask && -t 0 && -t 1 ]] && type -P fzf >/dev/null && ui_fzf_at_least 0.63; then
+    # shellcheck source=skills.sh
+    . "$repo/lib/skills.sh"; sk_pick; return
+  fi
+  claude_each cs_install
+}
 cs_uninstall() { local l t; while IFS=$'\t' read -r l t; do unlink_file "$l" "$t"; done < <(cs_pairs); }
 uninstall_claude_skill() { claude_each cs_uninstall; }
 
