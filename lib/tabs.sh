@@ -7,7 +7,7 @@
 # The state dir:
 #   tabs     the groups, one per line, in order (the summary tab comes after them)
 #   about    "group\x1eone line on what it is"
-#   info     one line per component: id group tickable state badge label title detail note (\x1e between)
+#   info     one line per component: id group tickable state badge label title detail layer note (\x1e between)
 #   on       the ticked ids     cur  the open tab (0 = first)
 #   dry/<id> its --dry-run lines (written in the background)
 #   cmds     "<set up again> TAB <undo>" (./install.sh, ./uninstall.sh, or fk install, ...)
@@ -37,7 +37,7 @@ tabs_pick() {
     [[ " ${preticked[*]} " == *" $id "* ]] && echo "$id" >>"$T/on"
     [[ ${ST[$id]} == needs ]] && printf '%s\t%s\n' "$id" "${ND[$id]}" >>"$T/needs"   # ticking it ticks these
     printf '%s\x1e' "$id" "$g" "$on" "${ST[$id]}" "$(badge "${ST[$id]}" "${ND[$id]}" "${NT[$id]}")" "$("$(fn label "$id")")" \
-      "$("$(fn title "$id")")" "$("$(fn detail "$id")")" >>"$T/info"
+      "$("$(fn title "$id")")" "$("$(fn detail "$id")")" "$(layer_name "$id")" >>"$T/info"
     printf '%s\n' "${NT[$id]}" >>"$T/info"
   done
   # tk update opens on the first tab with something to do
@@ -74,10 +74,10 @@ tabs_pick() {
 }
 
 # ------------------------------------------------------------ callbacks ---
-# One component from info: sets I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_NOTE.
+# One component from info: sets I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_LAYER I_NOTE.
 t_info() {
   local line; line=$(grep -m1 "^$1"$'\x1e' "$T/info") || return 1
-  IFS=$'\x1e' read -r I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_NOTE <<<"$line"
+  IFS=$'\x1e' read -r I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_LAYER I_NOTE <<<"$line"
 }
 t_on() { grep -qxF "$1" "$T/on"; }
 t_load() { mapfile -t TABS <"$T/tabs"; read -r CUR <"$T/cur"; NT=${#TABS[@]}; IFS=$'\t' read -r AGAIN UNDO <"$T/cmds"; }   # summary = tab NT
@@ -89,15 +89,15 @@ t_rows() {
   local mark n=0
   {
     if (( CUR < NT )); then
-      printf '\x1f%s\x1f%s\x1f%s\t\n' "${C_BOLD}COMPONENT$C_RESET" "${C_BOLD}STATE$C_RESET" "${C_BOLD}WHAT YOU GET$C_RESET"
-      while IFS=$'\x1e' read -r I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_NOTE; do
+      printf '\x1f%s\x1f%s\x1f%s\x1f%s\t\n' "${C_BOLD}COMPONENT$C_RESET" "${C_BOLD}STATE$C_RESET" "${C_BOLD}LAYER$C_RESET" "${C_BOLD}WHAT YOU GET$C_RESET"
+      while IFS=$'\x1e' read -r I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_LAYER I_NOTE; do
         [[ $I_GROUP == "${TABS[CUR]}" ]] || continue
         if (( ! I_TICK )); then mark="   "; elif t_on "$I_ID"; then mark="$C_GREEN[✓]$C_RESET"; else mark="[ ]"; fi
-        printf '%s\x1f%s\x1f%s\x1f%s\t%s\n' "$mark" "$I_ID" "$I_BADGE" "$C_DIM$I_TITLE$C_RESET" "$I_ID"
+        printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\t%s\n' "$mark" "$I_ID" "$I_BADGE" "$C_DIM$I_LAYER$C_RESET" "$C_DIM$I_TITLE$C_RESET" "$I_ID"
       done <"$T/info"
     else
       printf '%s\x1f%s\t\n' "${C_BOLD}SETS UP$C_RESET" "${C_BOLD}WHAT YOU GET$C_RESET"
-      while IFS=$'\x1e' read -r I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_NOTE; do
+      while IFS=$'\x1e' read -r I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_LAYER I_NOTE; do
         t_on "$I_ID" || continue
         printf '%s\x1f%s\t%s\n' "$C_GREEN✓$C_RESET $I_ID" "$C_DIM$I_TITLE$C_RESET" "$I_ID"; n=$((n + 1))
       done <"$T/info"

@@ -50,12 +50,12 @@ use_gum
 
 # What this run may touch: one layer's parts (--layer), one kit's (--kit), else the tk parts
 if [[ -n $layer ]]; then
-  layer_path "$repo" "$layer" >/dev/null || { printf '✗ no layer %s · see: tk layer ls\n' "'$layer'" >&2; exit 2; }
+  layer_path "$repo" "$layer" >/dev/null || { printf '✗ no layer %s · see: uk layers\n' "'$layer'" >&2; exit 2; }
   mapfile -t allowed < <(layer_parts "$layer")
 elif [[ -n $kit ]]; then
   [[ -v KIT_LABEL[$kit] ]] || { printf '✗ no kit %s (tk or fk)\n' "'$kit'" >&2; exit 2; }
   mapfile -t allowed < <(kit_parts "$kit")
-  (( ${#allowed[@]} )) || { echo "$kit has no parts yet: no layer brings any. Add one: tk layer add <git-url>"; exit 0; }
+  (( ${#allowed[@]} )) || { echo "$kit has no parts yet: no layer brings any. Add one: uk layers"; exit 0; }
 else mapfile -t allowed < <(main_parts); fi
 again=./install.sh
 if [[ -n $layer ]]; then _k=${LAYER_KIT[$layer]:-tk}; else _k=${kit:-tk}; fi

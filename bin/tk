@@ -218,10 +218,6 @@ cmd_version() {
 }
 
 # ---------------------------------------------------------------- update ---
-# <dir> is a git clone of its own (a layer copied in by hand is part of nothing,
-# and git would otherwise answer for the toolkit repo around it)
-own_repo() { [[ "$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" == "$(cd "$1" && pwd -P)" ]]; }
-
 # pull_one <dir> <name> <changed file>: pull it, say what changed, add the changed files
 # (full paths) to <changed file>
 pull_one() {
@@ -310,69 +306,6 @@ cmd_update() {
   return "$rc"
 }
 
-# ---------------------------------------------------------------- layers ---
-# Extra parts from other repos, in layers/<name>/ (lib/layers.sh says what a
-# layer can hold). tk layer add clones one; copying a folder there works too.
-layer_ls() {
-  [[ -t 1 ]] || ui_no_color
-  local d n=0 from ver rows="${C_BOLD}LAYER${C_RESET}$S${C_BOLD}FROM${C_RESET}$S${C_BOLD}VERSION${C_RESET}"$'\n'
-  while IFS= read -r d; do
-    n=$((n + 1))
-    if own_repo "$d"; then
-      from=$(git -C "$d" remote get-url origin 2>/dev/null || echo "a git repo with no remote")
-      ver=$(git -C "$d" log -1 --format='%h, %cs' 2>/dev/null)
-    else from="${C_DIM}a copied folder (no updates)${C_RESET}"; ver="–"; fi
-    rows+="  $C_CYAN$(basename "$d")$C_RESET$S$from$S$ver"$'\n'
-  done < <(layer_dirs "$ROOT")
-  (( n )) || { info "No layers yet. Add one: tk layer add <git-url>"; return 0; }
-  printf '%s' "$rows" | ui_table "tk · layers" "$n layer$( (( n > 1 )) && echo s)" "$(ui_hint 'tk layer add <git-url> · tk layer rm <name>')"
-}
-
-layer_add() {
-  local url=${1:-} name dir
-  [[ -n $url ]] || die "which repo? tk layer add <git-url> [name]   e.g. git@github.com:me/acme-toolkit.git"
-  name=${2:-$(basename "${url%.git}")}; name=${name#unix-}; name=${name%-toolkit}   # unix-feelkit -> feelkit, acme-toolkit -> acme
-  dir="$ROOT/layers/$name"
-  [[ -e $dir ]] && die "layers/$name is already there (tk layer ls)"
-  mkdir -p "$ROOT/layers"
-  git clone -q "$url" "$dir" || die "couldn't clone $url (no access? check: ssh -T git@github.com)"
-  ok "layer $name added: ${dir/#$HOME/\~}"
-  info "${C_DIM}Its commands and settings load in new terminals.${C_RESET}"
-  local later="tk install --layer=$name"
-  [[ -f $dir/kit && $(head -1 "$dir/kit") != tk ]] && later="$(head -1 "$dir/kit") install"   # its parts are fk's (fk install)
-  confirm "Set up its parts now?" y && exec "$ROOT/install.sh" --layer="$name"
-  info "Later: $later"
-}
-
-layer_rm() {
-  local name=${1:-} dir
-  [[ -n $name ]] || die "which layer? tk layer rm <name>   (tk layer ls)"
-  dir="$ROOT/layers/$name"
-  [[ -d $dir ]] || die "there's no layer $name (tk layer ls)"
-  if own_repo "$dir"; then
-    if [[ -n $(git -C "$dir" status --porcelain) ]] || ! git -C "$dir" rev-parse '@{u}' >/dev/null 2>&1 ||
-       [[ -n $(git -C "$dir" log --oneline '@{u}..') ]]; then
-      die "layers/$name has work that isn't pushed (uncommitted, or commits not on its remote). Push it first, or delete the folder yourself."
-    fi
-  else
-    warn "layers/$name isn't a git clone, so deleting it can't be undone"
-  fi
-  local undo="tk uninstall --layer=$name"
-  [[ -f $dir/kit && $(head -1 "$dir/kit") != tk ]] && undo="$(head -1 "$dir/kit") uninstall"   # its parts are fk's (fk uninstall)
-  info "${C_DIM}Parts it set up stay set up; to remove them first: $undo${C_RESET}"
-  confirm "Remove the $name layer (delete ${dir/#$HOME/\~})?" n || { info "Kept."; return 0; }
-  rm -rf "$dir" && ok "layer $name removed · open a new terminal"
-}
-
-cmd_layer() {
-  case "${1:-ls}" in
-    ls|list)    layer_ls ;;
-    add)        shift; layer_add "$@" ;;
-    rm|remove)  shift; layer_rm "$@" ;;
-    *)          ui_unknown "tk layer" "$1" ;;
-  esac
-}
-
 cmd_help() {
   ui_help tk "the work toolkit" <<'EOF'
 ## Commands
@@ -384,9 +317,6 @@ tk install [part...]	./install.sh from anywhere	tk install zsh
 tk uninstall [part...]	./uninstall.sh from anywhere
 tk configs	starship, btop, rofi, kitty, readline, yazi keys: the toolkit's preset, the app's default, what you had before, or undo; your own patch on top of each	patches: ~/.config/work-toolkit/patches · edited preset: you changed the toolkit's copy
 tk update	what's new in the toolkit and each layer (their commits); pulls the ones you tick, then each part: up to date, needs a fix, new or removed; fixes what you tick	--yes pulls all; no terminal: pulls nothing
-tk layer [ls]	the layers: extra parts from other repos, in layers/<name>
-tk layer add <git-url> [name]	clone a layer, then offer to set up its parts	name: repo name without -toolkit
-tk layer rm <name>	delete a layer (only when nothing in it is unpushed)
 tk version	the toolkit version (also -v, --version)
 tk help	this page
 
@@ -403,7 +333,7 @@ case "${1:-}" in
   uninstall)      shift; exec "$ROOT/uninstall.sh" "$@" ;;
   update)         shift; cmd_update "$@" ;;
   configs)        shift; exec bash "$ROOT/lib/configs.sh" "$@" ;;
-  layer|layers)   shift; cmd_layer "$@" ;;
+  layer|layers)   die "the layers moved to unikit: uk layers (uk help)" ;;
   version|-v|--version) cmd_version ;;
   __guard)        exec "$ROOT/claude/guard.sh" ;;   # Claude Code's PreToolUse hook (claude-guard)
   help|-h|--help) cmd_help ;;

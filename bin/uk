@@ -1,0 +1,432 @@
+#!/usr/bin/env bash
+# uk (unikit) - the base: its layers (extra parts from other repos, in layers/<name>),
+# whether they are well formed, the version. The kits are tk (toolkit: what you work
+# with) and fk (feelkit: how it looks); each sets up its own parts. `uk help` lists it all.
+set -uo pipefail
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
+# shellcheck source=../lib/ui.sh
+. "$ROOT/lib/ui.sh"
+# shellcheck source=../lib/layers.sh
+. "$ROOT/lib/layers.sh"
+# shellcheck source=../lib/inplace.sh
+. "$ROOT/lib/inplace.sh"
+S=$'\x1f'
+
+version() { tr -d '[:space:]' <"$ROOT/VERSION" 2>/dev/null || printf 'unknown'; }
+rev_of() { git -C "$1" log -1 --format='%h, %cs' 2>/dev/null; }
+# a layer's version: its VERSION file (if it has one) and its commit
+layer_ver() {
+  local v r; own_repo "$1" && r=$(rev_of "$1")
+  [[ -r $1/VERSION ]] && v=$(tr -d '[:space:]' <"$1/VERSION")
+  if [[ -n ${v:-} ]]; then printf '%s%s' "$v" "${r:+ ($r)}"; else printf '%s' "${r:-–}"; fi
+}
+layer_from() {
+  if own_repo "$1"; then git -C "$1" remote get-url origin 2>/dev/null || echo "a git repo with no remote"
+  else echo "a copied folder (no updates)"; fi
+}
+
+# Every installer part the layers bring: "layer TAB kit TAB id" (2>: the loader's warnings)
+layer_parts() {
+  ( repo=$ROOT mode=dry details=0
+    # shellcheck source=../lib/setup.sh
+    . "$ROOT/lib/setup.sh" >/dev/null 2>&1
+    # shellcheck source=../lib/components.sh
+    . "$ROOT/lib/components.sh" >/dev/null
+    for id in "${COMPONENTS[@]}"; do
+      [[ -v LAYER_OF[$id] ]] && printf '%s\t%s\t%s\n' "${LAYER_OF[$id]}" "$(kit_of "$id")" "$id"
+    done )
+}
+# the kits a layer feeds: its parts' and its commands'
+layer_feeds() {   # dir parts-file
+  local l=${1##*/} k lk t
+  lk=$(layer_kit "$1")
+  { awk -F'\t' -v l="$l" '$1 == l { print $2 }' "$2"
+    [[ -r $1/tools ]] && while IFS= read -r t; do
+      [[ -z $t || $t == \#* ]] && continue
+      IFS='|' read -r _ _ _ _ k <<<"$t"; echo "${k:-$lk}"
+    done <"$1/tools"
+  } | sort -u | paste -sd' '
+}
+
+# ------------------------------------------------------------- the list ---
+# A layer per row: name · the kits it feeds · where from · version, its name after a TAB
+lay_rows() {
+  local d parts f
+  parts=$(mktemp); layer_parts >"$parts" 2>/dev/null
+  printf 'LAYER%sFEEDS%sFROM%sVERSION\t\n' "$S" "$S" "$S"
+  while IFS= read -r d; do
+    f=$(layer_feeds "$d" "$parts")
+    printf '%s\t%s\n' "${C_CYAN}${d##*/}${C_RESET}$S${f:-–}$S$C_DIM$(layer_from "$d")$C_RESET$S$(layer_ver "$d")" "${d##*/}"
+  done < <(layer_dirs "$ROOT")
+  rm -f "$parts"
+}
+LAY_KEYS="# The layers: extra parts from other repos, in layers/<name>
+enter: what to do with it · alt-a: add a layer · alt-i: about it (on/off) · esc: close"
+lay_lay() { print_table 3 "$(ui_pick_width)" <"$IP/cells.$1" >"$IP/rows.$1"; }
+lay_relist() { lay_rows >"$IP/cells.list"; lay_lay list; cat "$IP/rows.list"; }
+lay_menu_rows() {
+  printf 'CHOICE%sWHAT IT DOES\t\n' "$S"
+  printf '%s\t%s\n' "Set up its parts${S}its parts' tabs in the installer, nothing ticked" setup \
+    "Remove its parts${S}the uninstaller for its parts, putting your own settings back" undo \
+    "Remove this layer${S}delete its folder (its parts stay set up)" rm
+}
+
+cmd_layers() {
+  if [[ ! -t 0 || ! -t 1 ]] || ! type -P fzf >/dev/null || ! ui_fzf_at_least 0.63; then layer_ls; return; fi
+  IP=$(mktemp -d) || return 1; export IP
+  trap 'rm -rf "$IP"' EXIT
+  ip_set mode list
+  lay_rows >"$IP/cells.list"; lay_lay list
+  local cb k then cur
+  cb="bash $(printf %q "$SELF") __key"
+  local -a binds=(--bind "start:unbind(y,n)" --bind "alt-i:toggle-preview")
+  for k in enter esc y n alt-a resize; do binds+=(--bind "$k:transform:$cb $k {2} {q}"); done
+  ui_fzf 'uk · layers' --toast --with-shell='bash -c' --delimiter='\t' --with-nth=1 --header-lines=1 \
+    --prompt='layer> ' --footer=' ' --header="$LAY_KEYS" "${binds[@]}" \
+    --preview="bash $(printf %q "$SELF") __about {2}" --preview-window='right,55%,wrap,hidden' \
+    <"$IP/rows.list" >/dev/null
+  then=$(ip_get then) cur=$(ip_get cur)
+  rm -rf "$IP"; trap - EXIT
+  case $then in   # what the list was left for: the installer, in this terminal
+    setup) exec "$ROOT/install.sh" --layer="$cur" ;;
+    undo)  exec "$ROOT/uninstall.sh" --layer="$cur" ;;
+  esac
+  return 0
+}
+
+lay_to_list() {   # [toast]: back to the layers, the cursor on the current one
+  local n; n=$(awk -F'\t' -v id="$(ip_get cur)" '$2 == id { print NR - 1; exit }' "$IP/rows.list")
+  local -a a=("$(ip_back)" "$(ip_fz reload-sync "bash $(printf %q "$SELF") __relist")" "pos(${n:-1})"
+    "$(ip_fz change-header "$(ui_keys "$LAY_KEYS")")" "$(ip_fz change-prompt 'layer> ')")
+  if [[ -n ${1:-} ]]; then a+=("$(ui_toast "$1")"); else a+=("$(ip_fz change-footer " ")"); fi
+  ip_join "${a[@]}"
+}
+
+# why a layer can't be removed now (work that would be lost), or nothing
+rm_blocked() {
+  local dir=$ROOT/layers/$1
+  own_repo "$dir" || return 1
+  if [[ -n $(git -C "$dir" status --porcelain) ]] || ! git -C "$dir" rev-parse '@{u}' >/dev/null 2>&1 ||
+     [[ -n $(git -C "$dir" log --oneline '@{u}..') ]]; then
+    echo "layers/$1 has work that isn't pushed (uncommitted, or commits not on its remote). Push it first, or delete the folder yourself."
+  fi
+}
+# the name a layer gets from its URL: unix-feelkit -> feelkit, acme-toolkit -> acme
+url_name() { local n; n=$(basename "${1%.git}"); n=${n#unix-}; printf '%s' "${n%-toolkit}"; }
+
+lay_key() {   # key value query
+  local k=$1 v=$2 q=$3 m url name dir err
+  m=$(ip_get mode)
+  if [[ $k == resize ]]; then
+    local w=list; [[ $m == menu ]] && w=menu
+    lay_lay "$w"; ip_join "$(ip_fz reload-sync "cat $(printf %q "$IP/rows.$w")")" "pos(${FZF_POS:-1})"; return
+  fi
+  case $m in
+    list)
+      case $k in
+        esc) echo abort ;;
+        alt-a) ip_set saved_q "$q"; ip_ask "The layer's git URL? (a name for it after a space, if you want another)" add "" "url> " ;;
+        enter)
+          [[ -n $v ]] || return 0
+          ip_set saved_q "$q"; ip_set mode menu; ip_set cur "$v"
+          lay_menu_rows >"$IP/cells.menu"; lay_lay menu
+          ip_join "$(ip_fz reload-sync "cat $(printf %q "$IP/rows.menu")")" first "$(ip_fz change-query "")" disable-search \
+            "$(ip_fz change-header "$(ui_keys "# The $v layer ($(layer_from "$ROOT/layers/$v"))"$'\n'"enter: do it · esc: back")")" \
+            "$(ip_fz change-prompt "$v> ")" "$(ip_fz change-footer " ")" ;;
+      esac ;;
+    menu)
+      name=$(ip_get cur)
+      case $k in
+        esc) lay_to_list ;;
+        enter)
+          case $v in
+            setup|undo) ip_set then "$v"; echo accept ;;
+            rm)
+              err=$(rm_blocked "$name"); [[ -n $err ]] && { lay_to_list "✗ $err"; return; }
+              local undo="tk uninstall --layer=$name" lk; lk=$(layer_kit "$ROOT/layers/$name")
+              [[ $lk != tk ]] && undo="$lk uninstall"
+              ip_confirm "Remove the $name layer? This deletes ${ROOT/#$HOME/\~}/layers/$name. Parts it set up stay set up (Remove its parts first takes them out: $undo)." rm n ;;
+          esac ;;
+      esac ;;
+    ask)
+      case $k in
+        esc) lay_to_list ;;
+        enter)
+          read -r url name <<<"$q"
+          [[ -n $url ]] || { ip_reask "Type the git URL, e.g. git@github.com:me/acme-toolkit.git"; return; }
+          name=${name:-$(url_name "$url")}
+          [[ $name =~ ^[A-Za-z0-9._-]+$ ]] || { ip_reask "'$name' can't be a folder name: give one after the URL"; return; }
+          dir=$ROOT/layers/$name
+          [[ -e $dir ]] && { ip_reask "layers/$name is already there: give it another name after the URL"; return; }
+          mkdir -p "$ROOT/layers"
+          # no terminal to type a password in: git fails instead of waiting
+          err=$(GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes" git clone -q "$url" "$dir" 2>&1) ||
+            { rm -rf "$dir"; ip_reask "couldn't clone it: $(grep -v '^$' <<<"$err" | tail -1)"; return; }
+          ip_set cur "$name"; ip_set saved_q ""
+          ip_join "$(ip_fz reload-sync "bash $(printf %q "$SELF") __relist")" \
+            "$(ip_confirm "Added $name (its commands load in new terminals). Set up its parts now?" setup y)" ;;
+      esac ;;
+    confirm)
+      local a; a=$(ip_answer "$k"); [[ -n $a ]] || return 0
+      name=$(ip_get cur)
+      case $(ip_get pending) in
+        setup) if [[ $a == yes ]]; then ip_set then setup; echo accept
+               else lay_to_list "✓ layer $name added · later: uk layers, or $(layer_kit "$ROOT/layers/$name") install"; fi ;;
+        rm) if [[ $a == yes ]]; then
+              rm -rf "${ROOT:?}/layers/$name" && lay_to_list "✓ layer $name removed · open a new terminal"
+            else lay_to_list "Kept."; fi ;;
+      esac ;;
+  esac
+}
+
+# The about card: what a layer is, where from, which version, what it brings
+lay_about() {
+  local name=$1 d=$ROOT/layers/$1 what="" lk t c cmds="" f parts kits k ids n set
+  [[ -d $d ]] || return 0
+  # what it is: its README's first paragraph, links as their words
+  [[ -r $d/README.md ]] && what=$(awk '/^#/ { next } NF { p = p (p ? " " : "") $0; next } p { exit } END { print p }' "$d/README.md" |
+    sed 's/\[\([^]]*\)\]([^)]*)/\1/g')
+  lk=$(layer_kit "$d")
+  {
+    printf '%s\n' "$C_BOLD$name$C_RESET"
+    [[ -n $what ]] && printf '%s\n' "$what"
+    printf '\n'
+    printf 'from\t%s\n' "$(layer_from "$d")"
+    printf 'version\t%s\n' "$(layer_ver "$d")"
+    own_repo "$d" && printf 'updated\t%s\n' "$(git -C "$d" log -1 --format='%cr' 2>/dev/null)"
+    printf 'kit\t%s\n' "$lk (${KIT_LABEL[$lk]:-?}): its parts go there unless one names another"
+    # its parts per kit, and how many are set up
+    parts=$( ( repo=$ROOT mode=dry details=0
+      . "$ROOT/lib/setup.sh" >/dev/null 2>&1; . "$ROOT/lib/components.sh" >/dev/null 2>&1
+      for id in "${COMPONENTS[@]}"; do
+        [[ ${LAYER_OF[$id]:-} == "$name" ]] || continue
+        component_state "$id" >/dev/null 2>&1
+        printf '%s %s %s\n' "$(kit_of "$id")" "$id" "$STATE"
+      done ) )
+    kits=$(cut -d' ' -f1 <<<"$parts" | sort -u)
+    for k in $kits; do
+      ids=$(awk -v k="$k" '$1 == k { print $2 }' <<<"$parts" | paste -sd' ')
+      n=$(awk -v k="$k" '$1 == k && $3 != "n/a" && $3 != "unsupported"' <<<"$parts" | wc -l)
+      set=$(awk -v k="$k" '$1 == k && $3 == "installed"' <<<"$parts" | wc -l)
+      printf '%s parts\t%s\n' "$k" "$set of $n set up ($k install): $ids"
+    done
+    [[ -z $kits ]] && printf 'parts\t%s\n' "none"
+    if [[ -r $d/tools ]]; then
+      while IFS= read -r t; do [[ -z $t || $t == \#* ]] || cmds+="${t%%|*}, "; done <"$d/tools"
+    fi
+    for f in "$d"/bin/*; do
+      [[ -x $f ]] || continue; c=${f##*/}; [[ $c == fk-* ]] && c="fk ${c#fk-}"
+      [[ ", $cmds" == *", $c, "* ]] || cmds+="$c, "
+    done
+    [[ -n $cmds ]] && printf 'commands\t%s\n' "${cmds%, }"
+    [[ -r $d/shell/init.sh ]] && printf 'shell\t%s\n' "adds settings to every new shell (shell/init.sh)"
+    if compgen -G "$d/claude/skills/*/" >/dev/null; then
+      printf 'skills\t%s\n' "$(for f in "$d"/claude/skills/*/; do f=${f%/}; printf '%s, ' "${f##*/}"; done | sed 's/, $//')"
+    fi
+    [[ -r $d/workspaces ]] && printf 'workspaces\t%s\n' "a shared ws list (@$name in yours brings it in)"
+  } | while IFS=$'\t' read -r k t; do
+    if [[ -z $t ]]; then printf '%s\n' "$k"; else printf '%s%-11s%s%s\n' "$C_DIM" "$k" "$C_RESET" "$t"; fi
+  done
+}
+
+# Without a terminal: the layers as a table
+layer_ls() {
+  [[ -t 1 ]] || ui_no_color
+  local d n=0 rows="${C_BOLD}LAYER${C_RESET}$S${C_BOLD}FROM${C_RESET}$S${C_BOLD}VERSION${C_RESET}"$'\n'
+  while IFS= read -r d; do
+    n=$((n + 1))
+    rows+="  $C_CYAN${d##*/}$C_RESET$S$(layer_from "$d")$S$(layer_ver "$d")"$'\n'
+  done < <(layer_dirs "$ROOT")
+  (( n )) || { info "No layers yet. Add one: uk layer add <git-url>"; return 0; }
+  printf '%s' "$rows" | ui_table "uk · layers" "$n layer$( (( n > 1 )) && echo s)" "$(ui_hint 'uk layer add <git-url> · uk layer rm <name>')"
+}
+
+layer_add() {
+  local url=${1:-} name dir later
+  [[ -n $url ]] || die "which repo? uk layer add <git-url> [name]   e.g. git@github.com:me/acme-toolkit.git"
+  name=${2:-$(url_name "$url")}
+  dir="$ROOT/layers/$name"
+  [[ -e $dir ]] && die "layers/$name is already there (uk layers)"
+  mkdir -p "$ROOT/layers"
+  git clone -q "$url" "$dir" || die "couldn't clone $url (no access? check: ssh -T git@github.com)"
+  ok "layer $name added: ${dir/#$HOME/\~}"
+  info "${C_DIM}Its commands and settings load in new terminals.${C_RESET}"
+  later="tk install --layer=$name"
+  [[ $(layer_kit "$dir") != tk ]] && later="$(layer_kit "$dir") install"   # its parts are fk's (fk install)
+  confirm "Set up its parts now?" y && exec "$ROOT/install.sh" --layer="$name"
+  info "Later: $later"
+}
+
+layer_rm() {
+  local name=${1:-} dir err undo
+  [[ -n $name ]] || die "which layer? uk layer rm <name>   (uk layers)"
+  dir="$ROOT/layers/$name"
+  [[ -d $dir ]] || die "there's no layer $name (uk layers)"
+  err=$(rm_blocked "$name"); [[ -n $err ]] && die "$err"
+  own_repo "$dir" || warn "layers/$name isn't a git clone, so deleting it can't be undone"
+  undo="tk uninstall --layer=$name"
+  [[ $(layer_kit "$dir") != tk ]] && undo="$(layer_kit "$dir") uninstall"   # its parts are fk's (fk uninstall)
+  info "${C_DIM}Parts it set up stay set up; to remove them first: $undo${C_RESET}"
+  confirm "Remove the $name layer (delete ${dir/#$HOME/\~})?" n || { info "Kept."; return 0; }
+  rm -rf "$dir" && ok "layer $name removed · open a new terminal"
+}
+
+cmd_layer() {
+  case "${1:-}" in
+    "")         cmd_layers ;;
+    ls|list)    layer_ls ;;
+    add)        shift; layer_add "$@" ;;
+    rm|remove)  shift; layer_rm "$@" ;;
+    *)          ui_unknown "uk layer" "$1" ;;
+  esac
+}
+
+# ---------------------------------------------------------------- doctor ---
+# The whole: the commands' names are unikit's, each layer is well formed, no two
+# layers (or a layer and unikit) bring the same part or command. tk doctor and
+# fk doctor check the parts themselves.
+declare -A OKS=() PROBLEMS=()
+ORDER=()
+check() {  # check <what> <ok|bad> <text> [fix]
+  [[ " ${ORDER[*]} " == *" $1 "* ]] || ORDER+=("$1")
+  if [[ "$2" == ok ]]; then OKS[$1]=$(( ${OKS[$1]:-0} + 1 ))
+  else PROBLEMS[$1]+="$3${4:+  $(ui_hint "$4")}"$'\n'; fi
+}
+
+cmd_doctor() {
+  [[ -t 1 ]] || ui_no_color
+  local name f d l k t n g w p c bad=0 rows="" first parts err id
+  local -A owner=()
+  # the names: each runs unikit's, not another program of the same name
+  for name in uk tk fk unikit toolkit feelkit; do
+    f=$(type -P "$name") || {
+      [[ $name == [utf]k ]] && check unikit bad "$name isn't on PATH" "tk install commands"; continue; }
+    if [[ $(readlink -f "$f") == "$ROOT"/bin/* ]]; then check unikit ok "$name"
+    else check unikit bad "$name runs ${f/#$HOME/\~}, not unikit's" "unikit's ${ROOT/#$HOME/\~}/bin must come first on PATH"; fi
+  done
+  for f in "$ROOT"/bin/* "$ROOT"/{okta,kube,twingate,ws,kitty}/bin/*; do [[ -x $f ]] && owner[${f##*/}]=unikit; done
+
+  parts=$(mktemp)
+  err=$(layer_parts 2>&1 >"$parts")
+  while IFS= read -r d; do
+    l=${d##*/}
+    check "$l" ok there
+    if ! [[ -d $d/bin || -r $d/shell/init.sh || -r $d/components.sh || -r $d/tools || -r $d/workspaces || -d $d/claude/skills ]]; then
+      check "$l" bad "has none of what a layer can hold (bin/, shell/init.sh, components.sh, tools, workspaces, claude/skills/)" "lib/layers.sh lists them"
+    fi
+    if [[ -f $d/kit ]]; then
+      k=$(head -1 "$d/kit")
+      if [[ -v KIT_LABEL[$k] ]]; then check "$l" ok kit; else check "$l" bad "its kit file says '$k' (tk or fk)"; fi
+    fi
+    if [[ -r $d/components.sh ]]; then
+      if t=$(bash -n "$d/components.sh" 2>&1); then check "$l" ok components.sh
+      else check "$l" bad "components.sh doesn't parse: $(head -1 <<<"$t")"; fi
+    fi
+    if [[ -r $d/tools ]]; then
+      while IFS= read -r t; do
+        [[ -z $t || $t == \#* ]] && continue
+        IFS='|' read -r n g w p k <<<"$t"
+        if [[ -z $n || -z $g || -z $w ]]; then check "$l" bad "tools line '$t' needs name|group|what it does|program"; continue; fi
+        [[ -z $k || -v KIT_LABEL[$k] ]] || check "$l" bad "tools line $n names the kit '$k' (tk or fk)"
+        c=$n; [[ $n == [tf]k\ * ]] && c="${n%% *}-${n#* }"   # fk looks is bin/fk-looks
+        if [[ -x $d/bin/$c ]] || [[ -v owner[$c] ]] || type -P "$c" >/dev/null; then check "$l" ok "$n"
+        else check "$l" bad "tools lists $n, but there's no bin/$c"; fi
+      done <"$d/tools"
+    fi
+    for f in "$d"/bin/*; do
+      [[ -e $f ]] || continue
+      c=${f##*/}
+      [[ -x $f ]] || check "$l" bad "bin/$c isn't executable" "chmod +x $f"
+      case $c in fk-install|fk-uninstall|fk-help)
+        check "$l" bad "bin/$c never runs: fk ${c#fk-} is fk's own"; continue ;; esac
+      if [[ -v owner[$c] ]]; then check "$l" bad "bin/$c: ${owner[$c]} has a $c too; which one runs depends on PATH"
+      else owner[$c]=$l; fi
+    done
+  done < <(layer_dirs "$ROOT")
+  # the loader's own words (a part naming an unknown kit), and parts that come twice
+  while IFS= read -r t; do
+    [[ $t =~ ^✗\ layer\ ([^:]+):\ (.*)$ ]] && check "${BASH_REMATCH[1]}" bad "${BASH_REMATCH[2]}"
+  done <<<"$err"
+  while IFS= read -r id; do
+    [[ -n $id ]] || continue
+    l=$(awk -F'\t' -v id="$id" '$3 == id { print $1; exit }' "$parts")
+    check "${l:-unikit}" bad "the part $id comes twice (unikit's own or another layer's has that name); the last one loaded wins"
+  done < <( ( repo=$ROOT mode=dry details=0; . "$ROOT/lib/setup.sh" >/dev/null 2>&1; . "$ROOT/lib/components.sh" >/dev/null 2>&1
+             printf '%s\n' "${COMPONENTS[@]}" | sort | uniq -d ) )
+  rm -f "$parts"
+
+  for name in "${ORDER[@]}"; do
+    if [[ -z "${PROBLEMS[$name]:-}" ]]; then
+      n=${OKS[$name]}
+      rows+="$C_CYAN$name$C_RESET$S${C_GREEN}✓${C_RESET} $( (( n > 1 )) && echo "all $n checks pass" || echo ok)"$'\n'
+      continue
+    fi
+    first="$C_CYAN$name$C_RESET"
+    while IFS= read -r p; do
+      [[ -n "$p" ]] || continue
+      rows+="$first$S${C_YELLOW}!${C_RESET} $p"$'\n'; first=""; bad=$((bad + 1))
+    done <<<"${PROBLEMS[$name]}"
+    n=${OKS[$name]:-0}
+    (( n == 1 )) && rows+="$S${C_DIM}1 other check passes${C_RESET}"$'\n'
+    (( n > 1 )) && rows+="$S${C_DIM}$n other checks pass${C_RESET}"$'\n'
+  done
+  local foot; (( bad )) && foot="${C_YELLOW}$bad to fix${C_RESET}" || foot="${C_GREEN}all good${C_RESET}"
+  printf '%s' "$rows" | { if [[ -t 1 ]]; then print_table 3 | ui_box "uk doctor" "tk doctor, fk doctor: each part" 0 "$foot"; else print_table 3; fi; }
+  (( bad == 0 ))
+}
+
+# --------------------------------------------------------------- version ---
+cmd_version() {
+  local r d; r=$(rev_of "$ROOT")
+  printf 'unikit %s%s\n' "$(version)" "${r:+  $C_DIM($r)$C_RESET}"
+  while IFS= read -r d; do printf '  %-12s %s\n' "${d##*/}" "$C_DIM$(layer_ver "$d")$C_RESET"; done < <(layer_dirs "$ROOT")
+}
+
+# ----------------------------------------------------------- the picker ---
+cmd_pick() {
+  if [[ ! -t 0 || ! -t 1 ]] || ! type -P fzf >/dev/null; then cmd_help; return; fi
+  local sel rows="COMMAND${S}WHAT IT DOES"$'\n'
+  rows+="uk layers${S}the layers: add, remove, set up, about"$'\n'
+  rows+="uk doctor${S}is each layer well formed; no clashes"$'\n'
+  rows+="uk version${S}unikit's version and each layer's"$'\n'
+  rows+="tk${S}toolkit: the commands you work with"$'\n'
+  rows+="fk${S}feelkit: how things look"$'\n'
+  sel=$(printf '%s' "$rows" | ui_fzf 'uk · unikit' --header-lines=1 --prompt='command> ' \
+    --header='enter: run it · esc: cancel') || return 0
+  sel=$(strip_ansi "$sel"); sel=${sel%%   *}
+  [[ -n $sel ]] || return 0
+  # shellcheck disable=SC2086
+  set -- $sel
+  case $1 in uk) shift; exec "$SELF" "$@" ;; *) exec "$ROOT/bin/$1" ;; esac
+}
+
+cmd_help() {
+  ui_help uk "unikit: the base; tk and fk are its kits" <<'EOF'
+## Commands
+uk	pick one of these and run it
+uk layers	the layers in a list: add one, set up or remove its parts, remove it; alt-i shows what each one is	not in a terminal: a table
+uk layer add <git-url> [name]	clone a layer, then offer to set up its parts	name: repo name without unix- and -toolkit
+uk layer rm <name>	delete a layer (only when nothing in it is unpushed)
+uk doctor	the whole: the commands are unikit's, each layer is well formed, no two bring the same part or command	each part: tk doctor
+uk version	unikit's version and each layer's (also -v, --version)
+uk help	this page
+
+## The kits
+tk	toolkit: what you work with (tk help)
+fk	feelkit: how things look (fk help)
+EOF
+}
+
+case "${1:-}" in
+  "")             cmd_pick ;;
+  layers)         shift; if [[ -z ${1:-} ]]; then cmd_layers; else cmd_layer "$@"; fi ;;
+  layer)          shift; cmd_layer "$@" ;;
+  doctor)         cmd_doctor ;;
+  version|-v|--version) cmd_version ;;
+  help|-h|--help) cmd_help ;;
+  __key)     [[ -z ${NO_COLOR:-} ]] && ui_color; lay_key "${2:-}" "${3:-}" "${4:-}" ;;
+  __relist)  [[ -z ${NO_COLOR:-} ]] && ui_color; lay_relist ;;
+  __about)   [[ -z ${NO_COLOR:-} ]] && ui_color; lay_about "${2:-}" ;;
+  *)              ui_unknown uk "$1" ;;
+esac

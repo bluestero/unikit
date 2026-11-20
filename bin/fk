@@ -11,7 +11,7 @@ ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 # shellcheck source=../lib/layers.sh
 . "$ROOT/lib/layers.sh"
 S=$'\x1f'
-EMPTY="Nothing here yet. Add a look: tk layer add <git-url>"
+EMPTY="Nothing here yet. Add a look layer: uk layers"
 
 mapfile -t TOOLS < <(layer_tools "$ROOT" fk)
 field() { cut -d'|' -f"$2" <<<"$1"; }

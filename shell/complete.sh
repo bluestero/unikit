@@ -37,10 +37,19 @@ _work_complete_hat() {
   esac
 }
 
+# uk layer: add / rm / ls, then rm takes a layer's name
+_work_root_uk=$_work_root   # init unsets _work_root once loaded; Tab needs it later
+_work_complete_uk() {
+  case "$COMP_CWORD:${COMP_WORDS[1]}" in
+    2:layer|2:layers) printf '%s\n' ls add rm ;;
+    3:layer|3:layers) [ "${COMP_WORDS[2]}" = rm ] && command ls -1 "$_work_root_uk/layers" 2>/dev/null ;;
+  esac
+}
+
 if [ -n "${ZSH_VERSION:-}" ]; then
   autoload -U +X bashcompinit 2>/dev/null && bashcompinit
 fi
-for _c in ctx hat k-config fk dex $(sed -n 's/^\([a-z][a-z0-9-]*\)|.*/\1/p' "$_work_root"/layers/*/tools 2>/dev/null); do
+for _c in ctx hat k-config uk fk dex $(sed -n 's/^\([a-z][a-z0-9-]*\)|.*/\1/p' "$_work_root"/layers/*/tools 2>/dev/null); do
   if [ -n "${ZSH_VERSION:-}" ]; then
     (( ${+_comps[$_c]} )) && continue
   else

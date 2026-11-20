@@ -28,8 +28,10 @@ WORKSPACE_PARTS=(repos)
 CLAUDE_PARTS=(claude-skill claude-hook claude-guard claude-guidelines)
 CLOUD_PARTS=(okta-aws-cli aws-cli kubectl eks-clusters twingate)
 APP_PARTS=(gh clipboard zed vscode)
-# Which repo a component comes from: the toolkit, or the layer that adds it (bluefeel, ...).
+# Which repo a component comes from: the toolkit, or the layer that adds it (bluefeels, ...).
 repo_of() { echo "${LAYER_OF[$1]:-toolkit}"; }
+# the layer a part comes from, for the installers' LAYER column (unikit: the base's own)
+layer_name() { echo "${LAYER_OF[$1]:-unikit}"; }
 group_of() {
   # a layer's component names its own group (group_<id>)
   if declare -F "$(fn group "$1")" >/dev/null; then "$(fn group "$1")"
@@ -193,32 +195,55 @@ install_keys() { linked "$HOME/.inputrc" "$inputrc_src" && { ok "already linked"
 uninstall_keys() { unlink_file "$HOME/.inputrc" "$inputrc_src"; }
 
 # ------------------------------------------------------------ commands ---
-cmd_bins=(okta/bin/okcli kube/bin/kx twingate/bin/twin bin/ctx bin/tk ws/bin/ws)
+cmd_bins=(okta/bin/okcli kube/bin/kx twingate/bin/twin bin/ctx bin/uk bin/tk bin/fk ws/bin/ws)
+# the long names: links to the short ones, made only where no other program has the name
+declare -A cmd_long=([unikit]=bin/uk [toolkit]=bin/tk [feelkit]=bin/fk)
+# cmd_taken <name>: the other program that has that name (not ours), or 1
+cmd_taken() {
+  local f; f=$(type -P "$1") || return 1
+  [[ $(readlink -f "$f") == "$repo"/bin/* ]] && return 1
+  printf '%s' "${f/#$HOME/\~}"
+}
 label_commands() { echo "Toolkit commands"; }
-title_commands() { echo "tk, okcli, kx, twin, ctx and ws, usable from anywhere"; }
-detail_commands() { echo "tk, okcli, kx, twin, ctx, ws in ~/.local/bin (for scripts and other programs)"; }
+title_commands() { echo "uk, tk, fk, okcli, kx, twin, ctx and ws, usable from anywhere"; }
+detail_commands() { echo "uk, tk, fk, okcli, kx, twin, ctx, ws in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too where no other program has the name"; }
 state_commands() {
-  local b n=0
+  local b n=0 total=${#cmd_bins[@]} l
   for b in "${cmd_bins[@]}"; do linked "$HOME/.local/bin/${b##*/}" "$repo/$b" && (( n++ )); done
+  for l in "${!cmd_long[@]}"; do   # a long name another program has counts as done
+    cmd_taken "$l" >/dev/null && ! linked "$HOME/.local/bin/$l" "$repo/${cmd_long[$l]}" && continue
+    (( total++ )); linked "$HOME/.local/bin/$l" "$repo/${cmd_long[$l]}" && (( n++ ))
+  done
   NOTE=""
-  if (( n == ${#cmd_bins[@]} )); then STATE=installed
-  elif (( n )); then STATE=partial; NOTE="$n of ${#cmd_bins[@]} linked"
+  if (( n == total )); then STATE=installed
+  elif (( n )); then STATE=partial; NOTE="$n of $total linked"
   else STATE=missing; fi
 }
 install_commands() {
-  local b name
+  local b name other
   for b in "${cmd_bins[@]}"; do
     name=${b##*/}
     linked "$HOME/.local/bin/$name" "$repo/$b" && continue
     chmod +x "$repo/$b"
     if ask "Add the ${B}$name${R} command?"; then link_file "$HOME/.local/bin/$name" "$repo/$b"; else skip; fi
   done
+  for name in unikit toolkit feelkit; do
+    b=${cmd_long[$name]}
+    linked "$HOME/.local/bin/$name" "$repo/$b" && continue
+    if other=$(cmd_taken "$name"); then   # never taken over without asking, --yes included
+      skip "${B}$name${R} is already $other"; continue
+    fi
+    if ask "Add ${B}$name${R} (the long name of ${b##*/})?"; then link_file "$HOME/.local/bin/$name" "$repo/$b"; else skip; fi
+  done
   case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) warn "~/.local/bin is not on your PATH" ;; esac
 }
 uninstall_commands() {
-  local b
+  local b l
   for b in "${cmd_bins[@]}"; do
     points_at "$HOME/.local/bin/${b##*/}" "$repo/$b" && rm -f "$HOME/.local/bin/${b##*/}" && ok "removed ${b##*/}"
+  done
+  for l in "${!cmd_long[@]}"; do
+    points_at "$HOME/.local/bin/$l" "$repo/${cmd_long[$l]}" && rm -f "$HOME/.local/bin/$l" && ok "removed $l"
   done
   return 0
 }

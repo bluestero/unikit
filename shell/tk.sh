@@ -30,11 +30,10 @@ _tk_components() {
 
 _tk_complete() {
   local cur="${COMP_WORDS[COMP_CWORD]}" words
-  if [ "$COMP_CWORD" -eq 1 ]; then words="ls status doctor install uninstall update configs layer version help"
+  if [ "$COMP_CWORD" -eq 1 ]; then words="ls status doctor install uninstall update configs version help"
   else
     case "${COMP_WORDS[1]}" in
       install|uninstall) words="ls help --dry-run --details --yes --plain $(_tk_components)" ;;
-      layer|layers) words="ls add rm" ;;
       *) words="" ;;
     esac
   fi

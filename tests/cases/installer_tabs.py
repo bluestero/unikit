@@ -1,4 +1,4 @@
-"""./install.sh's tab view, in a scratch copy of the repo (bluefeel included: a layer whose kit is fk,
+"""./install.sh's tab view, in a scratch copy of the repo (bluefeels included: a layer whose kit is fk,
 so only fk install / --kit=fk shows it) with a scratch HOME and a fake GNOME.
 Nothing is set up: each test stops at the first question of the run, or before."""
 import os
@@ -88,13 +88,13 @@ def test_feelkit_stays_out_of_the_main_install(sb):
     assert code == 2 and "fk install kitty-bg" in out, out
     code, out = run(sb, repo, "uninstall.sh", "kitty-bg")
     assert code == 2 and "fk uninstall kitty-bg" in out, out
-    _, out = run(sb, repo, "install.sh", "--layer=bluefeel", "ls")
+    _, out = run(sb, repo, "install.sh", "--layer=bluefeels", "ls")
     rows = set(re.findall(r"^  (\S+) ", out, re.M))
     assert "kitty-bg" in rows and "kitty-config" not in rows, out
 
 
 def test_both_bars_ask_and_no_goes_back(sb):
-    _, t = start(sb, "--layer=bluefeel")
+    _, t = start(sb, "--layer=bluefeels")
     t.key("right")                                        # GNOME looks: dash2dock, dash-to-panel first
     t.wait(lambda t: "dash2dock" in t.cursor_line(), what="the cursor on dash2dock")
     t.key("tab", "down", "tab")
@@ -113,7 +113,7 @@ def test_both_bars_ask_and_no_goes_back(sb):
 
 
 def test_both_bars_yes_sets_up(sb):
-    _, t = start(sb, "--plain", "--layer=bluefeel")
+    _, t = start(sb, "--plain", "--layer=bluefeels")
     t.key("right")                                        # GNOME looks: dash2dock, dash-to-panel first
     t.wait(lambda t: "dash2dock" in t.cursor_line(), what="the cursor on dash2dock")
     t.key("tab", "down", "tab")
@@ -178,7 +178,7 @@ def test_a_layer_feeds_both_kits(sb):
     _, out = run(sb, repo, "install.sh", "ls")                       # tk: its default-kit part only
     rows = set(re.findall(r"^  (\S+) ", out, re.M))
     assert "mix-work" in rows and "mix-look" not in rows, out
-    _, out = run(sb, repo, "install.sh", "--kit=fk", "ls")           # fk: bluefeel's parts and mix-look
+    _, out = run(sb, repo, "install.sh", "--kit=fk", "ls")           # fk: bluefeels' parts and mix-look
     rows = set(re.findall(r"^  (\S+) ", out, re.M))
     assert "mix-look" in rows and "kitty-bg" in rows and "mix-work" not in rows, out
     code, out = run(sb, repo, "install.sh", "mix-look")

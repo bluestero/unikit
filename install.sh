@@ -46,7 +46,7 @@ if (( help )); then
 --details	also show diffs (e.g. ~/.bashrc) before asking
 --yes	no questions, for scripted setups
 --plain	don't use or offer gum (the nicer-looking lists)
---layer=<name>	only that layer's parts (tk layer add uses it)
+--layer=<name>	only that layer's parts (uk layers uses it)
 --kit=<tk|fk>	only that kit's parts, from the toolkit and every layer (fk install uses it)
 
 ./install.sh ls names every component; ./uninstall.sh undoes any of them.
@@ -57,12 +57,12 @@ fi
 
 # What this run may touch: one layer's parts (--layer), one kit's (--kit), else the tk parts
 if [[ -n $layer ]]; then
-  layer_path "$repo" "$layer" >/dev/null || { printf '✗ no layer %s · see: tk layer ls\n' "'$layer'" >&2; exit 2; }
+  layer_path "$repo" "$layer" >/dev/null || { printf '✗ no layer %s · see: uk layers\n' "'$layer'" >&2; exit 2; }
   mapfile -t allowed < <(layer_parts "$layer")
 elif [[ -n $kit ]]; then
   [[ -v KIT_LABEL[$kit] ]] || { printf '✗ no kit %s (tk or fk)\n' "'$kit'" >&2; exit 2; }
   mapfile -t allowed < <(kit_parts "$kit")
-  (( ${#allowed[@]} )) || { echo "$kit has no parts yet: no layer brings any. Add one: tk layer add <git-url>"; exit 0; }
+  (( ${#allowed[@]} )) || { echo "$kit has no parts yet: no layer brings any. Add one: uk layers"; exit 0; }
 elif [[ -n $update ]]; then allowed=("${COMPONENTS[@]}")   # tk update: every part, fk's too
 else mapfile -t allowed < <(main_parts); fi
 for w in "${wanted[@]}"; do
@@ -107,7 +107,7 @@ badge() {   # badge <state> [what it needs] [note]
 logf ""; logf "=== install $ts ($mode) ${wanted[*]}"
 # Overview: every component and its state, grouped, in one box.
 todo=() prev="" table=""
-if (( list )); then table+="${B}COMPONENT${R}"$'\x1f'"${B}KIT${R}"$'\x1f'"${B}STATE${R}"$'\x1f'"${B}NOTE${R}"$'\n'
+if (( list )); then table+="${B}COMPONENT${R}"$'\x1f'"${B}LAYER${R}"$'\x1f'"${B}STATE${R}"$'\x1f'"${B}NOTE${R}"$'\n'
 else table+="${B}COMPONENT${R}"$'\x1f'"${B}STATE${R}"$'\x1f'"${B}NOTE${R}"$'\n'; fi
 skipped=0 shown=()
 declare -A ST=() NT=() ND=()   # each one's state, note and the parts it needs first, for the tabs
@@ -120,7 +120,7 @@ for id in "${wanted[@]}"; do
     [[ -n "$prev" ]] && table+=$'\n'
     prev=$(group_of "$id"); table+="${D}$prev${R}"$'\n'
   fi
-  if (( list )); then table+="  $id"$'\x1f'"$D$(repo_of "$id")$R"$'\x1f'"$(badge "$STATE" "$NEED" "$NOTE")"$'\x1f'"$D${NOTE}$R"$'\n'
+  if (( list )); then table+="  $id"$'\x1f'"$D$(layer_name "$id")$R"$'\x1f'"$(badge "$STATE" "$NEED" "$NOTE")"$'\x1f'"$D${NOTE}$R"$'\n'
   else table+="  $id"$'\x1f'"$(badge "$STATE" "$NEED" "$NOTE")"$'\x1f'"$D${NOTE}$R"$'\n'; fi
   [[ "$STATE" == missing || "$STATE" == partial || "$STATE" == needs || "$STATE" == fix || "$STATE" == new || "$STATE" == removed ]] && todo+=("$id")
   # named on the command line and installed already: still offer its settings menu (keep / look / defaults)

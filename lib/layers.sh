@@ -1,5 +1,5 @@
 # Layers: extra parts kept in their own repos and cloned into layers/<name>/
-# (tk layer add <git-url>; layers/ is gitignored). The toolkit finds them; there
+# (uk layer add <git-url>; layers/ is gitignored). The toolkit finds them; there
 # is nothing to register. A layer can have any of these, all optional:
 #
 #   bin/              its commands, put on PATH; bin/fk-<name> is also fk <name> (fk's own
@@ -49,7 +49,11 @@ layer_tools() {
 # layer_bin <toolkit root> <command>: the first layer's bin/<command>; 1 when no layer has it
 layer_bin() {
   local f
-  for f in "$1"/layers/*/bin/"$2"; do [[ -x $f ]] && { printf '%s
-' "$f"; return 0; }; done
+  for f in "$1"/layers/*/bin/"$2"; do [[ -x $f ]] && { printf '%s\n' "$f"; return 0; }; done
   return 1
 }
+# own_repo <dir>: a git clone of its own (a layer copied in by hand is part of nothing,
+# and git would otherwise answer for the toolkit repo around it)
+own_repo() { [[ "$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" == "$(cd "$1" && pwd -P)" ]]; }
+# layer_kit <dir>: the kit its parts go to unless a part says otherwise
+layer_kit() { local k=tk; [[ -f $1/kit ]] && k=$(head -1 "$1/kit"); printf '%s\n' "$k"; }
