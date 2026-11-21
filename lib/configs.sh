@@ -8,7 +8,7 @@
 # A preset is a link into the repo, so editing the config edits the repo's copy: the
 # list calls that "edited preset". Every change first keeps what was there, so undo
 # (one step) brings it back, your edits included; leaving an edited preset puts the
-# repo's copy back as committed, so tk update and git stay clean.
+# repo's copy back as committed, so uk update and git stay clean.
 #
 # Your own changes go in a patch instead: your file in ~/.config/work-toolkit/patches, which
 # the preset pulls in last (kitty globinclude, rofi @import, readline $include), so it wins.

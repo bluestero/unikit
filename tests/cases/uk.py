@@ -66,13 +66,17 @@ def test_layer_add_and_rm_without_a_terminal(sb):
     repo = copy(sb)
     src = source(sb, "unix-acme-toolkit")
     code, out = run(sb, repo, "uk", "layer", "add", src)
+    assert code == 1 and "no terminal to ask in" in out and "commands: hello-unix-acme-toolkit" in out, out
+    assert not os.listdir(repo + "/layers"), "nothing left of it"
+    code, out = run(sb, repo, "uk", "layer", "add", "--yes", src)
     assert code == 0 and "layer acme added" in out and "Later: tk install --layer=acme" in out, out
+    assert open(repo + "/layers.lock").read().startswith("acme\t")
     assert os.path.isfile(repo + "/layers/acme/tools")
     code, out = run(sb, repo, "uk", "layers")
     assert "acme" in out and src in out, out
     code, out = run(sb, repo, "uk", "layer", "rm", "acme")
     assert "Kept." in out and os.path.isdir(repo + "/layers/acme"), "no terminal to confirm in: nothing removed"
-    code, out = run(sb, repo, "uk", "layer", "add", src)
+    code, out = run(sb, repo, "uk", "layer", "add", "--yes", src)
     assert code == 1 and "already there" in out, out
 
 
@@ -88,6 +92,11 @@ def test_doctor_passes_a_good_layer_and_names_a_broken_ones_faults(sb):
     repo = copy(sb)
     sb.add_path(repo + "/bin")
     subprocess.run(GIT + ["clone", "-q", source(sb, "good", part=True), repo + "/layers/good"], check=True, env=sb.env)
+    code, out = run(sb, repo, "uk", "doctor")
+    assert code == 1 and "good" in out and "has no pin" in out, out    # cloned by hand: never trusted
+    head = subprocess.run(["git", "-C", repo + "/layers/good", "rev-parse", "HEAD"], capture_output=True, text=True).stdout
+    with open(repo + "/layers.lock", "w") as f:
+        f.write("good\t" + head)
     code, out = run(sb, repo, "uk", "doctor")
     assert code == 0 and "good" in out and "!" not in out, out
     bad = repo + "/layers/bad"
@@ -139,6 +148,16 @@ def test_list_shows_about_adds_and_removes(sb):
     t.key("alt-a")
     t.wait_for("git URL?")
     t.key(src, "enter")
+    t.wait_for("Trust acme?")
+    assert "commands: hello-unix-acme-toolkit" in t.text() and "first" in t.text(), t.text()
+    t.key("enter")                                                # the default: no
+    t.wait_for("Not added")
+    assert sorted(os.listdir(repo + "/layers")) == ["look"], os.listdir(repo + "/layers")
+    t.key("alt-a")
+    t.wait_for("git URL?")
+    t.key(src, "enter")
+    t.wait_for("Trust acme?")
+    t.key("y")
     t.wait_for("Added acme")
     t.key("n")
     t.wait_for("layer acme added")
@@ -151,6 +170,7 @@ def test_list_shows_about_adds_and_removes(sb):
     t.key("y")
     t.wait_for("layer acme removed")
     assert not os.path.exists(repo + "/layers/acme")
+    assert "acme" not in open(repo + "/layers.lock").read(), "its pin goes with it"
     t.key("esc")
     assert t.wait_exit() == 0
 
@@ -163,3 +183,23 @@ def test_a_long_name_another_program_has_is_left_alone(sb):
     assert not os.path.lexists(sb.path("~/.local/bin/toolkit"))
     assert os.path.realpath(sb.path("~/.local/bin/unikit")) == os.path.realpath(repo + "/bin/uk")
     assert os.path.realpath(sb.path("~/.local/bin/uk")) == os.path.realpath(repo + "/bin/uk")
+
+
+def test_layer_check_a_folder_before_pushing_it(sb):
+    repo = copy(sb)
+    d = sb.root + "/mine"
+    os.makedirs(d + "/bin")
+    with open(d + "/bin/tk", "w") as f:
+        f.write("#!/bin/sh\n")
+    os.chmod(d + "/bin/tk", 0o755)
+    with open(d + "/components.sh", "w") as f:
+        f.write("COMPONENTS+=(starship mine-part)\n")
+    code, out = run(sb, repo, "uk", "layer", "check", d)
+    assert code == 1, out
+    for fault in ("bin/tk never runs: unikit's tk comes first", "its part names are taken: starship (unikit)"):
+        assert fault in out, (fault, out)
+    os.remove(d + "/bin/tk")
+    with open(d + "/components.sh", "w") as f:
+        f.write("COMPONENTS+=(mine-part)\n")
+    code, out = run(sb, repo, "uk", "layer", "check", d)
+    assert code == 0 and "mine" in out, out

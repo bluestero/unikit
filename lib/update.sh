@@ -1,5 +1,5 @@
-# tk update's view of the parts: install.sh --update=<dir> sources this after lib/components.sh.
-# <dir> comes from tk update:
+# uk update's view of the parts: install.sh --update=<dir> sources this after lib/components.sh.
+# <dir> comes from uk update:
 #   before    "id repo state" per part, worked out with the code from before the pull
 #   changed   the files the pull changed, full paths
 # Each part gets an update state (install.sh's badge shows it), one tab per repo:

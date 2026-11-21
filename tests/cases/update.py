@@ -1,7 +1,8 @@
-"""tk update and install.sh run twice, on scratch git repos: the toolkit (a copy of this one)
+"""uk update and install.sh run twice, on scratch git repos: unikit (a copy of this one)
 and a "demo" layer whose v2 renames a command (old-name -> new-name), removes a part
 (demo-gone) and adds one (demo-fresh). Both are clones of bare repos in the sandbox, so
-tk update really pulls. Scratch HOME; nothing here reaches the real machine."""
+uk update really pulls. v2 changes the layer's code, so it starts unticked and --yes holds
+it back until it's trusted (its pin, layers.lock). Scratch HOME; nothing here reaches the real machine."""
 import os
 import re
 import shutil
@@ -83,13 +84,19 @@ def push_toolkit(sb):
     git(sb, "push", "-q", sb.root + "/tk.git", "main", cwd=d)
 
 
+def trust_upstream(sb, repo):
+    """As if you'd read demo's v2 already: its pin is the upstream commit."""
+    with open(repo + "/layers.lock", "w") as f:
+        f.write("demo\t" + head(sb, sb.root + "/demo.git").strip() + "\n")
+
+
 def head(sb, d):
     return subprocess.run(["git", "rev-parse", "HEAD"], cwd=d, env=sb.env, capture_output=True, text=True).stdout
 
 
 def pick(sb, repo, *keys):
-    """tk update up to its repo list, then the keys; returns the terminal."""
-    t = Term([repo + "/bin/tk", "update"], sb.env, cols=140, rows=34, cwd=sb.home)
+    """uk update up to its repo list, then the keys; returns the terminal."""
+    t = Term([repo + "/bin/uk", "update"], sb.env, cols=140, rows=34, cwd=sb.home)
     t.wait_for("pull which?", timeout=60)
     t.settle()
     if keys:
@@ -137,7 +144,9 @@ def test_update_shows_where_things_stand(sb):
     push_v2(sb)
     t = pick(sb, repo)
     assert "demo" in t.text() and "1 new commit" in t.text() and "update and" not in t.text(), t.text()
-    t.key("enter")                                               # all ticked: pull them
+    assert re.search(r"demo\s+1 new commit\s+! 6 file\(s\) changed", t.text()), t.text()
+    assert "[✓]" not in t.line_with("demo"), "its code changed: unticked"
+    t.key("tab", "enter")                                        # trust it: pull
     t.wait_for("Summary", timeout=60)
     t.settle()
     screen = t.text()
@@ -152,7 +161,8 @@ def test_update_shows_where_things_stand(sb):
 def test_update_fixes_the_rename_and_cleans_up(sb):
     repo = set_up_v1(sb)
     push_v2(sb)
-    code, out = run(sb, repo + "/bin/tk", "update", "--yes")
+    trust_upstream(sb, repo)
+    code, out = run(sb, repo + "/bin/tk", "update", "--yes")      # tk update is uk update
     assert code == 0, out
     links = bin_links(sb)
     assert set(links) == {"new-name", "same-cmd"}, (links, out)              # renamed: new link, the dead ones gone
@@ -163,10 +173,11 @@ def test_update_fixes_the_rename_and_cleans_up(sb):
 def test_update_twice_changes_nothing_the_second_time(sb):
     repo = set_up_v1(sb)
     push_v2(sb)
-    code, out = run(sb, repo + "/bin/tk", "update", "--yes")
+    trust_upstream(sb, repo)
+    code, out = run(sb, repo + "/bin/uk", "update", "--yes")
     assert code == 0, out
     before = snapshot(sb)
-    code, out = run(sb, repo + "/bin/tk", "update", "--yes")
+    code, out = run(sb, repo + "/bin/uk", "update", "--yes")
     assert code == 0, out
     assert "already up to date" in out and "Nothing to do" in out, out
     assert snapshot(sb) == before
@@ -176,7 +187,7 @@ def test_update_without_a_terminal_pulls_nothing(sb):
     repo = set_up_v1(sb)
     push_v2(sb)
     before = head(sb, repo + "/layers/demo")
-    code, out = run(sb, repo + "/bin/tk", "update")
+    code, out = run(sb, repo + "/bin/uk", "update")
     assert code == 0, out
     assert "demo" in out and "1 new commit" in out and "in a terminal" in out and "• v2" in out, out
     assert head(sb, repo + "/layers/demo") == before, "nothing pulled without asking"
@@ -189,8 +200,8 @@ def test_held_back_repo_stays_where_it_was(sb):
     push_toolkit(sb)
     tk0, demo0 = head(sb, repo), head(sb, repo + "/layers/demo")
     t = pick(sb, repo)
-    assert "layers may need the newer toolkit" in t.text(), t.text()
-    t.key("down", "tab", "enter")                                # untick demo (second row), pull the toolkit
+    assert "layers may need the newer unikit" in t.text(), t.text()
+    t.key("enter")                                               # demo's code changed: unticked; pull unikit
     assert t.wait_exit() == 0                                    # (the toolkit's pull changes no part: nothing to ask)
     assert "demo: not pulled" in t.text(), t.text()
     assert head(sb, repo) != tk0, "the toolkit was ticked: pulled"
@@ -221,3 +232,44 @@ def test_install_twice_gives_the_same_result(sb):
     assert code == 0, out
     assert snapshot(sb) == first, sorted(set(snapshot(sb)) ^ set(first))
     assert "Everything is already set up" in out, out
+
+
+def test_yes_holds_back_changed_code_and_a_pick_trusts_it(sb):
+    repo = set_up_v1(sb)
+    demo = repo + "/layers/demo"
+    code, out = run(sb, repo + "/bin/uk", "update", "--yes")      # no pin yet: pinned where it is
+    assert "demo: pinned at" in out, out
+    v1 = head(sb, demo)
+    push_v2(sb)
+    code, out = run(sb, repo + "/bin/uk", "update", "--yes")
+    assert "demo: held back, its code changed" in out, out
+    assert head(sb, demo) == v1 and set(bin_links(sb)) == {"old-name", "gone-cmd", "same-cmd"}
+    t = pick(sb, repo)
+    t.key("alt-i")                                               # the diff of what runs
+    t.wait_for("diff --git a/bin/fresh-cmd")
+    t.key("tab", "enter")
+    t.wait_for("Summary", timeout=60)
+    t.key("esc")
+    t.wait_exit()
+    assert head(sb, demo) != v1
+    assert open(repo + "/layers.lock").read() == "demo\t" + head(sb, demo)
+    code, out = run(sb, repo + "/bin/uk", "doctor")
+    assert "since its pin" not in out and "no pin" not in out, out
+
+
+def test_docs_only_pass_and_a_pull_by_hand_shows_in_doctor(sb):
+    repo = set_up_v1(sb)
+    demo = repo + "/layers/demo"
+    run(sb, repo + "/bin/uk", "update", "--yes")                  # pinned at v1
+    d = sb.root + "/demo-src"
+    with open(d + "/README.md", "w") as f:
+        f.write("# demo\n")
+    git(sb, "add", "-A", cwd=d)
+    git(sb, "commit", "-qm", "docs", cwd=d)
+    git(sb, "push", "-q", sb.root + "/demo.git", "main", cwd=d)
+    code, out = run(sb, repo + "/bin/uk", "update", "--yes")
+    assert "held back" not in out and os.path.exists(demo + "/README.md"), out   # docs run nothing
+    push_v2(sb)
+    git(sb, "pull", "-q", "--ff-only", cwd=demo)                  # by hand, not through uk update
+    code, out = run(sb, repo + "/bin/uk", "doctor")
+    assert code == 1 and "1 commit(s) since its pin" in out, out

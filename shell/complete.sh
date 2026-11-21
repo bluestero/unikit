@@ -37,11 +37,11 @@ _work_complete_hat() {
   esac
 }
 
-# uk layer: add / rm / ls, then rm takes a layer's name
+# uk layer: add / rm / ls / check, then rm takes a layer's name
 _work_root_uk=$_work_root   # init unsets _work_root once loaded; Tab needs it later
 _work_complete_uk() {
   case "$COMP_CWORD:${COMP_WORDS[1]}" in
-    2:layer|2:layers) printf '%s\n' ls add rm ;;
+    2:layer|2:layers) printf '%s\n' ls add rm check ;;
     3:layer|3:layers) [ "${COMP_WORDS[2]}" = rm ] && command ls -1 "$_work_root_uk/layers" 2>/dev/null ;;
   esac
 }

@@ -113,7 +113,7 @@ ws_personal_init() {
 #   <folder>   [<github owner/repo>]     (no repo = just a folder, never cloned)
 EOF
       while IFS=$'\t' read -r name file; do
-        printf '\n# From the %s layer (layers/%s/workspaces), kept up to date by tk update.\n' "$name" "$name"
+        printf '\n# From the %s layer (layers/%s/workspaces), kept up to date by uk update.\n' "$name" "$name"
         while IFS= read -r l; do
           _ws_is_var "$l" && printf '# Where its repos go: change it here to keep them elsewhere.\n%s\n' "$l"
         done < <(_ws_lines "$file")

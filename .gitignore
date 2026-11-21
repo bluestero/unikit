@@ -23,6 +23,7 @@ __pycache__/
 
 # Layers: each is its own repo, cloned here by uk layers (lib/layers.sh)
 /layers/
+/layers.lock
 
 # Personal notes, kept next to the code but not in git
 /PLAN-*.md

@@ -27,6 +27,10 @@
 #   workspaces        a shared ws list; "@<name>" in your own list brings it in
 #   claude/skills/*/  Claude Code skills, linked by the claude-skill component
 #
+# Trust: a layer's code runs on your machine (every shell, its commands, the installer).
+# uk layer add shows what it brings and asks first (default No); layers.lock (in the root,
+# not in git) pins the commit you said yes to, and uk update shows the files that run code
+# changed since that pin before it pulls them (--yes holds those layers back).
 # The kits: tk (what you work with) and fk (how it looks). Each one's command sets up its own
 # parts: tk install, fk install. Both are always there.
 declare -gA KIT_LABEL=([tk]=toolkit [fk]=feelkit)
@@ -68,3 +72,17 @@ layer_kit() { local k=tk; [[ -f $1/kit ]] && k=$(head -1 "$1/kit"); printf '%s\n
 layer_requires() { [[ -r $1/requires ]] && grep -v '^[[:space:]]*\(#\|$\)' "$1/requires"; return 0; }
 # layer_missing <dir>: the ones of those that aren't here
 layer_missing() { local t; while IFS= read -r t; do [[ -d ${1%/layers/*}/layers/$t ]] || echo "$t"; done < <(layer_requires "$1"); }
+# layers.lock: "name TAB commit" per layer, the commit you last looked at and trusted
+pin_of() { [[ -r $1/layers.lock ]] && awk -F'\t' -v n="$2" '$1 == n { print $2 }' "$1/layers.lock"; return 0; }   # root name
+pin_set() {   # root name [commit]: without a commit the pin goes
+  local f=$1/layers.lock t; t=$(mktemp)
+  { [[ -r $f ]] && awk -F'\t' -v n="$2" '$1 != n' "$f"; [[ -n ${3:-} ]] && printf '%s\t%s\n' "$2" "$3"; } >"$t"
+  mv "$t" "$f"
+}
+# layer_code <dir> <from> <to>: the files changed between two commits that run code: all but
+# the docs and the plain lists (tools, kit, requires, workspaces, VERSION)
+layer_code() {
+  git -C "$1" diff --name-only "$2" "$3" -- 2>/dev/null |
+    grep -Ev '^(tools|kit|requires|workspaces|VERSION|\.gitignore|LICENSE[^/]*|[^/]*\.md|docs/.*)$'
+  return 0
+}

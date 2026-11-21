@@ -88,5 +88,5 @@ don't carry over to your Bash calls. Use `okcli exec` / `kx exec` instead.
 ## Other tools, for reference
 
 - `ws <name>`: opens a workspace in the user's IDE. `ws ls` lists them.
-- `tk install` / `tk uninstall` / `tk update`: manage the toolkit itself; interactive, user runs them.
+- `tk install` / `tk uninstall` / `uk update`: manage the toolkit itself; interactive, user runs them.
 - Profiles count as prod unless the name or account contains dev / test / stg / qa / poc.

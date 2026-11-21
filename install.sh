@@ -18,7 +18,7 @@ for arg in "$@"; do
     -p|--plain)     export WORK_TOOLKIT_PLAIN=1 ;;
     --layer=*)      layer=${arg#--layer=} ;;
     --kit=*)        kit=${arg#--kit=} ;;
-    --update=*)     update=${arg#--update=} ;;   # tk update: what the pull changed (lib/update.sh)
+    --update=*)     update=${arg#--update=} ;;   # uk update: what the pull changed (lib/update.sh)
     -*) printf '✗ unknown option %s · see: ./install.sh help\n' "$arg" >&2; exit 2 ;;
     *)  wanted+=("$arg") ;;
   esac
@@ -63,7 +63,7 @@ elif [[ -n $kit ]]; then
   [[ -v KIT_LABEL[$kit] ]] || { printf '✗ no kit %s (tk or fk)\n' "'$kit'" >&2; exit 2; }
   mapfile -t allowed < <(kit_parts "$kit")
   (( ${#allowed[@]} )) || { echo "$kit has no parts yet: no layer brings any. Add one: uk layers"; exit 0; }
-elif [[ -n $update ]]; then allowed=("${COMPONENTS[@]}")   # tk update: every part, fk's too
+elif [[ -n $update ]]; then allowed=("${COMPONENTS[@]}")   # uk update: every part, fk's too
 else mapfile -t allowed < <(main_parts); fi
 for w in "${wanted[@]}"; do
   [[ " ${allowed[*]} " == *" $w "* ]] && continue
@@ -79,7 +79,7 @@ again=./install.sh undo=./uninstall.sh
 if [[ -n $layer ]]; then _k=${LAYER_KIT[$layer]:-tk}; else _k=${kit:-tk}; fi
 [[ $_k != tk ]] && again="$_k install" undo="$_k uninstall"
 
-# tk update with no terminal: where things stand, and nothing changed
+# uk update with no terminal: where things stand, and nothing changed
 [[ -n $update && "$mode" == ask && ! -t 0 ]] && list=1
 if [[ "$mode" == ask && $list == 0 && ! -t 0 ]]; then
   echo "This installer asks before each change, but there's no terminal to ask in."
@@ -94,7 +94,7 @@ badge() {   # badge <state> [what it needs] [note]
     missing)   printf '%s○ not installed%s' "$Y" "$R" ;;
     needs)     printf '%s○ needs %s%s' "$Y" "${2// /, }" "$R" ;;
     unsupported) printf '%s⊘ not supported here%s' "$D" "$R" ;;
-    fix)       printf '%s◐ needs a fix%s' "$Y" "$R" ;;   # tk update's (lib/update.sh)
+    fix)       printf '%s◐ needs a fix%s' "$Y" "$R" ;;   # uk update's (lib/update.sh)
     new)       printf '%s○ new%s' "$Y" "$R" ;;
     removed)   printf '%s✗ removed upstream%s' "$Y" "$R" ;;
     gone)      printf '%s– removed upstream%s' "$D" "$R" ;;
@@ -126,7 +126,7 @@ for id in "${wanted[@]}"; do
   # named on the command line and installed already: still offer its settings menu (keep / look / defaults)
   (( named )) && [[ "$STATE" == installed && " ${LOOK_PARTS[*]} " == *" $id "* ]] && todo+=("$id")
 done
-[[ -n $update ]] && wanted=("${shown[@]}")   # tk update shows only parts with something to say
+[[ -n $update ]] && wanted=("${shown[@]}")   # uk update shows only parts with something to say
 # Naming only installed look components (their settings menu): no table, heading or summary, just the menu.
 quick=0
 if (( named )) && (( ${#todo[@]} == named )); then
@@ -143,7 +143,7 @@ fi
 # set up (to look through); else the table and the checklist below.
 tabs=0
 [[ "$mode" == ask && $named == 0 && $list == 0 && -t 1 ]] && ui_fzf_at_least 0.63 && tabs=1
-[[ -n $update ]] && (( ! ${#todo[@]} )) && tabs=0   # tk update with nothing to do: just the table
+[[ -n $update ]] && (( ! ${#todo[@]} )) && tabs=0   # uk update with nothing to do: just the table
 printf '%s' "$table" | print_table 3 | sed 's/\x1b\[[0-9;]*m//g' >>"$log_file"
 if (( ! tabs )); then
   say ""
@@ -152,7 +152,7 @@ if (( ! tabs )); then
   # Which machine this is, and what that rules out (the reasons are in the NOTE column).
   say "${D}This machine: $OS_NAME · $DESKTOP_NAME · ${PKG_MGR/none/no package manager}${R}"
   (( skipped )) && say "${D}$skipped component(s) can't run here and are skipped (⊘ above, with the reason).${R}"
-  (( list )) && { [[ -n $update ]] && (( ${#todo[@]} )) && say "Run ${B}tk update${R} in a terminal to fix these."; exit 0; }
+  (( list )) && { [[ -n $update ]] && (( ${#todo[@]} )) && say "Run ${B}uk update${R} in a terminal to fix these."; exit 0; }
   say ""
 fi
 if (( ${#todo[@]} == 0 && ! tabs )); then
@@ -186,7 +186,7 @@ fi
 
 # Pick what to set up (nothing ticked: you tick what you want with tab). Named components or
 # --yes / --dry-run skip the list.
-# tk update --yes / --dry-run: what it would tick
+# uk update --yes / --dry-run: what it would tick
 [[ -n $update && "$mode" != ask ]] && todo=("${preticked[@]}")
 if [[ "$mode" == ask && $named == 0 ]] && (( ! tabs )); then
   say "Tick what you want with ${B}tab${R}, then ${B}Enter${R} sets it up."

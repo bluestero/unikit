@@ -75,7 +75,7 @@ lay_menu_rows() {
 cmd_layers() {
   if [[ ! -t 0 || ! -t 1 ]] || ! type -P fzf >/dev/null || ! ui_fzf_at_least 0.63; then layer_ls; return; fi
   IP=$(mktemp -d) || return 1; export IP
-  trap 'rm -rf "$IP"' EXIT
+  trap 'rm -rf "$IP" "$ROOT"/layers/.new-*' EXIT
   ip_set mode list
   lay_rows >"$IP/cells.list"; lay_lay list
   local cb k then cur
@@ -87,7 +87,7 @@ cmd_layers() {
     --preview="bash $(printf %q "$SELF") __about {2}" --preview-window='right,55%,wrap,hidden' \
     <"$IP/rows.list" >/dev/null
   then=$(ip_get then) cur=$(ip_get cur)
-  rm -rf "$IP"; trap - EXIT
+  rm -rf "$IP" "$ROOT"/layers/.new-*; trap - EXIT
   case $then in   # what the list was left for: the installer, in this terminal
     setup) exec "$ROOT/install.sh" --layer="$cur" ;;
     undo)  exec "$ROOT/uninstall.sh" --layer="$cur" ;;
@@ -114,6 +114,30 @@ rm_blocked() {
 }
 # the name a layer gets from its URL: unix-feelkit -> feelkit, acme-toolkit -> acme
 url_name() { local n; n=$(basename "${1%.git}"); n=${n#unix-}; printf '%s' "${n%-toolkit}"; }
+
+# What runs if you trust a layer, one line each: where from at which commit, then its code
+trust_card() {   # dir
+  local d=$1 f c="" n
+  printf 'from %s at %s\n' "$(git -C "$d" remote get-url origin 2>/dev/null)" \
+    "$(git -C "$d" log -1 --format='%h (%cs, %an: %s)' 2>/dev/null)"
+  [[ -r $d/shell/init.sh ]] && printf '• every new shell runs its shell/init.sh (%s lines)\n' "$(wc -l <"$d/shell/init.sh")"
+  for f in "$d"/bin/*; do [[ -f $f ]] && c+="${f##*/}, "; done
+  [[ -n $c ]] && printf '• commands: %s\n' "${c%, }"
+  if [[ -r $d/components.sh ]]; then
+    n=$( (COMPONENTS=(); . "$d/components.sh" >/dev/null 2>&1; printf '%s' "${#COMPONENTS[@]}") )
+    printf '• setting up its %s part(s) runs its components.sh\n' "$n"
+  fi
+  if compgen -G "$d/claude/skills/*/" >/dev/null; then
+    c=""; for f in "$d"/claude/skills/*/; do f=${f%/}; c+="${f##*/}, "; done
+    printf '• Claude skills (what Claude is told to do): %s\n' "${c%, }"
+  fi
+  [[ -n $(layer_missing "$d") ]] && printf '• it needs layers that aren'"'"'t here: %s\n' "$(layer_missing "$d" | paste -sd' ')"
+  return 0
+}
+# keep a cloned layer: from layers/.new-<name> to layers/<name>, its commit pinned
+trust_keep() {   # name
+  mv "$ROOT/layers/.new-$1" "$ROOT/layers/$1" && pin_set "$ROOT" "$1" "$(git -C "$ROOT/layers/$1" rev-parse HEAD)"
+}
 
 lay_key() {   # key value query
   local k=$1 v=$2 q=$3 m url name dir err
@@ -159,24 +183,28 @@ lay_key() {   # key value query
           [[ $name =~ ^[A-Za-z0-9._-]+$ ]] || { ip_reask "'$name' can't be a folder name: give one after the URL"; return; }
           dir=$ROOT/layers/$name
           [[ -e $dir ]] && { ip_reask "layers/$name is already there: give it another name after the URL"; return; }
-          mkdir -p "$ROOT/layers"
-          # no terminal to type a password in: git fails instead of waiting
-          err=$(GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes" git clone -q "$url" "$dir" 2>&1) ||
-            { rm -rf "$dir"; ip_reask "couldn't clone it: $(grep -v '^$' <<<"$err" | tail -1)"; return; }
+          mkdir -p "$ROOT/layers"; rm -rf "$ROOT/layers/.new-$name"
+          # cloned aside (nothing loads it yet); no terminal to type a password in: git fails instead of waiting
+          err=$(GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes" git clone -q "$url" "$ROOT/layers/.new-$name" 2>&1) ||
+            { rm -rf "$ROOT/layers/.new-$name"; ip_reask "couldn't clone it: $(grep -v '^$' <<<"$err" | tail -1)"; return; }
           ip_set cur "$name"; ip_set saved_q ""
-          local miss note=""; miss=$(layer_missing "$dir" | paste -sd' ')
-          [[ -n $miss ]] && note="${C_YELLOW}! it needs layers that aren't here: $miss; alt-a adds them${C_RESET}"
-          ip_join "$(ip_fz reload-sync "bash $(printf %q "$SELF") __relist")" \
-            "$(ip_confirm "Added $name (its commands load in new terminals). Set up its parts now?" setup y "$note")" ;;
+          ip_confirm "Trust $name? What's above runs on this machine." trust n "$(trust_card "$ROOT/layers/.new-$name")" ;;
       esac ;;
     confirm)
       local a; a=$(ip_answer "$k"); [[ -n $a ]] || return 0
       name=$(ip_get cur)
       case $(ip_get pending) in
+        trust)
+          if [[ $a != yes ]]; then rm -rf "${ROOT:?}/layers/.new-$name"; lay_to_list "Not added: nothing of $name is left"; return; fi
+          trust_keep "$name" || { lay_to_list "✗ couldn't move layers/.new-$name to layers/$name"; return; }
+          local miss note=""; miss=$(layer_missing "$ROOT/layers/$name" | paste -sd' ')
+          [[ -n $miss ]] && note="${C_YELLOW}! it needs layers that aren't here: $miss; alt-a adds them${C_RESET}"
+          ip_join "$(ip_fz reload-sync "bash $(printf %q "$SELF") __relist")" \
+            "$(ip_confirm "Added $name (its commands load in new terminals). Set up its parts now?" setup y "$note")" ;;
         setup) if [[ $a == yes ]]; then ip_set then setup; echo accept
                else lay_to_list "✓ layer $name added · later: uk layers, or $(layer_kit "$ROOT/layers/$name") install"; fi ;;
         rm) if [[ $a == yes ]]; then
-              rm -rf "${ROOT:?}/layers/$name" && lay_to_list "✓ layer $name removed · open a new terminal"
+              rm -rf "${ROOT:?}/layers/$name" && pin_set "$ROOT" "$name" && lay_to_list "✓ layer $name removed · open a new terminal"
             else lay_to_list "Kept."; fi ;;
       esac ;;
   esac
@@ -245,14 +273,23 @@ layer_ls() {
 }
 
 layer_add() {
-  local url=${1:-} name dir later
+  local url name dir later yes=0 a new; local -a args=()
+  for a; do case $a in -y|--yes) yes=1 ;; *) args+=("$a") ;; esac; done
+  url=${args[0]:-}
   [[ -n $url ]] || die "which repo? uk layer add <git-url> [name]   e.g. git@github.com:me/acme-toolkit.git"
-  name=${2:-$(url_name "$url")}
-  dir="$ROOT/layers/$name"
+  name=${args[1]:-$(url_name "$url")}
+  dir="$ROOT/layers/$name" new="$ROOT/layers/.new-$name"
   [[ -e $dir ]] && die "layers/$name is already there (uk layers)"
-  mkdir -p "$ROOT/layers"
-  git clone -q "$url" "$dir" || die "couldn't clone $url (no access? check: ssh -T git@github.com)"
-  ok "layer $name added: ${dir/#$HOME/\~}"
+  mkdir -p "$ROOT/layers"; rm -rf "$new"
+  git clone -q "$url" "$new" || { rm -rf "$new"; die "couldn't clone $url (no access? check: ssh -T git@github.com)"; }
+  info "${C_BOLD}$name${C_RESET}: its code runs on this machine:"
+  trust_card "$new" | sed 's/^/  /' >&2
+  if (( ! yes )); then
+    [[ -t 0 ]] || { rm -rf "$new"; die "not added: no terminal to ask in (uk layer add --yes <git-url> trusts it without asking)"; }
+    confirm "Trust $name and add it?" n || { rm -rf "$new"; info "Not added."; return 0; }
+  fi
+  trust_keep "$name" || die "couldn't move layers/.new-$name to layers/$name"
+  ok "layer $name added: ${dir/#$HOME/\~} (pinned at $(git -C "$dir" rev-parse --short HEAD))"
   local t; for t in $(layer_missing "$dir"); do warn "it needs the $t layer, which isn't here: uk layer add <its git URL>"; done
   info "${C_DIM}Its commands and settings load in new terminals.${C_RESET}"
   later="tk install --layer=$name"
@@ -272,7 +309,7 @@ layer_rm() {
   [[ $(layer_kit "$dir") != tk ]] && undo="$(layer_kit "$dir") uninstall"   # its parts are fk's (fk uninstall)
   info "${C_DIM}Parts it set up stay set up; to remove them first: $undo${C_RESET}"
   confirm "Remove the $name layer (delete ${dir/#$HOME/\~})?" n || { info "Kept."; return 0; }
-  rm -rf "$dir" && ok "layer $name removed · open a new terminal"
+  rm -rf "$dir" && pin_set "$ROOT" "$name" && ok "layer $name removed · open a new terminal"
 }
 
 cmd_layer() {
@@ -281,6 +318,7 @@ cmd_layer() {
     ls|list)    layer_ls ;;
     add)        shift; layer_add "$@" ;;
     rm|remove)  shift; layer_rm "$@" ;;
+    check)      shift; layer_check "$@" ;;
     *)          ui_unknown "uk layer" "$1" ;;
   esac
 }
@@ -297,68 +335,68 @@ check() {  # check <what> <ok|bad> <text> [fix]
   else PROBLEMS[$1]+="$3${4:+  $(ui_hint "$4")}"$'\n'; fi
 }
 
-cmd_doctor() {
-  [[ -t 1 ]] || ui_no_color
-  local name f d l k t n g w p c bad=0 rows="" first parts err id
-  local -A owner=()
-  # the names: each runs unikit's, not another program of the same name
-  for name in uk tk fk unikit toolkit feelkit; do
-    f=$(type -P "$name") || {
-      [[ $name == [utf]k ]] && check unikit bad "$name isn't on PATH" "tk install commands"; continue; }
-    if [[ $(readlink -f "$f") == "$ROOT"/bin/* ]]; then check unikit ok "$name"
-    else check unikit bad "$name runs ${f/#$HOME/\~}, not unikit's" "unikit's ${ROOT/#$HOME/\~}/bin must come first on PATH"; fi
-  done
-  for f in "$ROOT"/bin/* "$ROOT"/{okta,kube,twingate,ws,kitty}/bin/*; do [[ -x $f ]] && owner[${f##*/}]=unikit; done
+declare -A OWNER=()   # command name -> who brings it (unikit, or the first layer)
+unikit_owns() { local f; for f in "$ROOT"/bin/* "$ROOT"/{okta,kube,twingate,ws,kitty}/bin/*; do [[ -x $f ]] && OWNER[${f##*/}]=unikit; done; }
 
-  parts=$(mktemp)
-  err=$(layer_parts 2>&1 >"$parts")
-  while IFS= read -r d; do
-    l=${d##*/}
-    check "$l" ok there
-    if ! [[ -d $d/bin || -r $d/shell/init.sh || -r $d/components.sh || -r $d/tools || -r $d/workspaces || -d $d/claude/skills ]]; then
-      check "$l" bad "has none of what a layer can hold (bin/, shell/init.sh, components.sh, tools, workspaces, claude/skills/)" "lib/layers.sh lists them"
-    fi
-    if [[ -f $d/kit ]]; then
-      k=$(head -1 "$d/kit")
-      if [[ -v KIT_LABEL[$k] ]]; then check "$l" ok kit; else check "$l" bad "its kit file says '$k' (tk or fk)"; fi
-    fi
-    while IFS= read -r t; do   # the layers it needs (its requires file)
+# check_layer <dir> [name]: is it well formed; does it clash with what OWNER already has
+check_layer() {
+  local d=$1 l=${2:-${1##*/}} k t n g w p c f
+  check "$l" ok there
+  if ! [[ -d $d/bin || -r $d/shell/init.sh || -r $d/components.sh || -r $d/tools || -r $d/workspaces || -d $d/claude/skills ]]; then
+    check "$l" bad "has none of what a layer can hold (bin/, shell/init.sh, components.sh, tools, workspaces, claude/skills/)" "lib/layers.sh lists them"
+  fi
+  if [[ -f $d/kit ]]; then
+    k=$(head -1 "$d/kit")
+    if [[ -v KIT_LABEL[$k] ]]; then check "$l" ok kit; else check "$l" bad "its kit file says '$k' (tk or fk)"; fi
+  fi
+  while IFS= read -r t; do   # the layers it needs (its requires file)
+    [[ -z $t || $t == \#* ]] && continue
+    if [[ -d $ROOT/layers/$t ]]; then check "$l" ok "needs $t"
+    else check "$l" bad "needs the $t layer, which isn't here" "uk layers, alt-a adds it"; fi
+  done < <(layer_requires "$d")
+  if [[ -r $d/components.sh ]]; then
+    if t=$(bash -n "$d/components.sh" 2>&1); then check "$l" ok components.sh
+    else check "$l" bad "components.sh doesn't parse: $(head -1 <<<"$t")"; fi
+  fi
+  if [[ -r $d/tools ]]; then
+    while IFS= read -r t; do
       [[ -z $t || $t == \#* ]] && continue
-      if [[ -d $ROOT/layers/$t ]]; then check "$l" ok "needs $t"
-      else check "$l" bad "needs the $t layer, which isn't here" "uk layers, alt-a adds it"; fi
-    done < <(layer_requires "$d")
-    if [[ -r $d/components.sh ]]; then
-      if t=$(bash -n "$d/components.sh" 2>&1); then check "$l" ok components.sh
-      else check "$l" bad "components.sh doesn't parse: $(head -1 <<<"$t")"; fi
-    fi
-    if [[ -r $d/tools ]]; then
-      while IFS= read -r t; do
-        [[ -z $t || $t == \#* ]] && continue
-        IFS='|' read -r n g w p k <<<"$t"
-        if [[ -z $n || -z $g || -z $w ]]; then check "$l" bad "tools line '$t' needs name|group|what it does|program"; continue; fi
-        [[ -z $k || -v KIT_LABEL[$k] ]] || check "$l" bad "tools line $n names the kit '$k' (tk or fk)"
-        c=$n; [[ $n == [tf]k\ * ]] && c="${n%% *}-${n#* }"   # fk looks is bin/fk-looks
-        if [[ -x $d/bin/$c ]] || [[ -v owner[$c] ]] || type -P "$c" >/dev/null; then check "$l" ok "$n"
-        else check "$l" bad "tools lists $n, but there's no bin/$c"; fi
-      done <"$d/tools"
-    fi
-    for f in "$d"/bin/*; do
-      [[ -e $f ]] || continue
-      c=${f##*/}
-      [[ -x $f ]] || check "$l" bad "bin/$c isn't executable" "chmod +x $f"
-      case $c in fk-install|fk-uninstall|fk-help)
-        check "$l" bad "bin/$c never runs: fk ${c#fk-} is fk's own"; continue ;; esac
-      if [[ ${owner[$c]:-} == unikit ]]; then check "$l" bad "bin/$c never runs: unikit's $c comes first on PATH"
-      elif [[ -v owner[$c] ]]; then check "$l" bad "bin/$c: ${owner[$c]} has a $c too; the one first on PATH runs"
-      else owner[$c]=$l; fi
-    done
-  done < <(layer_dirs "$ROOT")
-  # the loader's own words: a part naming an unknown kit, a layer whose part names are taken
-  while IFS= read -r t; do
-    [[ $t =~ ^✗\ layer\ ([^:]+):\ (.*)$ ]] && check "${BASH_REMATCH[1]}" bad "${BASH_REMATCH[2]}"
-  done <<<"$err"
-  rm -f "$parts"
+      IFS='|' read -r n g w p k <<<"$t"
+      if [[ -z $n || -z $g || -z $w ]]; then check "$l" bad "tools line '$t' needs name|group|what it does|program"; continue; fi
+      [[ -z $k || -v KIT_LABEL[$k] ]] || check "$l" bad "tools line $n names the kit '$k' (tk or fk)"
+      c=$n; [[ $n == [tf]k\ * ]] && c="${n%% *}-${n#* }"   # fk looks is bin/fk-looks
+      if [[ -x $d/bin/$c ]] || [[ -v OWNER[$c] ]] || type -P "$c" >/dev/null; then check "$l" ok "$n"
+      else check "$l" bad "tools lists $n, but there's no bin/$c"; fi
+    done <"$d/tools"
+  fi
+  for f in "$d"/bin/*; do
+    [[ -e $f ]] || continue
+    c=${f##*/}
+    [[ -x $f ]] || check "$l" bad "bin/$c isn't executable" "chmod +x $f"
+    case $c in fk-install|fk-uninstall|fk-help)
+      check "$l" bad "bin/$c never runs: fk ${c#fk-} is fk's own"; continue ;; esac
+    if [[ ${OWNER[$c]:-} == unikit ]]; then check "$l" bad "bin/$c never runs: unikit's $c comes first on PATH"
+    elif [[ -v OWNER[$c] ]]; then check "$l" bad "bin/$c: ${OWNER[$c]} has a $c too; the one first on PATH runs"
+    else OWNER[$c]=$l; fi
+  done
+}
 
+# its commit against its pin (layers.lock): nothing new runs that you didn't look at
+check_pin() {   # dir name
+  local p n
+  own_repo "$1" || return 0
+  p=$(pin_of "$ROOT" "$2")
+  if [[ -z $p ]]; then check "$2" bad "has no pin (added before pins)" "uk update pins it"
+  elif [[ $(git -C "$1" rev-parse HEAD) == "$p" ]]; then check "$2" ok pin
+  else
+    n=$(git -C "$1" rev-list --count "$p..HEAD" 2>/dev/null)
+    check "$2" bad "${n:-some} commit(s) since its pin, not looked at in uk update (yours, or pulled by hand)" "uk update shows them"
+  fi
+}
+
+# the box: a row per check, the problems spelled out; 1 when there's one
+report() {   # title subtitle
+  local name n p first rows="" bad=0
   for name in "${ORDER[@]}"; do
     if [[ -z "${PROBLEMS[$name]:-}" ]]; then
       n=${OKS[$name]}
@@ -375,8 +413,186 @@ cmd_doctor() {
     (( n > 1 )) && rows+="$S${C_DIM}$n other checks pass${C_RESET}"$'\n'
   done
   local foot; (( bad )) && foot="${C_YELLOW}$bad to fix${C_RESET}" || foot="${C_GREEN}all good${C_RESET}"
-  printf '%s' "$rows" | { if [[ -t 1 ]]; then print_table 3 | ui_box "uk doctor" "tk doctor, fk doctor: each part" 0 "$foot"; else print_table 3; fi; }
+  printf '%s' "$rows" | { if [[ -t 1 ]]; then print_table 3 | ui_box "$1" "$2" 0 "$foot"; else print_table 3; fi; }
   (( bad == 0 ))
+}
+
+cmd_doctor() {
+  [[ -t 1 ]] || ui_no_color
+  local name f d t err parts
+  # the names: each runs unikit's, not another program of the same name
+  for name in uk tk fk unikit toolkit feelkit; do
+    f=$(type -P "$name") || {
+      [[ $name == [utf]k ]] && check unikit bad "$name isn't on PATH" "tk install commands"; continue; }
+    if [[ $(readlink -f "$f") == "$ROOT"/bin/* ]]; then check unikit ok "$name"
+    else check unikit bad "$name runs ${f/#$HOME/\~}, not unikit's" "unikit's ${ROOT/#$HOME/\~}/bin must come first on PATH"; fi
+  done
+  unikit_owns
+  parts=$(mktemp)
+  err=$(layer_parts 2>&1 >"$parts")
+  rm -f "$parts"
+  while IFS= read -r d; do check_layer "$d"; check_pin "$d" "${d##*/}"; done < <(layer_dirs "$ROOT")
+  # the loader's own words: a part naming an unknown kit, a layer whose part names are taken
+  while IFS= read -r t; do
+    [[ $t =~ ^✗\ layer\ ([^:]+):\ (.*)$ ]] && check "${BASH_REMATCH[1]}" bad "${BASH_REMATCH[2]}"
+  done <<<"$err"
+  report "uk doctor" "tk doctor, fk doctor: each part"
+}
+
+# uk layer check <dir>: a layer you're making, before you push it: well formed, and nothing
+# in it clashes with unikit or the layers here (its own copy in layers/ aside)
+layer_check() {
+  [[ -t 1 ]] || ui_no_color
+  local d=${1:-.} l o f taken
+  [[ -d $d ]] || die "there's no folder $d   (uk layer check <the layer's folder>)"
+  d=$(cd "$d" && pwd -P); l=${d##*/}
+  unikit_owns
+  while IFS= read -r o; do   # the others' commands (each layer's own bin/ first wins)
+    [[ ${o##*/} == "$l" ]] && continue
+    for f in "$o"/bin/*; do [[ -x $f && ! -v OWNER[${f##*/}] ]] && OWNER[${f##*/}]=${o##*/}; done
+  done < <(layer_dirs "$ROOT")
+  check_layer "$d" "$l"
+  if [[ -r $d/components.sh ]]; then   # its part names: none that unikit or another layer has
+    taken=$( ( repo=$ROOT mode=dry details=0
+      . "$ROOT/lib/setup.sh" >/dev/null 2>&1; . "$ROOT/lib/components.sh" >/dev/null 2>&1
+      for id in $(COMPONENTS=(); . "$d/components.sh" >/dev/null 2>&1; printf '%s\n' "${COMPONENTS[@]}"); do
+        [[ " ${COMPONENTS[*]} " == *" $id "* && ${LAYER_OF[$id]:-unikit} != "$l" ]] && printf '%s (%s) ' "$id" "${LAYER_OF[$id]:-unikit}"
+      done ) )
+    if [[ -n $taken ]]; then check "$l" bad "its part names are taken: ${taken% }; the loader would leave all its parts out"
+    else check "$l" ok "part names"; fi
+  fi
+  report "uk layer check" "${d/#$HOME/\~}"
+}
+
+# ---------------------------------------------------------------- update ---
+# pull_one <dir> <name> <changed file>: pull it, say what changed, add the changed files
+# (full paths) to <changed file>
+pull_one() {
+  local before
+  before=$(git -C "$1" rev-parse HEAD)
+  git -C "$1" pull --ff-only -q || { warn "$2: git pull failed (output above); left as it was"; return 1; }
+  [[ "$(git -C "$1" rev-parse HEAD)" == "$before" ]] && { ok "$2: already up to date"; return 1; }
+  ok "$2: updated"
+  git -C "$1" log --no-merges --format='  • %s' "$before..HEAD" | head -n 20 >&2
+  git -C "$1" diff --name-only "$before" HEAD | sed "s#^#$1/#" >>"$3"
+}
+
+# parts_now: "id repo state" for every installer part, fk's too
+parts_now() {
+  (
+    repo=$ROOT mode=dry details=0
+    . "$ROOT/lib/setup.sh" >/dev/null 2>&1
+    . "$ROOT/lib/components.sh" >/dev/null 2>&1
+    for id in "${COMPONENTS[@]}"; do
+      component_state "$id" >/dev/null 2>&1
+      printf '%s %s %s\n' "$id" "$(repo_of "$id")" "$STATE"
+    done
+  )
+}
+
+# Look for updates to unikit and every layer (fetch: nothing changes yet) and list the ones
+# with something new, ticked. A layer whose code changed since its pin (layers.lock: what you
+# last trusted) starts unticked: its commits and changed files show under the cursor, alt-i
+# the diff; tick it to trust them. Enter pulls the ticked (a layer's pin moves to what it
+# pulled), then shows each part against how it was before the pull (install.sh --update,
+# lib/update.sh). --yes pulls all but the layers whose code changed; --dry-run and no
+# terminal pull nothing.
+cmd_update() {
+  own_repo "$ROOT" ||
+    die "the unikit folder (${ROOT/#$HOME/\~}) isn't a git repo, so there's nothing to update from"
+  local d u name n a p to code up how=ask rc=0 rows="" layers=0 i=0 nsel load="select-all"
+  local -a dirs=() names=() picked=()
+  declare -A gated=()
+  for a in "$@"; do case $a in -y|--yes) how=yes ;; -n|--dry-run) how=dry ;; esac; done   # the last one wins, as in install.sh
+  u=$(mktemp -d); : >"$u/changed"
+  info "${C_DIM}Checking what's set up…${C_RESET}"
+  parts_now >"$u/before"
+  info "${C_DIM}Looking for updates…${C_RESET}"
+  while IFS= read -r d; do
+    [[ $d == "$ROOT" ]] && name=unikit || name=${d##*/}
+    own_repo "$d" || continue   # a copied folder: nothing to update from
+    n=0 to=HEAD up="" p=""
+    if git -C "$d" rev-parse -q --verify '@{u}' >/dev/null; then
+      if git -C "$d" fetch -q 2>/dev/null; then up=1 n=$(git -C "$d" rev-list --count 'HEAD..@{u}'); (( n )) && to='@{u}'
+      else warn "$name: couldn't look for updates (offline?)"; fi
+    fi
+    if [[ $name != unikit ]]; then
+      p=$(pin_of "$ROOT" "$name")
+      if [[ -z $p ]] || ! git -C "$d" cat-file -e "$p^{commit}" 2>/dev/null; then   # added before pins: what's there now
+        p=$(git -C "$d" rev-parse HEAD)
+        [[ $how == dry ]] || { pin_set "$ROOT" "$name" "$p"; ok "$name: pinned at ${p:0:7} (it had no pin)"; }
+      fi
+    fi
+    code=""; [[ -n $p ]] && code=$(layer_code "$d" "$p" "$to")
+    if (( ! n )) && [[ -z $code ]]; then
+      [[ -n $p && $how != dry ]] && pin_set "$ROOT" "$name" "$(git -C "$d" rev-parse HEAD)"   # only docs since its pin
+      [[ -n $up ]] && ok "$name: already up to date"
+      continue
+    fi
+    dirs+=("$d") names+=("$name") i=$((i + 1)); [[ $name == unikit ]] || layers=1
+    git -C "$d" log --no-merges --format='• %s' "${p:-HEAD}..$to" | head -n 12 >"$u/log.$name"
+    if [[ -n $code ]]; then
+      gated[$name]=1 load+="+pos($i)+deselect"
+      printf '%s\n' "${C_YELLOW}runs code:${C_RESET} $(paste -sd' ' <<<"$code")" >>"$u/log.$name"
+      # shellcheck disable=SC2086
+      git -C "$d" diff --color=always "$p" "$to" -- $code >"$u/diff.$name"
+    fi
+    a=""
+    if [[ $name == unikit ]]; then
+      local old new; old=$(version) new=$(git -C "$ROOT" show '@{u}:VERSION' 2>/dev/null | tr -d '[:space:]')
+      [[ -n $new && $new != "$old" ]] && a="$old → $new"
+    fi
+    rows+="$name$S$( (( n )) && echo "$n new commit$( (( n == 1 )) || echo s)" || echo "– (since its pin)")"
+    rows+="$S$( [[ -n $code ]] && echo "$C_YELLOW! $(wc -l <<<"$code") file(s) changed$C_RESET" || echo –)$S$C_DIM$a$C_RESET"$'\t'"$name"$'\n'
+  done < <(printf '%s\n' "$ROOT"; layer_dirs "$ROOT")
+
+  if (( ${#names[@]} )); then
+    if [[ $how == yes ]]; then
+      for name in "${names[@]}"; do
+        if [[ -v gated[$name] ]]; then warn "$name: held back, its code changed since you last trusted it: uk update in a terminal shows it"
+        else picked+=("$name"); fi
+      done
+    elif [[ $how == ask && -t 0 && -t 1 ]] && type -P fzf >/dev/null; then
+      local note="" foot=()
+      [[ " ${names[*]} " == *" unikit "* ]] && (( layers )) &&
+        note="# layers may need the newer unikit: keep it ticked when you pull a layer"$'\n'
+      (( ${#gated[@]} )) && note+="# ! a layer whose code changed starts unticked: read it (alt-i), tick it to trust it"$'\n'
+      ui_fzf_at_least 0.63 && foot=(--footer=' ' --bind="focus:transform-footer(cat $u/log.{2})")
+      nsel="$u/nsel"
+      a=$(printf '%s%s' "REPO${S}NEW${S}CODE${S}VERSION"$'\t\n' "$rows" |
+        ui_fzf 'uk update · pull which?' --multi --marker='✓' --header-lines=1 --delimiter=$'\t' --with-nth=1 \
+          --header="${note}tab: tick/untick · ctrl-a: all/none · alt-i: the code's diff · enter: pull the ticked · esc: pull nothing" \
+          --bind="load:$load+first,ctrl-a:toggle-all,alt-i:toggle-preview" "${foot[@]}" \
+          --preview="cat $u/diff.{2} 2>/dev/null || echo 'No code changed: only docs and lists.'" --preview-window='right,60%,hidden' \
+          --bind="enter:execute-silent(echo \$FZF_SELECT_COUNT >$nsel)+accept" | cut -f2) ||
+        { rm -rf "$u"; info "Cancelled. Nothing pulled."; return 0; }
+      mapfile -t picked <<<"$a"
+      [[ $(cat "$nsel" 2>/dev/null) == 0 ]] && picked=()   # nothing ticked: fzf hands back the cursor's row
+    else   # no terminal to pick in, or --dry-run: say what's there, pull nothing
+      printf '%s' "$rows" | cut -f1 | { printf '%s\n' "REPO${S}NEW${S}CODE${S}VERSION"; cat; } |
+        ui_table "uk update" "${#names[@]} with updates" >&2
+      for name in "${names[@]}"; do sed "s/^/  $name: /" "$u/log.$name" >&2; done
+      info "Nothing pulled: ${C_BOLD}uk update${C_RESET} in a terminal picks what to pull; --yes pulls all but changed layer code"
+    fi
+    for i in "${!dirs[@]}"; do
+      d=${dirs[$i]} name=${names[$i]}
+      if [[ " ${picked[*]} " == *" $name "* ]]; then
+        if [[ $name == unikit ]]; then
+          a=$(version)
+          pull_one "$d" unikit "$u/changed"
+          [[ $(version) != "$a" ]] && ok "unikit $a → ${C_BOLD}$(version)${C_RESET}"
+        else
+          git -C "$d" rev-parse -q --verify '@{u}' >/dev/null && [[ -n $(git -C "$d" rev-list 'HEAD..@{u}') ]] &&
+            pull_one "$d" "layer $name" "$u/changed"
+          pin_set "$ROOT" "$name" "$(git -C "$d" rev-parse HEAD)"
+          [[ -v gated[$name] ]] && ok "$name: trusted, pinned at $(git -C "$d" rev-parse --short HEAD)"
+        fi
+      elif [[ $how == ask && -t 0 && -t 1 ]]; then info "${C_DIM}$name: not pulled (uk update again any time)${C_RESET}"; fi
+    done
+  fi
+  "$ROOT/install.sh" --update="$u" "$@" || rc=$?
+  rm -rf "$u"
+  return "$rc"
 }
 
 # --------------------------------------------------------------- version ---
@@ -392,6 +608,7 @@ cmd_pick() {
   local sel rows="COMMAND${S}WHAT IT DOES"$'\n'
   rows+="uk layers${S}the layers: add, remove, set up, about"$'\n'
   rows+="uk doctor${S}is each layer well formed; no clashes"$'\n'
+  rows+="uk update${S}pull what's new in unikit and each layer"$'\n'
   rows+="uk version${S}unikit's version and each layer's"$'\n'
   rows+="tk${S}toolkit: the commands you work with"$'\n'
   rows+="fk${S}feelkit: how things look"$'\n'
@@ -409,8 +626,10 @@ cmd_help() {
 ## Commands
 uk	pick one of these and run it
 uk layers	the layers in a list: add one, set up or remove its parts, remove it; alt-i shows what each one is	not in a terminal: a table
-uk layer add <git-url> [name]	clone a layer, then offer to set up its parts	name: repo name without unix- and -toolkit
+uk layer add <git-url> [name]	clone a layer, show what of it runs and ask before keeping it (pinned in layers.lock), then offer to set up its parts	name: repo name without unix- and -toolkit · --yes: no asking
 uk layer rm <name>	delete a layer (only when nothing in it is unpushed)
+uk layer check <dir>	a layer you're making, before you push it: well formed, no clashes with unikit or the layers here
+uk update	what's new in unikit and each layer; pulls the ones you tick (a layer whose code changed since you trusted it starts unticked: alt-i shows the diff), then each part: up to date, needs a fix, new or removed	--yes pulls all but changed layer code; no terminal: pulls nothing
 uk doctor	the whole: the commands are unikit's, each layer is well formed, no two bring the same part or command	each part: tk doctor
 uk version	unikit's version and each layer's (also -v, --version)
 uk help	this page
@@ -426,6 +645,7 @@ case "${1:-}" in
   layers)         shift; if [[ -z ${1:-} ]]; then cmd_layers; else cmd_layer "$@"; fi ;;
   layer)          shift; cmd_layer "$@" ;;
   doctor)         cmd_doctor ;;
+  update)         shift; cmd_update "$@" ;;
   version|-v|--version) cmd_version ;;
   help|-h|--help) cmd_help ;;
   __key)     [[ -z ${NO_COLOR:-} ]] && ui_color; lay_key "${2:-}" "${3:-}" "${4:-}" ;;

@@ -18,7 +18,7 @@
 
 # tabs_pick: shows wanted (all) with todo tickable; sets todo to the ticked ones.
 # 1 = cancelled. Needs install.sh's wanted, todo, ST/NT/ND (state, note, needs per id), again, undo, layer,
-# and preticked: what starts ticked (only tk update ticks anything).
+# and preticked: what starts ticked (only uk update ticks anything).
 tabs_pick() {
   local T id g bg rc=0 on
   local -a picked=()
@@ -40,14 +40,14 @@ tabs_pick() {
       "$("$(fn title "$id")")" "$("$(fn detail "$id")")" "$(layer_name "$id")" >>"$T/info"
     printf '%s\n' "${NT[$id]}" >>"$T/info"
   done
-  # tk update opens on the first tab with something to do
+  # uk update opens on the first tab with something to do
   if [[ -n ${update:-} ]] && (( ${#todo[@]} )); then
     grep -nxF "$(group_of "${todo[0]}")" "$T/tabs" | cut -d: -f1 | awk '{ print $1 - 1 }' >"$T/cur"
   fi
   # what --dry-run would print for each, for the summary's footer (questions not asked)
   ( log_file=/dev/null mode=dry
     for id in "${todo[@]}"; do
-      { [[ -n ${update:-} && ! -v U_GONE[$id] ]] && u_clean "$id"   # tk update: its dead links go first
+      { [[ -n ${update:-} && ! -v U_GONE[$id] ]] && u_clean "$id"   # uk update: its dead links go first
         "$(fn install "$id")"; } </dev/null 2>&1 | grep -v -- '– skipped' >"$T/dry/$id.part"; mv "$T/dry/$id.part" "$T/dry/$id"
     done ) >/dev/null 2>&1 &
   bg=$!

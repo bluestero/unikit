@@ -6,8 +6,8 @@ Every command speaks the same words: `<tool>` picker, `<tool> <name>` switch, `l
 
 | Tool | What it does |
 |---|---|
-| `tk` | The front door: `tk` picks and runs any toolkit command, `tk ls` lists them, `tk status` (ctx + how much is set up), `tk doctor` (every check in one box), `tk install` / `tk uninstall` from anywhere, `tk configs` switches starship, btop, rofi, kitty, readline and the yazi keys between the toolkit's preset, the app's own default, what you had before, or one step back (the app stays installed; "edited preset" means you changed the toolkit's copy, which is a link into this repo); "Edit my patch" keeps your own changes in `~/.config/work-toolkit/patches/`, never touched by the toolkit and read after the preset so they win (kitty, rofi and readline include it; starship gets the two merged into `~/.local/state/work-toolkit/starship.toml`; btop gets a settings file of its own, so changes made in its menu stay out of the repo and "Keep these changes as my patch" saves them), `tk update` shows what's new in the toolkit and each layer and pulls the ones you tick, then shows each part (up to date, needs a fix, new, removed upstream) and fixes what you tick, `tk version` shows the version. |
-| `uk` | unikit, the base under the two kits (`tk`, `fk`): `uk layers` lists the [layers](#layers) (enter: set up or remove its parts, remove it; alt-a adds one; alt-i shows what each one is), `uk doctor` checks the whole (the commands are unikit's, each layer is well formed, no two bring the same part or command), `uk version` shows unikit's version and each layer's. The long names `unikit`, `toolkit` and `feelkit` (for `uk`, `tk`, `fk`) are linked by the commands part, only where no other program has the name. |
+| `tk` | The front door: `tk` picks and runs any toolkit command, `tk ls` lists them, `tk status` (ctx + how much is set up), `tk doctor` (every check in one box), `tk install` / `tk uninstall` from anywhere, `tk configs` switches starship, btop, rofi, kitty, readline and the yazi keys between the toolkit's preset, the app's own default, what you had before, or one step back (the app stays installed; "edited preset" means you changed the toolkit's copy, which is a link into this repo); "Edit my patch" keeps your own changes in `~/.config/work-toolkit/patches/`, never touched by the toolkit and read after the preset so they win (kitty, rofi and readline include it; starship gets the two merged into `~/.local/state/work-toolkit/starship.toml`; btop gets a settings file of its own, so changes made in its menu stay out of the repo and "Keep these changes as my patch" saves them), `tk update` is `uk update`, `tk version` shows the version. |
+| `uk` | unikit, the base under the two kits (`tk`, `fk`): `uk layers` lists the [layers](#layers) (enter: set up or remove its parts, remove it; alt-a adds one; alt-i shows what each one is), `uk doctor` checks the whole (the commands are unikit's, each layer is well formed and at the commit you trusted, no two bring the same part or command), `uk layer check <dir>` checks a layer you're making before you push it, `uk update` pulls what's new in unikit and each layer (see Updates), `uk version` shows unikit's version and each layer's. The long names `unikit`, `toolkit` and `feelkit` (for `uk`, `tk`, `fk`) are linked by the commands part, only where no other program has the name. |
 | `okcli` | Okta AWS profiles: picker, refresh-all, per-shell switch, global default, repo pins. See `okta/README.md`. |
 | `kx` | Kubernetes contexts **per shell** (switching in one terminal never moves another), namespaces, global default, EKS contexts linked to okcli profiles. Also a friendly front to kubectl: `kx pods`, `why`, `logs`, `shell`, `deploys`, `configs`, `secrets`, `services`, `forward`, `events`, `top`, `get` (see `kx help`). |
 | `twin` | Twingate exit nodes: picker, `twin gb`, `twin off`. Codes come from the node names. |
@@ -60,7 +60,7 @@ Enter twice (to the summary, then set up). Each change still asks first (Enter =
 tk install
 ```
 
-Your company has a [layer](#layers)? `uk layer add <its git URL>` (or alt-a in `uk layers`) adds it and offers to set up its parts.
+Your company has a [layer](#layers)? `uk layer add <its git URL>` (or alt-a in `uk layers`) shows what of it runs here, asks, and offers to set up its parts.
 
 **4. Open a new terminal and check.** `tk doctor` lists anything left, each with the command that fixes it.
 
@@ -93,9 +93,9 @@ ACME=~/work/acme                  # where the "acme" layer's repos go; change it
 ```
 
 A new list starts with one such pair per layer you have. New team repos go in the layer's
-`workspaces` file, so everyone gets them on `tk update`.
+`workspaces` file, so everyone gets them on `uk update`.
 
-**Updates:** `tk update` looks for updates to the toolkit and every layer (bluefeels too) and lists the ones with new commits (each one's commits under the cursor), all ticked: untick one to hold it back (keep the toolkit ticked when you pull a layer: layers may need it), enter pulls the rest. Then it lists every part, one tab per repo: up to date, updated (the pull changed its files; nothing to do), needs a fix (the pull broke it, or a link it made now points nowhere), new, or removed upstream (it cleans up the links that part left). Fixes and clean-ups start ticked; new parts don't; each change still asks. Nothing changes without asking, and a second run changes nothing. Maintainers: rename, move or drop a part's files freely: the installer records every link it makes (`~/.local/state/work-toolkit/links`), so `tk update` finds the ones left pointing nowhere. What isn't a link (dconf, apt, dotfile blocks) a dropped part can't clean up after the pull, so drop those by hand. Maintainers: bump `VERSION` (1.2.0 → 1.3.0 for new things, → 1.2.1 for fixes) when you push something the team will notice.
+**Updates:** `uk update` (or `tk update`) looks for updates to unikit and every layer (bluefeels too) and lists the ones with new commits (each one's commits under the cursor), ticked: untick one to hold it back (keep unikit ticked when you pull a layer: layers may need it), enter pulls the rest. A layer whose code changed since you last trusted it (its pin in `layers.lock`: anything but its docs and its `tools`, `kit`, `requires`, `workspaces`, `VERSION` lists) starts unticked, with the changed files under the cursor; alt-i shows their diff, and ticking it trusts them (its pin moves to what it pulled). `--yes` pulls everything else and holds those back. Then it lists every part, one tab per repo: up to date, updated (the pull changed its files; nothing to do), needs a fix (the pull broke it, or a link it made now points nowhere), new, or removed upstream (it cleans up the links that part left). Fixes and clean-ups start ticked; new parts don't; each change still asks. Nothing changes without asking, and a second run changes nothing. Maintainers: rename, move or drop a part's files freely: the installer records every link it makes (`~/.local/state/work-toolkit/links`), so `uk update` finds the ones left pointing nowhere. What isn't a link (dconf, apt, dotfile blocks) a dropped part can't clean up after the pull, so drop those by hand. Maintainers: bump `VERSION` (1.2.0 → 1.3.0 for new things, → 1.2.1 for fixes) when you push something the team will notice.
 
 **Removing it:** `tk uninstall` shows a checklist of what's installed, and puts back what you had
 before (see [Going back to your own setup](#going-back-to-your-own-setup)).
@@ -108,9 +108,19 @@ toolkit stays general. `layers/` is gitignored; there's nothing to register.
 
 ```bash
 uk layers                                            # the list: what's there, the kits it feeds, where from, which version; alt-i: about it
-uk layer add git@github.com:acme/acme-toolkit.git   # clones into layers/acme (a unix- prefix and -toolkit are dropped), offers to set it up
+uk layer add git@github.com:acme/acme-toolkit.git   # clones into layers/acme (a unix- prefix and -toolkit are dropped), asks, offers to set it up
 uk layer rm acme                                     # deletes it (refuses while it has unpushed work)
+uk layer check ~/code/acme-toolkit                   # a layer you're making: well formed, no clashes with unikit or the layers here
 ```
+
+**Trust.** A layer's code runs on your machine: its `shell/init.sh` in every shell, its commands,
+its `components.sh` when you set up its parts, and its Claude skills tell Claude what to do. So
+`uk layer add` clones it aside, shows where it's from, at which commit, and all of that, then asks
+(default No; no means nothing of it is left). Yes pins that commit in `layers.lock` (in the unikit
+folder, not in git). From then on `uk update` shows the code that changed since the pin before it
+pulls, and `uk doctor` says when a layer moved past its pin some other way (a `git pull` by hand,
+or your own commits): `uk update` shows those changes and moves the pin. Layers added before pins
+are pinned where they are on the first `uk update`.
 
 Copying a folder into `layers/` works too (no updates then). Everything in a layer is optional:
 
@@ -146,7 +156,7 @@ The toolkit works without it: rofi and btop just keep their default colours.
 It lives in its own repo, [unix-feelkit](https://github.com/bluestero/unix-feelkit) (to be renamed bluefeels):
 
 ```bash
-uk layer add https://github.com/bluestero/unix-feelkit.git bluefeels   # clones into layers/bluefeels, offers to set it up
+uk layer add https://github.com/bluestero/unix-feelkit.git bluefeels   # clones into layers/bluefeels, asks, offers to set it up
 fk install                                                            # the fk installer: Kitty looks, GNOME looks, Summary
 fk uninstall                                                          # removes the fk parts, your own settings put back
 ```

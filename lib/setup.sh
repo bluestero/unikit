@@ -274,7 +274,7 @@ points_at() { [[ -L "$1" && "$(readlink -m "$1")" == "$(readlink -m "$2")" ]]; }
 linked() { points_at "$1" "$2" && [[ -e "$1" ]]; }
 
 # Every link the installer makes is recorded with the part that made it ("part TAB link TAB
-# target" per line), so tk update can tell when one is left pointing nowhere.
+# target" per line), so uk update can tell when one is left pointing nowhere.
 links_file="$log_dir/links"
 link_note() {
   local tmp; tmp=$(mktemp)
