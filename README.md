@@ -135,7 +135,7 @@ Copying a folder into `layers/` works too (no updates then). Everything in a lay
 | `claude/skills/<skill>/` | Claude Code skills, linked by the `claude-skill` component |
 | `kit` | one line, `tk` or `fk`: the kit this layer's parts go to unless a part says otherwise (`kit_<id>() { echo fk; }`; `tk` without the file). `tk install` sets up the tk parts and `fk install` the fk parts, from the toolkit and every layer, and each leaves the other's out; `tk status` and `tk doctor` give each other kit one line ("6 of 11 parts set up → fk install") |
 
-`lib/layers.sh` has the same list for whoever writes one. A layer's components can also say what
+Writing one? [docs/LAYERS.md](docs/LAYERS.md) is the whole contract (parts, helpers, clashes, trust), and `docs/layer-template/` a working layer to start from (`uk layer check` it before you push). `lib/layers.sh` has the same list in short. A layer's components can also say what
 they need from the machine (`requires_<id>`: `gnome`, `apt`, `linux`) and list themselves in
 `LOOK_PARTS+=(…)` to get the keep / re-apply / reset settings menu, or name two parts that shouldn't both be in
 (`CLASHES+=("id id|the question")`: the installer's summary asks once, default No).

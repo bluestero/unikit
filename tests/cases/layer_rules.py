@@ -12,7 +12,7 @@ from term import Term
 
 def copy(sb):
     dst = sb.root + "/repo"
-    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "tests", "tasks", "layers", "*.zip"))
+    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "layers.lock", "tests", "tasks", "layers", "*.zip"))
     return dst
 
 

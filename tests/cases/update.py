@@ -50,7 +50,7 @@ def world(sb):
     """The toolkit and the demo layer (v1) cloned from bare repos; returns the toolkit folder."""
     sb.env.update(GIT_ENV)
     r = sb.root
-    shutil.copytree(REPO, r + "/tk-src", ignore=shutil.ignore_patterns(".git", "layers", "tests", "tasks", "*.zip"))
+    shutil.copytree(REPO, r + "/tk-src", ignore=shutil.ignore_patterns(".git", "layers.lock", "layers", "tests", "tasks", "*.zip"))
     git(sb, "init", "-q", "-b", "main", cwd=r + "/tk-src")
     git(sb, "add", "-A", cwd=r + "/tk-src")
     git(sb, "commit", "-qm", "toolkit", cwd=r + "/tk-src")

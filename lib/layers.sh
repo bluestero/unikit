@@ -1,4 +1,5 @@
 # Layers: extra parts kept in their own repos and cloned into layers/<name>/
+# (docs/LAYERS.md is the whole contract; docs/layer-template/ a layer to start from)
 # (uk layer add <git-url>; layers/ is gitignored). The toolkit finds them; there
 # is nothing to register. A layer can have any of these, all optional:
 #

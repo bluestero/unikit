@@ -13,7 +13,7 @@ from term import Term
 def setup(sb, profiles):
     """profiles: names; 'default' is ~/.claude, the rest ~/.claude-profiles/<name>."""
     repo = sb.root + "/repo"
-    shutil.copytree(REPO, repo, ignore=shutil.ignore_patterns(".git", "tests", "tasks", "layers", "*.zip"))
+    shutil.copytree(REPO, repo, ignore=shutil.ignore_patterns(".git", "layers.lock", "tests", "tasks", "layers", "*.zip"))
     for s in ("alpha", "beta"):
         os.makedirs(f"{repo}/layers/team/claude/skills/{s}")
         with open(f"{repo}/layers/team/claude/skills/{s}/SKILL.md", "w") as f:

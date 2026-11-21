@@ -12,7 +12,7 @@ KEYMAP = "~/.config/yazi/keymap.toml"
 
 def copy(sb):
     dst = sb.root + "/repo"
-    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "layers", "tests", "tasks"))
+    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "layers.lock", "layers", "tests", "tasks"))
     sb.fake("yazi", "exit 0")                    # the component needs yazi on PATH
     return dst
 

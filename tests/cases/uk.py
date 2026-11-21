@@ -15,7 +15,7 @@ GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "init.defaultBr
 
 def copy(sb):
     dst = sb.root + "/repo"
-    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "tests", "tasks", "layers", "*.zip"))
+    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "layers.lock", "tests", "tasks", "layers", "*.zip"))
     return dst
 
 
@@ -203,3 +203,17 @@ def test_layer_check_a_folder_before_pushing_it(sb):
         f.write("COMPONENTS+=(mine-part)\n")
     code, out = run(sb, repo, "uk", "layer", "check", d)
     assert code == 0 and "mine" in out, out
+
+
+def test_the_layer_template_is_a_working_layer(sb):
+    repo = copy(sb)
+    code, out = run(sb, repo, "uk", "layer", "check", repo + "/docs/layer-template")
+    assert code == 0 and "!" not in out, out
+    shutil.copytree(repo + "/docs/layer-template", repo + "/layers/example")
+    code, out = run(sb, repo, "../install.sh", "--yes", "example-hello")
+    assert code == 0 and os.path.realpath(sb.path("~/.local/bin/example-hello")) == repo + "/layers/example/bin/example-hello", out
+    out = subprocess.run(["bash", "-c", f'. "{repo}/shell/init.sh" >/dev/null 2>&1; example-hello'],
+                         env=sb.env, cwd=sb.home, capture_output=True, text=True, timeout=60).stdout
+    assert out.strip() == "hello from the example layer: it works", out
+    code, out = run(sb, repo, "uk", "doctor")
+    assert "example" in out and "! " not in out.split("example", 1)[1].split("\n")[0], out

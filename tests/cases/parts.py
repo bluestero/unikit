@@ -12,7 +12,7 @@ PROFILES = ["~/.claude", "~/.claude-profiles/work", "~/.claude-profiles/home"]
 
 def copy(sb):
     dst = sb.root + "/repo"
-    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "tests", "tasks", "airpr", "*.zip"))
+    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "layers.lock", "tests", "tasks", "airpr", "*.zip"))
     return dst
 
 
@@ -45,6 +45,7 @@ def profiles(sb):
 def test_claude_parts_go_in_every_profile(sb):
     repo = copy(sb)
     profiles(sb)
+    sb.add_path(sb.path("~/.local/bin"))                          # where commands links tk
     install(sb, repo, "commands", "claude-skill", "claude-hook", "claude-guard")
     for d in PROFILES:
         text = sb.read(d + "/settings.json") or ""

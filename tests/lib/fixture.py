@@ -81,7 +81,7 @@ class Sandbox:
             "USER": os.environ.get("USER", "test"),
             "LANG": "C.UTF-8",
             "TERM": "xterm-256color",
-            "PATH": self.bin + ":" + os.environ.get("PATH", "/usr/bin:/bin"),
+            "PATH": self.bin + ":" + self._real_path(),
             "XDG_CONFIG_HOME": self.home + "/.config",
             "XDG_DATA_HOME": self.home + "/.local/share",
             "XDG_STATE_HOME": self.home + "/.local/state",
@@ -95,6 +95,26 @@ class Sandbox:
         }
         os.makedirs(self.env["XDG_RUNTIME_DIR"], mode=0o700)
         os.makedirs(self.env["TMPDIR"])
+
+    def _real_path(self):
+        """The real PATH, but a folder that has commands linked into a unikit checkout (the
+        user's ~/.local/bin after tk install commands) is a copy here without those: a test
+        sees only the unikit it runs."""
+        out = []
+        for d in os.environ.get("PATH", "/usr/bin:/bin").split(":"):
+            names = os.listdir(d) if os.path.isdir(d) else []
+            ours = [n for n in names if n in ("uk", "tk", "fk", "unikit", "toolkit", "feelkit")
+                    and os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(os.path.join(d, n)))), "lib", "layers.sh"))]
+            if not ours:
+                out.append(d)
+                continue
+            copy = os.path.join(self.root, "realbin", str(len(out)))
+            os.makedirs(copy)
+            for n in names:
+                if n not in ours:
+                    os.symlink(os.path.join(d, n), os.path.join(copy, n))
+            out.append(copy)
+        return ":".join(out)
 
     def path(self, p):
         return os.path.join(self.home, p[2:]) if p.startswith("~/") else p

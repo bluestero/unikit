@@ -14,7 +14,7 @@ TABS = ["Recommended", "Kitty", "Optional", "Desktop (GNOME)", "Cloud", "Apps", 
 
 def copy(sb):
     dst = sb.root + "/repo"
-    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "tests", "tasks", "airpr", "*.zip"))
+    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "layers.lock", "tests", "tasks", "airpr", "*.zip"))
     sb.fake("gnome-shell", "exit 0")
     return dst
 

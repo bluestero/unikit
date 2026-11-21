@@ -11,7 +11,7 @@ from term import Term
 
 def copy(sb, layer=True):
     dst = sb.root + "/repo"
-    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "tests", "tasks", "layers", "*.zip"))
+    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "layers.lock", "tests", "tasks", "layers", "*.zip"))
     if layer:   # a look layer: one subcommand, one that tries to take fk install, and their tools lines
         d = dst + "/layers/look"
         os.makedirs(d + "/bin")
