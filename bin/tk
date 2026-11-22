@@ -14,7 +14,6 @@ KIT_WHAT="what you work with"
 # unikit's own tools until they move to the bluetools layer (tasks/14):
 # name | group | what it does | program it needs | kit | layer
 KIT_TOOLS=(
-  "ws|Editor|open workspaces (repos) in your IDE||tk|unikit"
   "k-config|Kitty|edit kitty.conf|kitty|tk|unikit"
 )
 # shellcheck source=../lib/kit.sh

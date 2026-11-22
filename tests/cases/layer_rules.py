@@ -90,6 +90,38 @@ def test_replace_and_add_both(sb):
     assert open(f).read().strip() == "two-conf", t.text()
 
 
+def shared(pid, thing):
+    """A part for one shared thing (like a GNOME extension two layers both bring): set up when it's
+    there, whichever part made it; its uninstall leaves it while another layer's part has it."""
+    fn = pid.replace("-", "_")
+    return (f'COMPONENTS+=({pid})\ngroup_{fn}() {{ echo Demo; }}; label_{fn}() {{ echo {pid}; }}\n'
+            f'title_{fn}() {{ echo "sets up {thing}"; }}; detail_{fn}() {{ echo {thing}; }}\n'
+            f'touches_{fn}() {{ echo "{thing}"; }}\n'
+            f'state_{fn}() {{ NOTE=""; if [[ -f "{thing}" ]]; then STATE=installed; else STATE=missing; fi; }}\n'
+            f'install_{fn}() {{ [[ -f "{thing}" ]] && {{ ok "already set up"; return; }}; dry || {{ touch "{thing}"; ok "set up"; }}; }}\n'
+            f'uninstall_{fn}() {{ shared_keep {pid} && return; '
+            f'rm -f "{thing}"; ok "removed"; }}\n')
+
+
+def test_one_thing_two_layers_bring_is_set_up_once_and_kept_while_one_wants_it(sb):
+    repo = copy(sb)
+    thing = sb.home + "/extension"
+    layer(repo, "one", shared("one-ext", thing))
+    layer(repo, "two", shared("two-ext", thing))
+    run(sb, repo, "install.sh", "--yes", "one-ext")
+    _, out = run(sb, repo, "install.sh", "--yes", "two-ext")           # set up already: no question
+    assert "would change it too" not in out and "already set up" in out, out
+    _, out = run(sb, repo, "uninstall.sh", "--yes", "one-ext")         # two's still has it: --yes keeps it
+    assert "left as it is: two-ext (two) has it set up too" in out and os.path.exists(thing), out
+    t = Term([repo + "/uninstall.sh", "--plain", "one-ext"], sb.env, cols=130, rows=30, cwd=sb.home)
+    t.wait_for("Go ahead?")
+    t.key("enter")
+    t.wait_for("Remove it anyway?")
+    t.key("enter")                                                     # the default: no
+    t.wait_exit(timeout=20)
+    assert os.path.exists(thing), t.text()
+
+
 def test_unikits_commands_come_first_on_path(sb):
     repo = copy(sb)
     d = layer(repo, "shadow", "")

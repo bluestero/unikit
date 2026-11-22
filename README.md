@@ -320,7 +320,6 @@ lib/setup.sh, components.sh install/uninstall plumbing and the component list
 lib/platform.sh             OS, distro, package manager, GNOME? (components.sh `requires_of` says what each part needs)
 lib/bashrc_plan.py          the ~/.bashrc cleanup (same result every run)
 lib/bashrc_restore.py       uninstall: puts the lines the cleanup took out back
-ws/bin/ws, shell/           ws (lib/workspaces.sh reads the lists)
 bin/hat, lib/hat.sh         hat: Claude, GitHub and AWS per folder
 lib/layers.sh               what a layer can hold; layers/ (gitignored) holds them
 claude/skills/work-toolkit/ the Claude Code skill (what each tool is for, what to ask before)

@@ -25,7 +25,7 @@ All optional. A layer with none of these is an error (`uk doctor` says so).
 | `kit` | one line, `tk` or `fk`: the kit its parts go to (default `tk`). A part can name its own: `kit_<id>() { echo fk; }` |
 | `tools` | a line per command for the kit's picker and help: `name\|group\|what it does\|program it needs[\|kit]` |
 | `requires` | other layers it needs, one name per line. A layer should need only unikit; `uk doctor` and `uk layer add` say when one is missing |
-| `workspaces` | a shared `ws` list (folder and GitHub repo per line); `@<name>` in a person's own list brings it in |
+| `workspaces` | a shared `ws` list (bluetools' ws reads it) (folder and GitHub repo per line); `@<name>` in a person's own list brings it in |
 | `claude/skills/<skill>/SKILL.md` | Claude Code skills, linked by unikit's `claude-skill` part (a picker of skills and profiles). A skill lives with the command it documents |
 | `README.md` | its first paragraph is the about card in `uk layers` (alt-i) |
 | `VERSION` | optional; shown next to its commit in `uk version` and `uk layers` |
@@ -66,7 +66,8 @@ Helpers (`lib/setup.sh`): `ask "question" [y\|n]`, `choose "question" option…`
 `drop_block` (unikit's marked block in an rc file: **one per file**, so declare the file in
 `touches_`), `apt_install`, `as_root`, `backup`; for a program from its releases, `get_tool`,
 `gh_tool`, `tool_state`, `drop_tool` (a `ver_<program>` function gives its version when
-`--version` doesn't).
+`--version` doesn't); `shared_keep <id>` at the top of an uninstall, for a thing another layer's
+part may bring too (see below).
 
 Rules every part keeps:
 
@@ -83,6 +84,7 @@ Rules every part keeps:
 |---|---|
 | a part name unikit or another layer has | the loader leaves **all** this layer's parts out, with one line; `uk doctor` names it |
 | a file or dconf path another layer's part set up (from `touches_`) | the installer asks: **Skip it** (default; `--yes` and dry runs skip too), **Replace** theirs (backups as always), or **Add both** (with `addboth_<id>`) |
+| one thing two layers both bring (a GNOME extension: each layer has its own part, the same `touches_`) | the second part finds it set up (its state says so) and isn't asked about; its uninstall starts with `shared_keep <id>`, which leaves it while the other's part has it set up (asked, default No; `--yes` keeps it) |
 | a command unikit has | never runs from the layer (unikit is first on PATH); `uk doctor` says so |
 | a command another layer has | the first on PATH runs; `uk doctor` says so |
 | a layer it needs isn't there | `uk doctor` and `uk layer add` say so |

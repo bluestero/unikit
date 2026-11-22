@@ -232,7 +232,10 @@ for id in "${todo[@]}"; do
       continue
     fi
   fi
-  if clash=$(touch_clash "$id"); then   # another layer's part has set up the same thing: ask, never replace silently
+  # another layer's part has set up the same thing: ask, never replace silently. Not when this
+  # part is set up already: they share it (the same extension from two layers), nothing changes.
+  component_state "$id"
+  if [[ $STATE != installed ]] && clash=$(touch_clash "$id"); then
     o=${clash%%$'\t'*}; t=${clash#*$'\t'}; t=${t%%$'\n'*}
     opts=("Skip it" "Replace $o's")
     declare -F "$(fn addboth "$id")" >/dev/null && opts+=("Add both")
