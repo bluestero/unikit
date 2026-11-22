@@ -17,7 +17,7 @@
 # shellcheck source=layers.sh
 . "$repo/lib/layers.sh"
 
-COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi twingate gh clipboard zed vscode repos claude-skill claude-hook claude-guard claude-guidelines)
+COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi gh clipboard zed vscode repos claude-skill claude-hook claude-guard claude-guidelines)
 # Shown in groups in the checklist; the rest are optional extras.
 RECOMMENDED=(bash zsh-hook keys commands starship fzf)
 KITTY_PARTS=(kitty kitty-config kitty-nautilus)
@@ -26,7 +26,6 @@ DESKTOP_PARTS=(window-calls alt-tab-desktop hide-docker-tray app-keys rofi)
 LOOK_PARTS=(claude-guidelines)   # components with a settings menu; a layer adds its own (LOOK_PARTS+=)
 WORKSPACE_PARTS=(repos)
 CLAUDE_PARTS=(claude-skill claude-hook claude-guard claude-guidelines)
-CLOUD_PARTS=(twingate)
 APP_PARTS=(gh clipboard zed vscode)
 # Which repo a component comes from: the toolkit, or the layer that adds it (bluefeels, ...).
 repo_of() { echo "${LAYER_OF[$1]:-toolkit}"; }
@@ -57,7 +56,6 @@ group_of() {
   elif [[ " ${RECOMMENDED[*]} " == *" $1 "* ]]; then echo Recommended
   elif [[ " ${KITTY_PARTS[*]} " == *" $1 "* ]]; then echo Kitty
   elif [[ " ${DESKTOP_PARTS[*]} " == *" $1 "* ]]; then echo "Desktop (GNOME)"
-  elif [[ " ${CLOUD_PARTS[*]} " == *" $1 "* ]]; then echo Cloud
   elif [[ " ${WORKSPACE_PARTS[*]} " == *" $1 "* ]]; then echo Workspaces
   elif [[ " ${APP_PARTS[*]} " == *" $1 "* ]]; then echo Apps
   elif [[ " ${CLAUDE_PARTS[*]} " == *" $1 "* ]]; then echo "Claude Code"
@@ -70,7 +68,6 @@ declare -gA GROUP_ABOUT=(
   [Kitty]="The kitty terminal, its settings, and how it looks."
   ["Desktop (GNOME)"]="GNOME extensions and shortcuts: windows, app keys, the launcher, the dock and top bar."
   [Optional]="Extras: zsh, btop, the yazi file manager."
-  [Cloud]="What okcli, kx and twin run on: Okta sign-in for AWS, the aws command, kubectl, your EKS clusters, Twingate."
   [Apps]="Programs the commands use: gh for hat's GitHub sign-ins, a clipboard tool, Zed or VS Code for ws."
   [Workspaces]="Your repos, cloned from your workspace list (ws edit)."
   ["Claude Code"]="Claude Code knows the toolkit, starts each session knowing your profile and cluster, follows the guidelines."
@@ -86,7 +83,7 @@ requires_of() {
   if declare -F "$(fn requires "$1")" >/dev/null; then "$(fn requires "$1")"; return; fi
   case "$1" in
     fzf|kitty|login-shell|yazi|yazi-keys|gh|zed) echo "linux" ;;
-    zsh|btop|twingate|clipboard|vscode)    echo "apt" ;;
+    zsh|btop|clipboard|vscode)    echo "apt" ;;
     kitty-nautilus|rofi)                   echo "gnome apt" ;;
     window-calls|alt-tab-desktop|hide-docker-tray|app-keys) echo "gnome" ;;
   esac
@@ -215,7 +212,7 @@ uninstall_keys() { unlink_file "$HOME/.inputrc" "$inputrc_src"; }
 touches_keys() { echo "$HOME/.inputrc"; }
 
 # ------------------------------------------------------------ commands ---
-cmd_bins=(twingate/bin/twin bin/ctx bin/uk bin/tk bin/fk ws/bin/ws)
+cmd_bins=(bin/ctx bin/uk bin/tk bin/fk ws/bin/ws)
 # the long names: links to the short ones, made only where no other program has the name
 declare -A cmd_long=([unikit]=bin/uk [toolkit]=bin/tk [feelkit]=bin/fk)
 # cmd_taken <name>: the other program that has that name (not ours or a layer's), or 1
@@ -238,7 +235,7 @@ cmd_layer_bins() {
 }
 label_commands() { echo "Toolkit commands"; }
 title_commands() { echo "uk, tk, fk and the layers' commands, usable from anywhere"; }
-detail_commands() { echo "uk, tk, fk (for now also twin, ctx, ws) and every layer's bin/ commands (not tk-/fk- subcommands) in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too; a name another program has is left alone"; }
+detail_commands() { echo "uk, tk, fk (for now also ctx, ws) and every layer's bin/ commands (not tk-/fk- subcommands) in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too; a name another program has is left alone"; }
 state_commands() {
   local b n=0 total=${#cmd_bins[@]} l
   for b in "${cmd_bins[@]}"; do linked "$HOME/.local/bin/${b##*/}" "$repo/$b" && (( n++ )); done
@@ -1222,31 +1219,6 @@ apt_drop() {
     dry || { as_root apt-get remove -y "$1" >>"$log_file" 2>&1 && ok "package removed" || fail "apt failed (see $log_file)"; }
   else ok "$2 stays"; fi
 }
-
-# Twingate's own installer: adds its apt source and installs the client (sudo).
-label_twingate() { echo "Twingate"; }
-title_twingate() { echo "The Twingate client, which twin switches on and off"; }
-detail_twingate() { echo "Twingate's installer (binaries.twingate.com, adds its apt source; sudo); then sudo twingate setup, once"; }
-state_twingate() { tool_state twingate; }
-doctor_twingate() {
-  if [[ "$(twingate status -d 2>/dev/null | head -n1)" == online ]]; then echo "✓ connected"
-  else echo "! Twingate isn't connected — open the Twingate app"; fi
-}
-install_twingate() {
-  type -P twingate >/dev/null && { ok "twingate is already installed"; return; }
-  ask "Install the Twingate client? (Twingate's installer adds its apt source; sudo may ask for your password)" || { skip; return; }
-  dry && return
-  local tmp; tmp=$(mktemp)
-  if ! curl -fsSL --retry 2 -o "$tmp" https://binaries.twingate.com/client/linux/install.sh 2>>"$log_file"; then
-    rm -f "$tmp"; fail "couldn't download Twingate's installer (offline?)"; return
-  fi
-  say "      ${D}sudo may ask for your password${R}"
-  if as_root bash "$tmp" >>"$log_file" 2>&1 && type -P twingate >/dev/null; then
-    ok "installed"; say "      ${D}Then, once: sudo twingate setup (it asks for your network's name)${R}"
-  else fail "not installed (see $log_file)"; fi
-  rm -f "$tmp"
-}
-uninstall_twingate() { apt_drop twingate Twingate; }
 
 # gh, from GitHub's release (the tar.gz holds gh_<v>_linux_<arch>/bin/gh)
 label_gh() { echo "GitHub CLI (gh)"; }

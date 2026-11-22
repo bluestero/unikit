@@ -16,7 +16,6 @@ KIT_WHAT="what you work with"
 KIT_TOOLS=(
   "ctx|Where am I|AWS, Kubernetes and Twingate for this terminal||tk|unikit"
   "hat|Where am I|Claude profile, GitHub account and AWS profile per folder||tk|unikit"
-  "twin|Cloud|Twingate exit nodes|twingate|tk|unikit"
   "ws|Editor|open workspaces (repos) in your IDE||tk|unikit"
   "k-config|Kitty|edit kitty.conf|kitty|tk|unikit"
 )
