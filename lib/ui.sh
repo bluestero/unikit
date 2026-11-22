@@ -221,9 +221,10 @@ print_table() {
 # Inside fzf (a reload) it's fzf's own width now, so a resized window counts. fzf's
 # FZF_COLUMNS already leaves out the border and its padding (4 columns), so both
 # give the same width, and the first reload doesn't lay the table out again.
+# A list that ticks rows (--multi) has a space after the pointer and after the tick: 2 more.
 ui_pick_width() {
-  if [[ -n "${FZF_COLUMNS:-}" ]]; then printf '%s' $(( FZF_COLUMNS - 4 ))
-  else printf '%s' $(( $(ui_cols) - 8 )); fi
+  if [[ -n "${FZF_COLUMNS:-}" ]]; then printf '%s' $(( FZF_COLUMNS - 4 - ${UI_GUTTER:-0} ))
+  else printf '%s' $(( $(ui_cols) - 8 - ${UI_GUTTER:-0} )); fi
 }
 # The room the header's key hints have: beside a pane on the right, up to the pane
 # (fzf tells a callback where it is; a line can be 7 columns shorter than its left edge);
@@ -802,6 +803,8 @@ ui_fzf() {
     esac
   done
   (( phide )) && max=""
+  local -x UI_GUTTER=0; local pointer='▶' marker='✓'   # ticks: "▶ ✓ row", not "▶✓row"
+  (( multi )) && UI_GUTTER=2 pointer='▶ ' marker='✓ '
   (( lines )) || sortable=0
   ui_fzf_at_least 0.60 || sortable=0
   local -x UI_TABLE_TITLES=""   # a title row without sorting: coloured like a sortable one's
@@ -862,7 +865,7 @@ ui_fzf() {
   # -i --exact: the typed text matches as one piece, any case ("post" finds postman,
   # not p…o…s…t spread over a row). ctrl-↑/↓: the first / last row.
   local -a cmd=(fzf --ansi --reverse --cycle --height=100% --border=rounded --info=inline -i --exact --bind=alt-bs:backward-kill-word --bind=ctrl-h:backward-kill-word --bind=ctrl-up:first,ctrl-down:last
-    --border-label=" $label " --pointer='▶' --marker='✓'
+    --border-label=" $label " --pointer="$pointer" --marker="$marker"
     --color="pointer:12,prompt:12,label:12,marker:green,header:248,border:244,info:14,hl:10,hl+:10,spinner:13")
   local rc=0
   if (( sortable )); then

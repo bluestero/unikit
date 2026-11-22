@@ -569,7 +569,7 @@ cmd_update() {
       ui_fzf_at_least 0.63 && foot=(--footer=' ' --bind="focus:transform-footer(cat $u/log.{2})")
       nsel="$u/nsel"
       a=$(printf '%s%s' "REPO${S}NEW${S}CODE${S}VERSION"$'\t\n' "$rows" |
-        ui_fzf 'uk update · pull which?' --multi --marker='✓' --header-lines=1 --delimiter=$'\t' --with-nth=1 \
+        ui_fzf 'uk update · pull which?' --multi --header-lines=1 --delimiter=$'\t' --with-nth=1 \
           --header="${note}tab: tick/untick · ctrl-a: all/none · alt-i: the code's diff · enter: pull the ticked · esc: pull nothing" \
           --bind="load:$load+first,ctrl-a:toggle-all,alt-i:toggle-preview" "${foot[@]}" \
           --preview="cat $u/diff.{2} 2>/dev/null || echo 'No code changed: only docs and lists.'" --preview-window='right,60%,hidden' \

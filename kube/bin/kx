@@ -745,7 +745,7 @@ cmd_sync() {
           printf '%s\x1f%s\x1f%s%d role%s%s\x1f%s\n' "$l" "$a" "$C_DIM" $# "$([[ $# -eq 1 ]] || echo s)" "$C_RESET" \
             "$(_ign "$a" && printf '%s' "${C_DIM}ignored${C_RESET}")"
         done <<<"$accts"; } |
-        ui_fzf 'kx sync · which AWS accounts?' --sortable --multi --header-lines=1 --marker='✓' --prompt='filter> ' \
+        ui_fzf 'kx sync · which AWS accounts?' --sortable --multi --header-lines=1 --prompt='filter> ' \
           --header='tab: tick/untick · ctrl-a: all/none · enter: search the ticked · unticked ones are skipped from now on' \
           --bind="load:select-all${bind}+first,ctrl-a:toggle-all" \
           --bind="enter:execute-silent(echo \$FZF_SELECT_COUNT >$(printf %q "$nsel"))+accept" |
@@ -820,7 +820,7 @@ cmd_sync() {
     local cb k; cb="$(printf %q "$SELF") __syncgate"
     local -a gbinds=(--bind "start:unbind(y,n)")
     for k in enter y n esc; do gbinds+=(--bind "$k:transform:$cb $k {+}"); done
-    ui_fzf 'kx sync · which clusters?' --sortable --multi --marker='✓' --header-lines=1 --with-shell='bash -c' \
+    ui_fzf 'kx sync · which clusters?' --sortable --multi --header-lines=1 --with-shell='bash -c' \
       --prompt='filter> ' --header='tab: tick/untick · ctrl-a: all/none · enter: apply · unticked: removed and skipped from now on' \
       --bind="load:select-all${bind}+first,ctrl-a:toggle-all" "${gbinds[@]}" <<<"$table" >/dev/null
     if [[ -e "$IP/chosen" ]]; then chosen=$(<"$IP/chosen"); asked=$(ip_get answer); rm -rf "$IP"
