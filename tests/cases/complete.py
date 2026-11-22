@@ -10,7 +10,6 @@ def words(sb, *typed):
     script = f'''
 _work_root={REPO}
 PATH="{REPO}/bin:{REPO}/kitty/bin:$PATH"
-complete -p ctx >/dev/null 2>&1 && complete -r ctx
 . "{REPO}/shell/complete.sh"
 COMP_WORDS=("$@"); COMP_CWORD=$(( $# - 1 )); COMPREPLY=()
 $(complete -p "$1" | sed -n 's/.*-F \\([^ ]*\\).*/\\1/p')
@@ -20,7 +19,6 @@ printf '%s\\n' "${{COMPREPLY[@]}}"'''
 
 
 def test_first_word_comes_from_the_help_page(sb):
-    assert words(sb, "ctx", "") == ["plain", "help"]
     assert words(sb, "k-config", "h") == ["help"]
 
 

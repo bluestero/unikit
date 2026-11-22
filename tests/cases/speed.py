@@ -149,7 +149,7 @@ def test_commands(sb):
     os.makedirs(sb.path("~/code/alpha"))
     sb.write("~/.config/ws/workspaces", "~/code/alpha\n")
     cmds = [("okcli ls", [OKCLI, "ls"]), ("kx ls", [KX, "ls"]), ("ws ls", [WS, "ls"]),
-            ("hat ls", [HAT, "ls"]), ("tk ls", [f"{REPO}/bin/tk", "ls"]), ("ctx", [f"{REPO}/bin/ctx"])]
+            ("hat ls", [HAT, "ls"]), ("tk ls", [f"{REPO}/bin/tk", "ls"]), ("ctx", [f"{REPO}/layers/bluetools/bin/ctx"])]
     if os.path.exists(FK):
         cmds.append(("fk help", [FK, "help"]))
     rows = []
