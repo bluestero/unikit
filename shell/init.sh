@@ -1,6 +1,6 @@
 # Work shell toolkit: the one file your shell loads. Works in bash and zsh.
 #   bash: ~/.bashrc has one line that sources this (install.sh adds it)
-#   zsh:  zsh/zshrc sources it
+#   zsh:  ~/.zshrc has the same line (the zsh-hook part); this loads zsh/zshrc
 #
 # Loads, in order: shared aliases/PATH/env (common.sh), the direnv and starship
 # hooks, then the tools. Safe to source more than once.
@@ -13,12 +13,32 @@ if [ -n "${ZSH_VERSION:-}" ]; then _work_sh=zsh; else _work_sh=bash; fi
 # (Loops use $(...) because zsh doesn't split a plain variable into words.)
 # Each folder goes in front, so the last one comes first: unikit's own, a layer can't take
 # one of its command names (uk doctor names a layer that tries).
-_work_layers() { command ls -1 "$_work_root/layers" 2>/dev/null | sed 's|^|layers/|'; }
+# Order: by name, but a layer's requires (its requires file) load before it.
+_work_layer_add() {   # name: prints layers/<name> after the ones it requires, each one once
+  case "$_work_seen" in *" $1 "*) return 0 ;; esac
+  [ -d "$_work_root/layers/$1" ] || return 0
+  _work_seen="$_work_seen$1 "
+  if [ -r "$_work_root/layers/$1/requires" ]; then
+    for _r in $(grep -v '^[[:space:]]*\(#\|$\)' "$_work_root/layers/$1/requires"); do _work_layer_add "$_r"; done
+  fi
+  echo "layers/$1"
+}
+_work_layers() {
+  _work_seen=" "
+  for _n in $(command ls -1 "$_work_root/layers" 2>/dev/null); do _work_layer_add "$_n"; done
+}
 for _d in $(_work_layers) kitty ws twingate kube okta; do
   case ":$PATH:" in *":$_work_root/$_d/bin:"*) ;; *) [ -d "$_work_root/$_d/bin" ] && PATH="$_work_root/$_d/bin:$PATH" ;; esac
 done
 case ":$PATH:" in *":$_work_root/bin:"*) ;; *) PATH="$_work_root/bin:$PATH" ;; esac
 export PATH
+
+# zsh's own setup (history, keys, Tab menu, suggestions), before anything else as when it
+# loaded this file; skipped when it already ran (an older ~/.zshrc line loads it first).
+# Moves to bluefeels (tasks/14).
+if [ -n "${ZSH_VERSION:-}" ] && [ -z "${_work_zshrc_done:-}" ] && [ -r "$_work_root/zsh/zshrc" ]; then
+  . "$_work_root/zsh/zshrc"
+fi
 
 [ -r "$_work_root/shell/common.sh" ] && . "$_work_root/shell/common.sh"
 # Your starship patch (tk configs: edit my patch) laid over the preset: starship can't read
@@ -84,7 +104,7 @@ for _f in \
 do
   [ -r "$_work_root/$_f" ] && . "$_work_root/$_f"
 done
-unset _f _d _l _work_root _work_sh; unset -f _work_layers
+unset _f _d _l _work_root _work_sh _work_zshrc_done; unset -f _work_layers _work_layer_add
 
 # One name per tool (no okp / kctx); old shells may still have them, so drop them.
 unalias okp kctx 2>/dev/null

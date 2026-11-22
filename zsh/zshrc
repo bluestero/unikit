@@ -51,9 +51,14 @@ bindkey -M menuselect '^[[Z' reverse-menu-complete   # Shift+Tab goes back
 setopt complete_in_word always_to_end
 
 # --- Aliases, PATH, nvm, direnv, starship, okcli, kx, twin, k-icon
-_work_init="${${(%):-%x}:A:h:h}/shell/init.sh"
-[[ -r $_work_init ]] && source "$_work_init"
-unset _work_init
+# shell/init.sh loads this file (the zsh-hook line in ~/.zshrc). An older ~/.zshrc line
+# loads this file first instead: then load init.sh here, which won't load this file again.
+_work_zshrc_done=1
+if [[ -z ${_work_root:-} ]]; then
+  _work_init="${${(%):-%x}:A:h:h}/shell/init.sh"
+  [[ -r $_work_init ]] && source "$_work_init"
+  unset _work_init
+fi
 
 # --- Suggestions while typing: faded text from history, no background.
 # Shift+Tab, → or End accepts it, Alt+F accepts one word. Tab stays normal completion.

@@ -64,12 +64,12 @@ def test_nothing_starts_ticked(sb):
 
 def test_tick_follows_to_the_summary(sb):
     _, t = start(sb)
-    t.key("down", "tab")                                # keys, the second row
+    t.key("down", "tab")                                # zsh-hook, the second row
     t.wait_for("Summary · 1 to set up")
     t.key("enter")
-    t.wait_for("✓ keys ")
+    t.wait_for("✓ zsh-hook ")
     t.settle()
-    assert "✓ bash " not in t.text(), "only keys was ticked"
+    assert "✓ bash " not in t.text(), "only zsh-hook was ticked"
     t.key("esc")
     t.wait_exit()
 

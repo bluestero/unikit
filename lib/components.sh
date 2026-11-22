@@ -17,9 +17,9 @@
 # shellcheck source=layers.sh
 . "$repo/lib/layers.sh"
 
-COMPONENTS=(bash keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys direnv window-calls alt-tab-desktop hide-docker-tray app-keys rofi okta-aws-cli aws-cli kubectl eks-clusters twingate gh clipboard zed vscode repos claude-skill claude-hook claude-guard claude-guidelines)
+COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys direnv window-calls alt-tab-desktop hide-docker-tray app-keys rofi okta-aws-cli aws-cli kubectl eks-clusters twingate gh clipboard zed vscode repos claude-skill claude-hook claude-guard claude-guidelines)
 # Shown in groups in the checklist; the rest are optional extras.
-RECOMMENDED=(bash keys commands starship fzf)
+RECOMMENDED=(bash zsh-hook keys commands starship fzf)
 KITTY_PARTS=(kitty kitty-config kitty-nautilus)
 DESKTOP_PARTS=(window-calls alt-tab-desktop hide-docker-tray app-keys rofi)
 # Components with a settings look: naming one that is installed opens the keep / look / defaults menu
@@ -218,15 +218,27 @@ touches_keys() { echo "$HOME/.inputrc"; }
 cmd_bins=(okta/bin/okcli kube/bin/kx twingate/bin/twin bin/ctx bin/uk bin/tk bin/fk ws/bin/ws)
 # the long names: links to the short ones, made only where no other program has the name
 declare -A cmd_long=([unikit]=bin/uk [toolkit]=bin/tk [feelkit]=bin/fk)
-# cmd_taken <name>: the other program that has that name (not ours), or 1
-cmd_taken() {
-  local f; f=$(type -P "$1") || return 1
-  [[ $(readlink -f "$f") == "$repo"/bin/* ]] && return 1
+# cmd_taken <name>: the other program that has that name (not ours or a layer's), or 1
+cmd_taken() {   # like type -P, without a subshell: tk ls checks every layer command
+  local d f="" IFS=:
+  for d in $PATH; do [[ -n $d && -f $d/$1 && -x $d/$1 ]] && { f=$d/$1; break; }; done
+  [[ -n $f && $f != "$repo"/* ]] || return 1
+  [[ -L $f && $(readlink -f "$f") == "$repo"/* ]] && return 1
   printf '%s' "${f/#$HOME/\~}"
 }
+# cmd_layer_bins: the layers' commands (their bin/, repo-relative), one per line; not
+# bin/fk-<name> (fk runs those), nor a name unikit or an earlier layer already has
+cmd_layer_bins() {
+  local f n seen=" ${cmd_bins[*]##*/} "
+  for f in "$repo"/layers/*/bin/*; do
+    [[ -f $f && -x $f ]] || continue
+    n=${f##*/}; [[ $n == fk-* || $seen == *" $n "* ]] && continue
+    seen+="$n "; printf '%s\n' "${f#"$repo"/}"
+  done
+}
 label_commands() { echo "Toolkit commands"; }
-title_commands() { echo "uk, tk, fk, okcli, kx, twin, ctx and ws, usable from anywhere"; }
-detail_commands() { echo "uk, tk, fk, okcli, kx, twin, ctx, ws in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too where no other program has the name"; }
+title_commands() { echo "uk, tk, fk and the layers' commands, usable from anywhere"; }
+detail_commands() { echo "uk, tk, fk (for now also okcli, kx, twin, ctx, ws) and every layer's bin/ commands in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too; a name another program has is left alone"; }
 state_commands() {
   local b n=0 total=${#cmd_bins[@]} l
   for b in "${cmd_bins[@]}"; do linked "$HOME/.local/bin/${b##*/}" "$repo/$b" && (( n++ )); done
@@ -234,13 +246,18 @@ state_commands() {
     cmd_taken "$l" >/dev/null && ! linked "$HOME/.local/bin/$l" "$repo/${cmd_long[$l]}" && continue
     (( total++ )); linked "$HOME/.local/bin/$l" "$repo/${cmd_long[$l]}" && (( n++ ))
   done
+  while IFS= read -r b; do   # same for a layer's command
+    l=${b##*/}
+    if linked "$HOME/.local/bin/$l" "$repo/$b"; then (( total++, n++ ))
+    elif ! cmd_taken "$l" >/dev/null; then (( total++ )); fi
+  done < <(cmd_layer_bins)
   NOTE=""
   if (( n == total )); then STATE=installed
   elif (( n )); then STATE=partial; NOTE="$n of $total linked"
   else STATE=missing; fi
 }
 install_commands() {
-  local b name other
+  local b b2 name other
   for b in "${cmd_bins[@]}"; do
     name=${b##*/}
     linked "$HOME/.local/bin/$name" "$repo/$b" && continue
@@ -255,6 +272,13 @@ install_commands() {
     fi
     if ask "Add ${B}$name${R} (the long name of ${b##*/})?"; then link_file "$HOME/.local/bin/$name" "$repo/$b"; else skip; fi
   done
+  while IFS= read -r b; do
+    name=${b##*/}
+    linked "$HOME/.local/bin/$name" "$repo/$b" && continue
+    if other=$(cmd_taken "$name"); then skip "${B}$name${R} is already $other"; continue; fi
+    b2=${b#layers/}
+    if ask "Add the ${B}$name${R} command (from ${b2%%/*})?"; then link_file "$HOME/.local/bin/$name" "$repo/$b"; else skip; fi
+  done < <(cmd_layer_bins)
   case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) warn "~/.local/bin is not on your PATH" ;; esac
 }
 uninstall_commands() {
@@ -265,6 +289,9 @@ uninstall_commands() {
   for l in "${!cmd_long[@]}"; do
     points_at "$HOME/.local/bin/$l" "$repo/${cmd_long[$l]}" && rm -f "$HOME/.local/bin/$l" && ok "removed $l"
   done
+  while IFS= read -r b; do
+    points_at "$HOME/.local/bin/${b##*/}" "$repo/$b" && rm -f "$HOME/.local/bin/${b##*/}" && ok "removed ${b##*/}"
+  done < <(cmd_layer_bins)
   return 0
 }
 
@@ -568,26 +595,57 @@ uninstall_yazi_keys() {
   drop_block "$yk_file"; ok "removed from ${yk_file/#$HOME/\~}"
 }
 
-# ----------------------------------------------------------------- zsh ---
-zsh_pkgs=(zsh zsh-autosuggestions)
-zshrc_body="[ -f \"$repo/zsh/zshrc\" ] && . \"$repo/zsh/zshrc\""
+# ------------------------------------------------------------ zsh-hook ---
+# unikit's own: ~/.zshrc loads shell/init.sh (and so every layer), like bash's line.
+zsh_hook_body="[ -f \"$repo/shell/init.sh\" ] && . \"$repo/shell/init.sh\""
+# what the zsh part used to put there; it still works (zsh/zshrc loads init.sh), update replaces it
+zsh_hook_old="[ -f \"$repo/zsh/zshrc\" ] && . \"$repo/zsh/zshrc\""
 # GNOME starts the session through the login shell; zsh doesn't read ~/.profile
 # on its own, so flatpak apps and ~/.local/bin would go missing without this.
 zprofile_body="[ -f ~/.profile ] && emulate sh -c '. ~/.profile'"
+label_zsh_hook() { echo "Zsh setup"; }
+title_zsh_hook() { echo "unikit and its layers in every zsh terminal"; }
+detail_zsh_hook() { echo "~/.zshrc loads unikit with one line; ~/.zprofile reads ~/.profile (PATH, flatpak apps)"; }
+touches_zsh_hook() { echo "$HOME/.zshrc"; echo "$HOME/.zprofile"; }
+state_zsh_hook() {
+  local n=0
+  has_block "$HOME/.zshrc" "$zsh_hook_body" && (( n++ ))
+  has_block "$HOME/.zprofile" "$zprofile_body" && (( n++ ))
+  NOTE=""
+  if (( n == 2 )); then STATE=installed
+  elif has_block "$HOME/.zshrc" "$zsh_hook_old"; then STATE=partial; NOTE="~/.zshrc has the older line: set up again to replace it"
+  elif (( n )); then STATE=partial
+  else STATE=missing; fi
+}
+install_zsh_hook() {
+  if has_block "$HOME/.zshrc" "$zsh_hook_body" && has_block "$HOME/.zprofile" "$zprofile_body"; then
+    ok "already set up"; return; fi
+  if ask "Set up ~/.zshrc and ~/.zprofile (one managed block each) to load unikit?"; then
+    set_block "$HOME/.zshrc" "$zsh_hook_body"
+    set_block "$HOME/.zprofile" "$zprofile_body"
+    ok "done"
+  else skip; fi
+}
+uninstall_zsh_hook() {
+  drop_block "$HOME/.zshrc"; drop_block "$HOME/.zprofile"
+  ok "removed unikit from ~/.zshrc and ~/.zprofile"
+}
+
+# ----------------------------------------------------------------- zsh ---
+zsh_pkgs=(zsh zsh-autosuggestions)
 # Debian's /etc/zsh/zshrc runs compinit too; zsh/zshrc does it once, cached.
 zshenv_body="skip_global_compinit=1"
 label_zsh() { echo "Zsh"; }
-title_zsh() { echo "Install zsh with suggestions as you type (same tools as bash)"; }
-detail_zsh() { echo "zsh + faded suggestions; ~/.zshrc loads the same toolkit as bash"; }
+title_zsh() { echo "Install zsh with suggestions as you type"; }
+detail_zsh() { echo "zsh + faded suggestions; history, keys and the Tab menu (zsh/zshrc)"; }
+touches_zsh() { echo "$HOME/.zshenv"; }
 state_zsh() {
   local n=0 missing
   missing=$(missing_pkgs "${zsh_pkgs[@]}")
   [[ -z "$missing" ]] && (( n++ ))
-  has_block "$HOME/.zshrc" "$zshrc_body" && (( n++ ))
-  has_block "$HOME/.zprofile" "$zprofile_body" && (( n++ ))
   has_block "$HOME/.zshenv" "$zshenv_body" && (( n++ ))
   NOTE=""
-  if (( n == 4 )); then STATE=installed
+  if (( n == 2 )); then STATE=installed
   elif (( n )); then STATE=partial; NOTE="${missing:+packages missing: $missing}"
   else STATE=missing; fi
 }
@@ -598,22 +656,20 @@ install_zsh() {
       apt_install "${zsh_pkgs[@]}" && ok "installed" || { fail "apt failed (see $log_file)"; return 1; }
     else skip; return 0; fi
   fi
-  if has_block "$HOME/.zshrc" "$zshrc_body" && has_block "$HOME/.zprofile" "$zprofile_body" &&
-     has_block "$HOME/.zshenv" "$zshenv_body"; then ok "zsh config already set up"; return; fi
-  if ask "Set up ~/.zshrc, ~/.zprofile and ~/.zshenv (one managed block each)?"; then
-    set_block "$HOME/.zshrc" "$zshrc_body"
-    set_block "$HOME/.zprofile" "$zprofile_body"
+  if has_block "$HOME/.zshenv" "$zshenv_body"; then ok "zsh config already set up"
+  elif ask "Set up ~/.zshenv (one managed block)?"; then
     set_block "$HOME/.zshenv" "$zshenv_body"
     ok "done. Try it now with: ${C}zsh${R}"
-  else skip; fi
+  else skip; return 0; fi
+  has_block "$HOME/.zshrc" "$zsh_hook_body" || warn "zsh loads unikit once zsh-hook is set up too: tk install zsh-hook"
 }
 uninstall_zsh() {
   if [[ "$(login_shell)" == */zsh ]]; then
     warn "zsh is your login shell; switching back to bash first"
     uninstall_login_shell || return 1
   fi
-  drop_block "$HOME/.zshrc"; drop_block "$HOME/.zprofile"; drop_block "$HOME/.zshenv"
-  ok "removed the toolkit from ~/.zshrc, ~/.zprofile, ~/.zshenv"
+  drop_block "$HOME/.zshenv"
+  ok "removed the toolkit from ~/.zshenv"
   local have=""; pkg_installed zsh && have=1
   if [[ -n "$have" ]] && ask "Also remove the zsh packages (apt, needs sudo)?" n; then
     as_root apt-get remove -y "${zsh_pkgs[@]}" >>"$log_file" 2>&1 && ok "packages removed" || fail "apt failed (see $log_file)"

@@ -1,6 +1,6 @@
 """Installer parts' own checks, in a scratch copy of the repo (bluefeels included) with a scratch
 HOME: Claude parts in every profile, the PROD guard without tk, looks (a missing preset, files
-copied out of the repo), kitty accents without a background.conf, uk layer rm's advice."""
+copied out of the repo), kitty accents without a background.conf, uk layer rm's advice, zsh-hook replacing the older ~/.zshrc line, commands linking the layers' commands."""
 import os
 import shutil
 import subprocess
@@ -110,3 +110,35 @@ def test_layer_rm_names_the_layers_own_uninstall(sb):
                        text=True, timeout=60, stdin=subprocess.DEVNULL)
     assert "fk uninstall" in p.stdout + p.stderr, p.stdout + p.stderr
     assert os.path.isdir(repo + "/layers/bluefeels"), "no terminal to confirm in: nothing removed"
+
+
+def test_zsh_hook_replaces_the_older_line(sb):
+    repo = copy(sb)
+    old = f'# >>> work toolkit >>>\n[ -f "{repo}/zsh/zshrc" ] && . "{repo}/zsh/zshrc"\n# <<< work toolkit <<<\n'
+    sb.write("~/.zshrc", "export MINE=1\n" + old)
+    out = sh(sb, repo, 'component_state zsh-hook; echo "$STATE|$NOTE"')
+    assert out.strip() == "partial|~/.zshrc has the older line: set up again to replace it", out
+    install(sb, repo, "zsh-hook")
+    rc = sb.read("~/.zshrc")
+    assert f'. "{repo}/shell/init.sh"' in rc and "zsh/zshrc" not in rc and rc.startswith("export MINE=1\n"), rc
+    assert "emulate sh -c '. ~/.profile'" in sb.read("~/.zprofile")
+    out = sh(sb, repo, 'component_state zsh-hook; echo "$STATE"; uninstall_zsh_hook >/dev/null; component_state zsh-hook; echo "$STATE"')
+    assert out.split() == ["installed", "missing"], out
+    assert sb.read("~/.zshrc").strip() == "export MINE=1", sb.read("~/.zshrc")
+    assert sh(sb, repo, "touches_zsh").strip() == sb.path("~/.zshenv")   # the zsh part no longer writes ~/.zshrc
+
+
+def test_commands_links_the_layers_commands(sb):
+    repo = copy(sb)
+    no_host_tk(sb)
+    sb.env["PATH"] = ":".join(p for p in sb.env["PATH"].split(":") if not p.startswith(REPO))   # the host's layers
+    sb.fake("k-rofi", "exit 0")                                     # another program has this name
+    out = install(sb, repo, "commands")
+    link = lambda n: os.path.realpath(sb.path("~/.local/bin/" + n))
+    assert link("k-bg") == os.path.realpath(repo + "/layers/bluefeels/bin/k-bg"), out
+    assert link("uk") == os.path.realpath(repo + "/bin/uk"), out
+    assert not os.path.lexists(sb.path("~/.local/bin/fk-looks")), "fk runs its subcommands"
+    assert not os.path.lexists(sb.path("~/.local/bin/k-rofi")) and "k-rofi is already" in out, out
+    out = sh(sb, repo, 'component_state commands; echo "$STATE"; uninstall_commands >/dev/null')
+    assert out.strip() == "installed", out
+    assert not os.path.lexists(sb.path("~/.local/bin/k-bg")) and not os.path.lexists(sb.path("~/.local/bin/uk"))

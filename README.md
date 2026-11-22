@@ -218,12 +218,13 @@ bluefeels' parts (kitty backgrounds, themes, accents, icons and the GNOME looks)
 | `yazi-keys` | Two keys for yazi: `>` picks a folder inside the current one with fzf (up to 6 levels, no hidden folders), and ctrl+backspace deletes a word in yazi's text fields. Written as one marked block (`# >>> work toolkit >>>`) in `~/.config/yazi/keymap.toml`, from `yazi/keymap.toml`: added to your file if you have one (the rest stays yours), the file is made if not; if yours already has `prepend_keymap = [ ... ]` lines it says so and leaves it alone. Uninstall removes only the block |
 | `direnv` | latest direnv from GitHub (sha256-checked) in `~/.local/bin`, for `okcli pin`; the shell setup hooks it in. Skipped if you already have one; uninstall only removes the toolkit's |
 | `keys` | `~/.inputrc` → `shell/inputrc` (case-insensitive Tab, Up/Down search by what's typed) |
-| `commands` | `okcli`, `kx`, `twin`, `ctx`, `ws` in `~/.local/bin` |
+| `commands` | `uk`, `tk`, `fk` (for now also `okcli`, `kx`, `twin`, `ctx`, `ws`) and every layer's `bin/` commands in `~/.local/bin`; a name another program has is left alone |
 | `starship` | `~/.config/starship.toml` → `starship/starship.toml`, and starship itself (latest from GitHub, sha256-checked) in `~/.local/bin` if it isn't installed |
 | `fzf` | fzf 0.74.5 from GitHub (checksum-checked) in `~/.local/bin`, ahead of Ubuntu's 0.44. Every picker then shows where you are (`12/426`, `3/17 of 426` while searching), and k-theme gets its tabs. Uninstall goes back to apt's |
 | `kitty` | the kitty terminal itself: the latest official build (checksum-checked) in `~/.local/kitty.app`; `kitty`/`kitten` in `~/.local/bin`, the app menu entry and Ctrl+Alt+T point at it. Ubuntu's apt kitty stays as the fallback (uninstall goes back to it). `./install.sh ls` shows when there's a newer one |
 | `kitty-config` | `~/.config/kitty/kitty.conf` → `kitty/kitty.conf` |
-| `zsh` | apt `zsh zsh-autosuggestions`; `~/.zshrc`, `~/.zprofile`, `~/.zshenv` each get one managed block |
+| `zsh-hook` | `~/.zshrc` gets one managed block loading `shell/init.sh` (like bash's line); `~/.zprofile` one reading `~/.profile` |
+| `zsh` | apt `zsh zsh-autosuggestions`; `~/.zshenv` gets one managed block |
 | `login-shell` | `chsh` to zsh (log out once) |
 | `kitty-nautilus` | `kitty/install-kitty-gnome.sh` (kitty as default terminal, Open in Terminal in Files; Ctrl+Alt+T focuses the open kitty window, or starts kitty, via `kitty/bin/kitty-focus`, and Ctrl+Shift+Alt+T opens a new window) |
 | `window-calls` | GNOME extension Window Calls (from extensions.gnome.org) so `ws` can close and focus editor windows; log out once after installing |
@@ -249,9 +250,9 @@ bluefeels' parts (kitty backgrounds, themes, accents, icons and the GNOME looks)
 ## zsh
 
 `zsh/zshrc` is small: shared history, the bash keys, an arrow-key Tab menu (case-insensitive),
-and faded grey suggestions from history (Shift+Tab, → or End accepts, Alt+F one word; Tab is normal completion). Then it loads
-`shell/init.sh`, so zsh gets exactly the same aliases and tools as bash. Your own zsh tweaks go
-in `~/.zshrc` outside the managed block.
+and faded grey suggestions from history (Shift+Tab, → or End accepts, Alt+F one word; Tab is normal completion).
+`~/.zshrc` loads `shell/init.sh` (the `zsh-hook` part), which loads `zsh/zshrc` first, so zsh gets
+exactly the same aliases and tools as bash. Your own zsh tweaks go in `~/.zshrc` outside the managed block.
 
 ## Hats: Claude, GitHub and AWS per folder
 
