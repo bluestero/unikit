@@ -28,9 +28,12 @@ _tk_components() {
   done
 }
 
+# tk and fk (siblings, lib/kit.sh): the first word from the kit's own help page, so a layer's
+# subcommands come too; install / uninstall then take the parts
 _tk_complete() {
-  local cur="${COMP_WORDS[COMP_CWORD]}" words
-  if [ "$COMP_CWORD" -eq 1 ]; then words="ls status doctor install uninstall update configs version help"
+  local cmd="${COMP_WORDS[0]##*/}" cur="${COMP_WORDS[COMP_CWORD]}" words
+  if [ "$COMP_CWORD" -eq 1 ]; then
+    words=$(command "$cmd" help 2>/dev/null </dev/null | sed 's/\x1b\[[0-9;]*m//g' | sed -n "s/^ *$cmd \([a-z][a-z0-9-]*\).*/\1/p")
   else
     case "${COMP_WORDS[1]}" in
       install|uninstall) words="ls help --dry-run --details --yes --plain $(_tk_components)" ;;
@@ -43,3 +46,4 @@ if [ -n "${ZSH_VERSION:-}" ]; then
   autoload -U +X bashcompinit 2>/dev/null && bashcompinit
 fi
 complete -F _tk_complete tk 2>/dev/null
+complete -F _tk_complete fk 2>/dev/null

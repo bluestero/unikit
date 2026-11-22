@@ -373,8 +373,9 @@ check_layer() {
     [[ -e $f ]] || continue
     c=${f##*/}
     [[ -x $f ]] || check "$l" bad "bin/$c isn't executable" "chmod +x $f"
-    case $c in fk-install|fk-uninstall|fk-help)
-      check "$l" bad "bin/$c never runs: fk ${c#fk-} is fk's own"; continue ;; esac
+    case $c in   # a kit's own words (lib/kit.sh; tk's extras in bin/tk) come before a layer's
+      [tf]k-ls|[tf]k-list|[tf]k-install|[tf]k-uninstall|[tf]k-help|tk-st|tk-status|tk-doctor|tk-configs|tk-version|tk-update|tk-layer|tk-layers)
+        check "$l" bad "bin/$c never runs: ${c%%-*} ${c#*-} is ${c%%-*}'s own"; continue ;; esac
     if [[ ${OWNER[$c]:-} == unikit ]]; then check "$l" bad "bin/$c never runs: unikit's $c comes first on PATH"
     elif [[ -v OWNER[$c] ]]; then check "$l" bad "bin/$c: ${OWNER[$c]} has a $c too; the one first on PATH runs"
     else OWNER[$c]=$l; fi

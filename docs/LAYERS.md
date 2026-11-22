@@ -18,7 +18,7 @@ All optional. A layer with none of these is an error (`uk doctor` says so).
 
 | Path | What unikit does with it |
 |---|---|
-| `bin/<command>` | on PATH in every shell, **after** unikit's own folders: a command unikit has never runs from a layer. The `commands` part also links it into `~/.local/bin` (not where another program has the name). `bin/fk-<name>` is also `fk <name>` (not `fk-install`, `fk-uninstall`, `fk-help`: those are fk's) |
+| `bin/<command>` | on PATH in every shell, **after** unikit's own folders: a command unikit has never runs from a layer. The `commands` part also links it into `~/.local/bin` (not where another program has the name). `bin/tk-<name>` is also `tk <name>`, `bin/fk-<name>` `fk <name>` (not `ls`, `install`, `uninstall`, `help`: every kit has those, and tk's `status`, `doctor`, `configs`, `version` for now) |
 | `shell/init.sh` | sourced by every bash and zsh, before unikit's tools load: settings they read (`OKTA_AWSCLI_*`, `KX_ALIAS_RULES`, …), aliases. Layers load by name, the ones in its `requires` before it. Runs in every new terminal: keep it fast and silent |
 | `components.sh` | installer parts (below) |
 | `kit` | one line, `tk` or `fk`: the kit its parts go to (default `tk`). A part can name its own: `kit_<id>() { echo fk; }` |

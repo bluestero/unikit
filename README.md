@@ -126,7 +126,7 @@ Copying a folder into `layers/` works too (no updates then). Everything in a lay
 
 | In the layer | What the toolkit does with it |
 |---|---|
-| `bin/` | on PATH in every shell, after unikit's own (a command unikit has stays unikit's; `uk doctor` names a layer that tries); `bin/fk-<name>` is also `fk <name>` (fk's own words, `install`, `uninstall`, `help`, stay fk's) |
+| `bin/` | on PATH in every shell, after unikit's own (a command unikit has stays unikit's; `uk doctor` names a layer that tries); `bin/tk-<name>` is also `tk <name>`, `bin/fk-<name>` `fk <name>` (the kit's own words, `ls`, `install`, `uninstall`, `help`, stay the kit's) |
 | `shell/init.sh` | sourced by bash and zsh before the tools load: settings they read (`OKTA_AWSCLI_ORG_DOMAIN`, `OKTA_AWSCLI_OIDC_CLIENT_ID`, `OKCLI_NAMING_DEFAULT`, `KX_ALIAS_RULES`), aliases |
 | `components.sh` | installer components (`COMPONENTS+=(…)` and the usual functions; `group_<id>` names its installer tab, `GROUP_ABOUT[<group>]="…"` says what a new group is). A part name unikit or another layer already has leaves this layer's parts out. `touches_<id>` says what a part changes (a file, or `dconf:/a/path/`): before it changes something another layer's part set up, the installer asks: skip it (the default, and what `--yes` does), replace, or add both (when the part has `addboth_<id>`) |
 | `tools` | commands for the kit's picker and help (`tk ls`, `tk`; `fk`): `name\|group\|what it does\|program it needs[\|kit]`; without the kit, the layer's |
@@ -143,10 +143,13 @@ they need from the machine (`requires_<id>`: `gnome`, `apt`, `linux`) and list t
 
 ### Two kits: tk and fk
 
-`tk` (toolkit) is what you work with; `fk` (feelkit) is how it looks. `fk` comes empty: its parts,
-commands and subcommands all come from layers whose kit is `fk`. With none, `fk` says so and
-`fk install` has nothing to set up. `fk` opens a picker of the layers' fk commands (like `tk`);
-`fk help` lists them; `fk install` / `fk uninstall` set up and remove the fk parts.
+`tk` (toolkit) is what you work with; `fk` (feelkit) is how it looks. They're siblings with the
+same words: `<kit>` opens a picker of its commands, `<kit> ls` lists them (what each does, its
+layer, ready or not), `<kit> install` / `<kit> uninstall` set up and remove its parts, `<kit> help`
+shows both, and a layer's `bin/<kit>-<name>` is `<kit> <name>`. Their commands, subcommands and
+parts come from layers; a kit with none says so ("Nothing here yet. Add a layer: uk layers").
+`tk` still has unikit's own tools and `status`, `doctor`, `configs`, `version` until they move
+(to bluetools, uk and fk).
 
 **bluefeels** is one such layer, optional: the kitty background, theme, accents and icons (`k-bg`,
 `k-theme`, `k-icon`), where new windows open, and the GNOME presets (Dash to Panel, Dash2Dock,

@@ -4,8 +4,8 @@
 # is nothing to register. A layer can have any of these, all optional:
 #
 #   bin/              its commands, put on PATH after unikit's (a command unikit has stays
-#                     unikit's); bin/fk-<name> is also fk <name> (fk's own words, install,
-#                     uninstall and help, stay fk's)
+#                     unikit's); bin/tk-<name> is also tk <name>, bin/fk-<name> fk <name> (the kit's
+#                     own words, ls, install, uninstall and help, stay the kit's)
 #   shell/init.sh     sourced by every shell (bash and zsh) before the tools load:
 #                     settings the tools read (OKTA_AWSCLI_*, KX_ALIAS_RULES, ...), aliases
 #   components.sh     installer components: COMPONENTS+=(id ...), names no one else has (a layer
@@ -44,16 +44,17 @@ layer_dirs() {
 }
 # layer_path <toolkit root> <name>: that layer's folder; 1 when there is none
 layer_path() { [[ -d $1/layers/$2 ]] && printf '%s\n' "$1/layers/$2"; }
-# layer_tools <toolkit root> <kit>: the layers' tools lines for that kit
+# layer_tools <toolkit root> <kit>: the layers' tools lines for that kit, each as
+# name|group|what it does|program it needs|kit|layer
 layer_tools() {
-  local d t lk k
+  local d t lk n g w p k
   while IFS= read -r d; do
     [[ -r $d/tools ]] || continue
     lk=tk; [[ -f $d/kit ]] && lk=$(head -1 "$d/kit")
     while IFS= read -r t; do
       [[ -z $t || $t == \#* ]] && continue
-      IFS='|' read -r _ _ _ _ k <<<"$t"
-      [[ ${k:-$lk} == "$2" ]] && printf '%s\n' "$t"
+      IFS='|' read -r n g w p k <<<"$t"
+      [[ ${k:-$lk} == "$2" ]] && printf '%s|%s|%s|%s|%s|%s\n' "$n" "$g" "$w" "$p" "$2" "${d##*/}"
     done <"$d/tools"
   done < <(layer_dirs "$1")
   return 0

@@ -1,61 +1,12 @@
 #!/usr/bin/env bash
-# fk - the feelkit kit's front door: how things look. The kit itself is empty; looks come
-# from layers (lib/layers.sh): their fk parts (fk install), their commands (tools lines
-# for fk, in the picker) and their fk subcommands (a layer's bin/fk-<name> is fk <name>).
-# `fk help` lists them.
+# fk - the feelkit: how things look. Empty until layers fill it: their fk parts (fk install),
+# their commands (tools lines for fk) and subcommands (a layer's bin/fk-<name> is fk <name>).
+# The same words as tk (lib/kit.sh). `fk help` lists them.
 set -uo pipefail
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
-# shellcheck source=../lib/ui.sh
-. "$ROOT/lib/ui.sh"
-# shellcheck source=../lib/layers.sh
-. "$ROOT/lib/layers.sh"
-S=$'\x1f'
-EMPTY="Nothing here yet. Add a look layer: uk layers"
-
-mapfile -t TOOLS < <(layer_tools "$ROOT" fk)
-field() { cut -d'|' -f"$2" <<<"$1"; }
-
-# fk with no command: pick one of the layers' fk commands and run it
-cmd_pick() {
-  if [[ ! -t 0 || ! -t 1 ]] || ! type -P fzf >/dev/null; then cmd_help; return; fi
-  (( ${#TOOLS[@]} )) || { info "$EMPTY"; return 0; }
-  local t rows="COMMAND${S}AREA${S}WHAT IT DOES"$'\n' sel
-  for t in "${TOOLS[@]}"; do
-    rows+="$(field "$t" 1)$S${C_DIM}$(field "$t" 2)${C_RESET}$S$(field "$t" 3)"$'\n'
-  done
-  sel=$(printf '%s' "$rows" | ui_fzf 'fk · feelkit' --sortable --header-lines=1 --prompt='command> ' \
-    --header='enter: run it · esc: cancel') || return 0
-  sel=$(strip_ansi "$sel"); sel=${sel%%   *}   # the first cell: cells are 3 or more spaces apart
-  [[ -n "$sel" ]] || return 0
-  # shellcheck disable=SC2086   # a command and its words ("fk looks"): fk's own run here
-  set -- $sel; [[ $1 == fk ]] && { shift; set -- "$SELF" "$@"; }
-  exec "$@"
-}
-
-cmd_help() {
-  local t
-  {
-    printf '## Commands\n'
-    printf 'fk\tpick one of the commands below and run it\n'
-    printf 'fk install [part...]\tset up the fk parts the layers bring: a tab per group, then one question per change\te.g. fk install ls lists them\n'
-    printf 'fk uninstall [part...]\tremove them, putting your own settings back\n'
-    printf 'fk help\tthis page\n'
-    if (( ${#TOOLS[@]} )); then
-      printf '\n## From the layers\n'
-      for t in "${TOOLS[@]}"; do printf '%s\t%s\n' "$(field "$t" 1)" "$(field "$t" 3)"; done
-    else
-      printf '\n%s\n' "$EMPTY"
-    fi
-  } | ui_help fk "feelkit: how things look"
-}
-
-case "${1:-}" in
-  "")            cmd_pick ;;
-  install)       shift; exec "$ROOT/install.sh" --kit=fk "$@" ;;
-  uninstall)     shift; exec "$ROOT/uninstall.sh" --kit=fk "$@" ;;
-  help|-h|--help) cmd_help ;;
-  *)   # a layer's subcommand: its bin/fk-<name>
-    sub=$(layer_bin "$ROOT" "fk-$1") || ui_unknown fk "$1"
-    shift; exec "$sub" "$@" ;;
-esac
+KIT=fk
+KIT_WHAT="how things look"
+# shellcheck source=../lib/kit.sh
+. "$ROOT/lib/kit.sh"
+kit_main "$@"

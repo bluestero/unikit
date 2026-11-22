@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# tk - the work toolkit's front door: find, run, check, set up and update every
-# toolkit command from anywhere. `tk help` lists the commands.
+# tk - the toolkit: what you work with. The same words as fk (lib/kit.sh): its commands and
+# parts come from layers. `tk help` lists them.
 #
 # The picker hands the chosen command back to your shell (shell/tk.sh) instead of
 # running it here, so commands that change this terminal (okcli, kx) still can.
@@ -8,66 +8,22 @@
 set -uo pipefail
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
-# shellcheck source=../lib/ui.sh
-. "$ROOT/lib/ui.sh"
 UI_EVAL_FILE="${TK_EVAL_FILE:-}"
-S=$'\x1f'
-
-# Every toolkit command: name | group | what it does | program it needs (if any)
-TOOLS=(
-  "ctx|Where am I|AWS, Kubernetes and Twingate for this terminal|"
-  "hat|Where am I|Claude profile, GitHub account and AWS profile per folder|"
-  "okcli|Cloud|Okta AWS profiles: switch, refresh, default, folder pins|okta-aws-cli"
-  "kx|Cloud|Kubernetes contexts and namespaces, per terminal|kubectl"
-  "twin|Cloud|Twingate exit nodes|twingate"
-  "ws|Editor|open workspaces (repos) in your IDE|"
-  "k-config|Kitty|edit kitty.conf|kitty"
+KIT=tk
+KIT_WHAT="what you work with"
+# unikit's own tools until they move to the bluetools layer (tasks/14):
+# name | group | what it does | program it needs | kit | layer
+KIT_TOOLS=(
+  "ctx|Where am I|AWS, Kubernetes and Twingate for this terminal||tk|unikit"
+  "hat|Where am I|Claude profile, GitHub account and AWS profile per folder||tk|unikit"
+  "okcli|Cloud|Okta AWS profiles: switch, refresh, default, folder pins|okta-aws-cli|tk|unikit"
+  "kx|Cloud|Kubernetes contexts and namespaces, per terminal|kubectl|tk|unikit"
+  "twin|Cloud|Twingate exit nodes|twingate|tk|unikit"
+  "ws|Editor|open workspaces (repos) in your IDE||tk|unikit"
+  "k-config|Kitty|edit kitty.conf|kitty|tk|unikit"
 )
-# plus the tk commands layers add (<layer>/tools, same format; fk's are in fk's picker)
-# shellcheck source=../lib/layers.sh
-. "$ROOT/lib/layers.sh"
-while IFS= read -r _t; do TOOLS+=("$_t"); done < <(layer_tools "$ROOT" tk)
-unset _t
-field() { cut -d'|' -f"$2" <<<"$1"; }
-
-# "✓ ready" or why not
-ready() {
-  local name; name=$(field "$1" 1)
-  local need; need=$(field "$1" 4)
-  type -P "$name" >/dev/null || { printf '%s' "${C_YELLOW}not on PATH${C_RESET}  $(ui_hint './install.sh commands')"; return 1; }
-  [[ -z "$need" ]] || type -P "$need" >/dev/null || { printf '%s' "${C_YELLOW}needs $need${C_RESET}"; return 1; }
-  printf '%s' "${C_GREEN}✓ ready${C_RESET}"
-}
-
-# -------------------------------------------------------------------- ls ---
-cmd_ls() {
-  [[ -t 1 ]] || ui_no_color
-  local t prev="" g n=0 bad=0 st
-  {
-    printf '%s\n' "${C_BOLD}COMMAND${C_RESET}$S${C_BOLD}WHAT IT DOES${C_RESET}$S${C_BOLD}READY${C_RESET}"
-    for t in "${TOOLS[@]}"; do
-      g=$(field "$t" 2)
-      if [[ "$g" != "$prev" ]]; then [[ -n "$prev" ]] && printf '\n'; printf '%s\n' "$C_DIM$g$C_RESET"; prev=$g; fi
-      st=$(ready "$t") || bad=$((bad + 1))
-      printf '%s\n' "  $C_CYAN$(field "$t" 1)$C_RESET$S$(field "$t" 3)$S$st"
-    done
-  } | ui_table "tk · work toolkit" "${#TOOLS[@]} commands" "$(ui_hint '<command> help for each one')"
-}
-
-# ---------------------------------------------------------------- picker ---
-cmd_pick() {
-  if [[ ! -t 0 || ! -t 1 ]] || ! type -P fzf >/dev/null; then cmd_ls; return; fi
-  local t rows="COMMAND${S}AREA${S}WHAT IT DOES"$'\n' sel
-  for t in "${TOOLS[@]}"; do
-    rows+="$(field "$t" 1)$S${C_DIM}$(field "$t" 2)${C_RESET}$S$(field "$t" 3)"$'\n'
-  done
-  sel=$(printf '%s' "$rows" | ui_fzf 'tk · work toolkit' --sortable --header-lines=1 --prompt='command> ' \
-    --header='enter: run it · esc: cancel') || return 0
-  sel=$(strip_ansi "$sel"); sel=${sel%% *}
-  [[ -n "$sel" ]] || return 0
-  # run it in the calling shell (so okcli / kx can change this terminal)
-  emit_eval "$sel" || exec "$sel"
-}
+# shellcheck source=../lib/kit.sh
+. "$ROOT/lib/kit.sh"
 
 # ---------------------------------------------------------------- status ---
 # Which installer components are in place. First line, the toolkit's (./install.sh):
@@ -217,35 +173,28 @@ cmd_version() {
   printf 'tk %s%s\n' "$(version)" "${rev:+  $C_DIM($rev)$C_RESET}"
 }
 
-cmd_help() {
-  ui_help tk "the work toolkit" <<'EOF'
-## Commands
-tk	picker of every toolkit command; enter runs it
-tk ls	every toolkit command, what it does, whether it's ready
+# tk's own commands, for now (tasks/14: status and version to uk, configs to fk, doctor
+# from each layer's checks)
+kit_help_own() {
+  cat <<'EOF'
+## tk's own, for now
 tk status	ctx, plus how much of the toolkit is set up
 tk doctor	every check from every tool, in one box
-tk install [part...]	./install.sh from anywhere	tk install zsh
-tk uninstall [part...]	./uninstall.sh from anywhere
 tk configs	starship, btop, rofi, kitty, readline, yazi keys: the toolkit's preset, the app's default, what you had before, or undo; your own patch on top of each	patches: ~/.config/work-toolkit/patches · edited preset: you changed the toolkit's copy
 tk version	the toolkit version (also -v, --version)
-tk help	this page
-
-Every command speaks the same words: ls, status, current, default, off, doctor, help.
 EOF
 }
+kit_own() {
+  case "$1" in
+    st|status)      cmd_status ;;
+    doctor)         cmd_doctor ;;
+    update)         shift; exec "$ROOT/bin/uk" update "$@" ;;   # moved to unikit: uk update
+    configs)        shift; exec bash "$ROOT/lib/configs.sh" "$@" ;;
+    layer|layers)   die "the layers moved to unikit: uk layers (uk help)" ;;
+    version|-v|--version) cmd_version ;;
+    __guard)        exec "$ROOT/claude/guard.sh" ;;   # Claude Code's PreToolUse hook (claude-guard)
+    *)              return 2 ;;
+  esac
+}
 
-case "${1:-}" in
-  "")             cmd_pick ;;
-  ls|list)        cmd_ls ;;
-  st|status)      cmd_status ;;
-  doctor)         cmd_doctor ;;
-  install)        shift; exec "$ROOT/install.sh" "$@" ;;
-  uninstall)      shift; exec "$ROOT/uninstall.sh" "$@" ;;
-  update)         shift; exec "$ROOT/bin/uk" update "$@" ;;   # moved to unikit: uk update
-  configs)        shift; exec bash "$ROOT/lib/configs.sh" "$@" ;;
-  layer|layers)   die "the layers moved to unikit: uk layers (uk help)" ;;
-  version|-v|--version) cmd_version ;;
-  __guard)        exec "$ROOT/claude/guard.sh" ;;   # Claude Code's PreToolUse hook (claude-guard)
-  help|-h|--help) cmd_help ;;
-  *)              ui_unknown tk "$1" ;;
-esac
+kit_main "$@"

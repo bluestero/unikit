@@ -1,7 +1,8 @@
 """uk, unikit's base command, in a scratch copy of the repo with no layers but the test's own:
 help and version; uk layer add / rm without a terminal; the uk layers list (about card, add,
 remove); uk doctor on a well formed layer and a broken one; tk layer is gone; the installers'
-LAYER column; the long command names never take a name another program has."""
+LAYER column; the long command names never take a name another program has; tk and fk are
+siblings (the same words, an empty kit says so, a layer's bin/<kit>-<name>)."""
 import os
 import re
 import shutil
@@ -217,3 +218,29 @@ def test_the_layer_template_is_a_working_layer(sb):
     assert out.strip() == "hello from the example layer: it works", out
     code, out = run(sb, repo, "uk", "doctor")
     assert "example" in out and "! " not in out.split("example", 1)[1].split("\n")[0], out
+
+
+def test_the_kits_are_siblings(sb):
+    repo = copy(sb)
+    for kit in ("tk", "fk"):                                      # the same words in both
+        code, out = run(sb, repo, kit, "help")
+        assert code == 0 and all(f"{kit} {w}" in out for w in ("ls", "install", "uninstall", "help")), out
+    code, out = run(sb, repo, "fk", "help")
+    assert "Nothing here yet. Add a layer: uk layers" in out, out
+    code, out = run(sb, repo, "fk", "ls")
+    assert code == 0 and "Nothing here yet" in out, out
+    d = repo + "/layers/acme"                                    # a layer's subcommand: bin/tk-<name>
+    os.makedirs(d + "/bin")
+    with open(d + "/bin/tk-hello", "w") as f:
+        f.write('#!/bin/sh\necho "hello $*"\n')
+    os.chmod(d + "/bin/tk-hello", 0o755)
+    with open(d + "/tools", "w") as f:
+        f.write("tk hello|Work|says hello|\n")
+    code, out = run(sb, repo, "tk", "hello", "there")
+    assert code == 0 and out.strip() == "hello there", out
+    code, out = run(sb, repo, "tk", "help")
+    assert re.search(r"tk hello\s+says hello\s+acme", out), out
+    code, out = run(sb, repo, "tk", "ls")
+    assert re.search(r"tk hello\s+says hello\s+acme\s+✓ ready", out), out
+    code, out = run(sb, repo, "fk", "hello")
+    assert code != 0 and "unknown command 'hello'" in out, "tk's subcommand isn't fk's"
