@@ -1,6 +1,6 @@
 # example
 
-A layer for [unikit](https://github.com/bluestero/unix-toolkit): one line on what it adds.
+A layer for [unikit](https://github.com/bluestero/unikit): one line on what it adds.
 (This first paragraph is what `uk layers` shows on its about card.)
 
 ## Add it

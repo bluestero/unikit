@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Gets the toolkit onto a machine:
 #
-#   bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unix-toolkit/main/bootstrap.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unikit/main/bootstrap.sh)
 #
 # Clones it into ~/.local/share/unix-toolkit (or pulls, if it's already there) and
 # puts the tk command in ~/.local/bin. Nothing else changes: `tk install` then
@@ -12,7 +12,7 @@
 #   bash <(curl -fsSL .../bootstrap.sh) --layer bluefeels
 set -euo pipefail
 
-url="${TK_REPO:-https://github.com/bluestero/unix-toolkit.git}"
+url="${TK_REPO:-https://github.com/bluestero/unikit.git}"
 dir="${TK_DIR:-$HOME/.local/share/unix-toolkit}"
 layers=()
 while (( $# )); do
@@ -39,7 +39,7 @@ ln -sfn "$dir/bin/tk" "$HOME/.local/bin/tk" && echo "✓ tk command in ~/.local/
 # layers: bluefeels by name (bluefeel and feelkit, its old names, too); anything else is a git URL.
 # `uk layer add` offers to set up its parts.
 for l in "${layers[@]}"; do
-  if [[ $l == bluefeels || $l == bluefeel || $l == feelkit ]]; then l=https://github.com/bluestero/unix-feelkit.git name=bluefeels   # its repo's old name, until it's renamed
+  if [[ $l == bluefeels || $l == bluefeel || $l == feelkit ]]; then l=https://github.com/bluestero/bluefeels.git name=bluefeels
   else name=$(basename "${l%.git}"); name=${name#unix-}; name=${name%-toolkit}; fi
   if [[ -d $dir/layers/$name ]]; then echo "✓ layer $name already there"
   else echo; "$dir/bin/uk" layer add "$l" "$name" || echo "✗ couldn't add the layer $l (see above)" >&2; fi

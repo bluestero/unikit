@@ -1,4 +1,4 @@
-# unix-toolkit
+# unikit
 
 A shell toolkit for work: AWS profiles, Kubernetes, Twingate, workspaces, a themed kitty, all behind one front door (`tk`). Your company's own parts (repos, settings, extra commands) come as a [layer](#layers) from their own repo.
 
@@ -34,7 +34,7 @@ kubectl (kx). One you already have is used as it is. The one thing to install yo
 it if it's there) and adds the `tk` command. Nothing else changes yet.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unix-toolkit/main/bootstrap.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unikit/main/bootstrap.sh)
 ```
 
 `--dir <folder>` puts the toolkit elsewhere. `--layer bluefeels` (or `--layer <git URL>` for any other
@@ -44,7 +44,7 @@ Or step by step, to see what each part does (over SSH: needs an SSH key on your 
 `ssh -T git@github.com` checks it). The folder can be anywhere; the installer records where it is.
 
 ```bash
-git clone git@github.com:bluestero/unix-toolkit.git ~/.local/share/unix-toolkit   # the toolkit
+git clone git@github.com:bluestero/unikit.git ~/.local/share/unix-toolkit   # the toolkit
 mkdir -p ~/.local/bin
 ln -sfn ~/.local/share/unix-toolkit/bin/tk ~/.local/bin/tk                         # the tk command
 ~/.local/bin/tk install                                                            # step 3 below
@@ -153,10 +153,10 @@ commands and subcommands all come from layers whose kit is `fk`. With none, `fk`
 Vitals, Blur my Shell, rounded corners, no animations), with `fk looks` and `fk dash2dock`.
 The toolkit works without it: rofi and btop just keep their default colours.
 
-It lives in its own repo, [unix-feelkit](https://github.com/bluestero/unix-feelkit) (to be renamed bluefeels):
+It lives in its own repo, [bluefeels](https://github.com/bluestero/bluefeels):
 
 ```bash
-uk layer add https://github.com/bluestero/unix-feelkit.git bluefeels   # clones into layers/bluefeels, asks, offers to set it up
+uk layer add https://github.com/bluestero/bluefeels.git bluefeels   # clones into layers/bluefeels, asks, offers to set it up
 fk install                                                            # the fk installer: Kitty looks, GNOME looks, Summary
 fk uninstall                                                          # removes the fk parts, your own settings put back
 ```
@@ -208,7 +208,7 @@ The first time the installer changes something of yours, it keeps what you had i
 | Claude Code `settings.json` | only the toolkit's hook entry is removed |
 
 bluefeels' parts (kitty backgrounds, themes, accents, icons and the GNOME looks) are in
-[its own README](https://github.com/bluestero/unix-feelkit#parts) and set up with `fk install`.
+[its own README](https://github.com/bluestero/bluefeels#parts) and set up with `fk install`.
 
 | Component | What it sets up |
 |---|---|
