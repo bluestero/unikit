@@ -82,7 +82,8 @@ def bt_cards():
     """({device id: (name, active profile, {profile: index})} for bluetooth audio,
     {sink or source node id: its device id})"""
     try:
-        objs = json.loads(out("pw-dump"))
+        # only the first array: other pw-dumps running at once (the mic tab) add removal notices after it
+        objs = json.JSONDecoder().raw_decode(out("pw-dump"))[0]
     except ValueError:
         return {}, {}
     cls = "Audio/Sink" if KIND == "speaker" else "Audio/Source"
