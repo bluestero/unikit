@@ -2,8 +2,8 @@
 #   bash: ~/.bashrc has one line that sources this (install.sh adds it)
 #   zsh:  ~/.zshrc has the same line (the zsh-hook part); this loads zsh/zshrc
 #
-# Loads, in order: shared aliases/PATH/env (common.sh), the direnv and starship
-# hooks, then the tools. Safe to source more than once.
+# Loads, in order: shared aliases/PATH/env (common.sh), the layers' shell/init.sh,
+# the starship hook, then the tools. Safe to source more than once.
 
 _work_root="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")/.." && pwd)"
 if [ -n "${ZSH_VERSION:-}" ]; then _work_sh=zsh; else _work_sh=bash; fi
@@ -27,7 +27,7 @@ _work_layers() {
   _work_seen=" "
   for _n in $(command ls -1 "$_work_root/layers" 2>/dev/null); do _work_layer_add "$_n"; done
 }
-for _d in $(_work_layers) kitty ws twingate kube okta; do
+for _d in $(_work_layers) kitty ws twingate kube; do
   case ":$PATH:" in *":$_work_root/$_d/bin:"*) ;; *) [ -d "$_work_root/$_d/bin" ] && PATH="$_work_root/$_d/bin:$PATH" ;; esac
 done
 case ":$PATH:" in *":$_work_root/bin:"*) ;; *) PATH="$_work_root/bin:$PATH" ;; esac
@@ -69,12 +69,6 @@ for _l in $(_work_layers); do
   [ -r "$_work_root/$_l/shell/init.sh" ] && . "$_work_root/$_l/shell/init.sh"
 done
 
-# direnv first, then starship, then the tools: okcli's prompt hook has to run
-# after direnv has applied a repo pin.
-# Quiet: no "direnv: loading / export" lines; the prompt already shows the AWS
-# profile. Errors (a blocked .envrc) still show. Set DIRENV_LOG_FORMAT to get them back.
-export DIRENV_LOG_FORMAT="${DIRENV_LOG_FORMAT-}"
-command -v direnv >/dev/null 2>&1 && eval "$(direnv hook $_work_sh)"
 command -v starship >/dev/null 2>&1 && eval "$(starship init $_work_sh)"
 
 # A blank line before each prompt, except the first one (and the first after
@@ -92,8 +86,6 @@ else
 fi
 
 for _f in \
-  okta/shell/okta-env.sh \
-  okta/shell/okcli.sh \
   kube/shell/kx.sh \
   twingate/shell/twin.sh \
   ws/shell/ws.sh \

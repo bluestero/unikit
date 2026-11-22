@@ -1,4 +1,5 @@
 """Runs tests/cases/<name>.py: every test_* function, in file order, each in a fresh Sandbox.
+A layer's own tests are in layers/<layer>/tests/cases/<name>.py: run the same way, by name.
 
 A case module may define skip() -> reason (or None) to skip the whole file, e.g. when
 the tool it covers isn't installed. A test gets the sandbox as its argument.
@@ -16,6 +17,7 @@ from fixture import REPO, Sandbox  # noqa: E402
 from term import Term  # noqa: E402
 
 CASES = os.path.join(REPO, "tests", "cases")
+LAYERS = os.path.join(REPO, "layers")
 # Run only when named: speed budgets are what task 11 works towards, not a gate yet.
 ONLY_WHEN_NAMED = {"speed"}
 
@@ -24,8 +26,22 @@ if not sys.stdout.isatty():
     G = R = Y = D = X = ""
 
 
-def load(name):
-    spec = importlib.util.spec_from_file_location(name, os.path.join(CASES, name + ".py"))
+def case_files():
+    """name -> path: unikit's cases, then each layer's."""
+    dirs = [CASES]
+    if os.path.isdir(LAYERS):
+        dirs += sorted(os.path.join(LAYERS, d, "tests", "cases") for d in os.listdir(LAYERS))
+    files = {}
+    for d in dirs:
+        if os.path.isdir(d):
+            for f in os.listdir(d):
+                if f.endswith(".py") and not f.startswith("_"):
+                    files.setdefault(f[:-3], os.path.join(d, f))
+    return files
+
+
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -37,7 +53,8 @@ def tests_of(mod):
 
 
 def main(argv):
-    names = sorted(f[:-3] for f in os.listdir(CASES) if f.endswith(".py") and not f.startswith("_"))
+    files = case_files()
+    names = sorted(files)
     want = [a for a in argv if not a.startswith("-")]
     for w in want:
         if w not in names:
@@ -46,7 +63,7 @@ def main(argv):
     run = want or [n for n in names if n not in ONLY_WHEN_NAMED]
     passed = failed = skipped = 0
     for name in run:
-        mod = load(name)
+        mod = load(name, files[name])
         reason = mod.skip() if hasattr(mod, "skip") else None
         if reason:
             print(f"{Y}–{X} {name}  {D}skipped: {reason}{X}")

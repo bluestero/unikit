@@ -142,7 +142,7 @@ class Sandbox:
         return [l for l in lines if name is None or l.split(" ", 1)[0] == name]
 
     def add_path(self, d):
-        """Put a folder (e.g. the repo's okta/bin) on PATH, after the fakes."""
+        """Put a folder (e.g. a layer's bin) on PATH, after the fakes."""
         head, rest = self.env["PATH"].split(":", 1)
         self.env["PATH"] = f"{head}:{d}:{rest}"
 

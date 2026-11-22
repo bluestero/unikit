@@ -17,7 +17,7 @@
 # shellcheck source=layers.sh
 . "$repo/lib/layers.sh"
 
-COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys direnv window-calls alt-tab-desktop hide-docker-tray app-keys rofi okta-aws-cli aws-cli kubectl eks-clusters twingate gh clipboard zed vscode repos claude-skill claude-hook claude-guard claude-guidelines)
+COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi kubectl eks-clusters twingate gh clipboard zed vscode repos claude-skill claude-hook claude-guard claude-guidelines)
 # Shown in groups in the checklist; the rest are optional extras.
 RECOMMENDED=(bash zsh-hook keys commands starship fzf)
 KITTY_PARTS=(kitty kitty-config kitty-nautilus)
@@ -26,7 +26,7 @@ DESKTOP_PARTS=(window-calls alt-tab-desktop hide-docker-tray app-keys rofi)
 LOOK_PARTS=(claude-guidelines)   # components with a settings menu; a layer adds its own (LOOK_PARTS+=)
 WORKSPACE_PARTS=(repos)
 CLAUDE_PARTS=(claude-skill claude-hook claude-guard claude-guidelines)
-CLOUD_PARTS=(okta-aws-cli aws-cli kubectl eks-clusters twingate)
+CLOUD_PARTS=(kubectl eks-clusters twingate)
 APP_PARTS=(gh clipboard zed vscode)
 # Which repo a component comes from: the toolkit, or the layer that adds it (bluefeels, ...).
 repo_of() { echo "${LAYER_OF[$1]:-toolkit}"; }
@@ -69,7 +69,7 @@ declare -gA GROUP_ABOUT=(
   [Recommended]="The everyday basics: the toolkit in bash, its commands, completion, the prompt, a newer fzf."
   [Kitty]="The kitty terminal, its settings, and how it looks."
   ["Desktop (GNOME)"]="GNOME extensions and shortcuts: windows, app keys, the launcher, the dock and top bar."
-  [Optional]="Extras: zsh, btop, the yazi file manager, direnv for folder pins."
+  [Optional]="Extras: zsh, btop, the yazi file manager."
   [Cloud]="What okcli, kx and twin run on: Okta sign-in for AWS, the aws command, kubectl, your EKS clusters, Twingate."
   [Apps]="Programs the commands use: gh for hat's GitHub sign-ins, a clipboard tool, Zed or VS Code for ws."
   [Workspaces]="Your repos, cloned from your workspace list (ws edit)."
@@ -85,7 +85,7 @@ requires_of() {
   # a layer's component names its own needs (requires_<id>)
   if declare -F "$(fn requires "$1")" >/dev/null; then "$(fn requires "$1")"; return; fi
   case "$1" in
-    fzf|kitty|login-shell|yazi|yazi-keys|direnv|okta-aws-cli|aws-cli|kubectl|gh|zed) echo "linux" ;;
+    fzf|kitty|login-shell|yazi|yazi-keys|kubectl|gh|zed) echo "linux" ;;
     zsh|btop|twingate|clipboard|vscode)    echo "apt" ;;
     kitty-nautilus|rofi)                   echo "gnome apt" ;;
     window-calls|alt-tab-desktop|hide-docker-tray|app-keys) echo "gnome" ;;
@@ -162,9 +162,9 @@ install_bash() {
   (( details )) && diff -u "$rc" "$BASH_PLAN" --label "~/.bashrc" --label "~/.bashrc (new)" | sed 's/^/    /'
   missing=""
   for v in $(grep -oE '^export OKTA_AWSCLI_[A-Z_]+' "$rc" | sed 's/^export //'); do
-    cat "$repo/okta/shell/okta-env.sh" "$repo"/layers/*/shell/init.sh 2>/dev/null | grep -q "^export $v=" || missing+="$v "
+    cat "$repo"/layers/*/shell/init.sh 2>/dev/null | grep -q "^export $v=" || missing+="$v "
   done
-  [[ -n "$missing" ]] && warn "not in okta/shell/okta-env.sh or a layer yet, so they'd be lost: $missing"
+  [[ -n "$missing" ]] && warn "not in a layer's shell/init.sh yet, so they'd be lost: $missing"
   grep -qE '^[[:space:]]*alias okcli=' "$rc" && warn "an active 'alias okcli=' stays in ~/.bashrc; it would shadow okcli"
   if ask "Update ~/.bashrc?"; then
     b=$(backup "$rc")
@@ -216,7 +216,7 @@ uninstall_keys() { unlink_file "$HOME/.inputrc" "$inputrc_src"; }
 touches_keys() { echo "$HOME/.inputrc"; }
 
 # ------------------------------------------------------------ commands ---
-cmd_bins=(okta/bin/okcli kube/bin/kx twingate/bin/twin bin/ctx bin/uk bin/tk bin/fk ws/bin/ws)
+cmd_bins=(kube/bin/kx twingate/bin/twin bin/ctx bin/uk bin/tk bin/fk ws/bin/ws)
 # the long names: links to the short ones, made only where no other program has the name
 declare -A cmd_long=([unikit]=bin/uk [toolkit]=bin/tk [feelkit]=bin/fk)
 # cmd_taken <name>: the other program that has that name (not ours or a layer's), or 1
@@ -239,7 +239,7 @@ cmd_layer_bins() {
 }
 label_commands() { echo "Toolkit commands"; }
 title_commands() { echo "uk, tk, fk and the layers' commands, usable from anywhere"; }
-detail_commands() { echo "uk, tk, fk (for now also okcli, kx, twin, ctx, ws) and every layer's bin/ commands (not tk-/fk- subcommands) in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too; a name another program has is left alone"; }
+detail_commands() { echo "uk, tk, fk (for now also kx, twin, ctx, ws) and every layer's bin/ commands (not tk-/fk- subcommands) in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too; a name another program has is left alone"; }
 state_commands() {
   local b n=0 total=${#cmd_bins[@]} l
   for b in "${cmd_bins[@]}"; do linked "$HOME/.local/bin/${b##*/}" "$repo/$b" && (( n++ )); done
@@ -1170,14 +1170,13 @@ uninstall_app_keys() {
 }
 
 # ----------------------------------------------- what the tools run on ---
-# okta-aws-cli and the AWS CLI (okcli), kubectl (kx), direnv (okcli pin), starship
+# kubectl (kx), starship
 # (the prompt): the newest release for this CPU, in ~/.local (no sudo). One that's
 # already installed some other way (apt, brew, by hand) counts and is left alone.
 # ver_of <program>: its version number
 ver_of() {
   case "${1##*/}" in
     kubectl) "$1" version --client ;;
-    direnv)  "$1" version ;;
     *)       "$1" --version ;;
   esac 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1
 }
@@ -1216,46 +1215,6 @@ gh_tool() {
   return "$rc"
 }
 
-label_okta_aws_cli() { echo "okta-aws-cli"; }
-title_okta_aws_cli() { echo "okta-aws-cli, so okcli can sign you in to AWS through Okta"; }
-detail_okta_aws_cli() { echo "latest okta-aws-cli from GitHub (sha256-checked) in ~/.local/bin"; }
-state_okta_aws_cli() { tool_state okta-aws-cli; }
-doctor_okta_aws_cli() {   # tk doctor: okcli's own checks, and its shell hook
-  type -P okcli >/dev/null && okcli doctor
-  [[ -n ${OKCLI_SHELL:-} ]] && echo "✓ shell hook" || echo "! okcli's shell hook isn't loaded — tk install bash"
-}
-install_okta_aws_cli() { get_tool okta-aws-cli "okcli signs in to AWS with it" "about 10 MB" fetch_okta_aws_cli; }
-fetch_okta_aws_cli() { gh_tool okta/okta-aws-cli "okta-aws-cli_{v}_linux_$(dl_arch).tar.gz" okta-aws-cli; }
-uninstall_okta_aws_cli() { drop_tool okta-aws-cli; }
-
-# AWS's own installer, into ~/.local/aws-cli with aws and aws_completer in ~/.local/bin.
-# AWS publishes no checksum for it (only a PGP signature); it comes over HTTPS from AWS.
-awscli_dir="$HOME/.local/aws-cli"
-label_aws_cli() { echo "AWS CLI v2"; }
-title_aws_cli() { echo "The aws command: okcli whoami, kx's EKS sign-in and kx sync need it"; }
-detail_aws_cli() { echo "latest AWS CLI v2 from awscli.amazonaws.com in ${awscli_dir/#$HOME/\~}, aws and aws_completer in ~/.local/bin"; }
-state_aws_cli() { tool_state aws; }
-install_aws_cli() {
-  type -P aws >/dev/null || type -P unzip >/dev/null || { skip "unzip is needed to unpack it (sudo apt install unzip)"; return; }
-  get_tool aws "okcli and kx's EKS sign-in use it" "about 60 MB" fetch_aws_cli
-}
-fetch_aws_cli() {
-  local arch tmp rc=1
-  case "$(dl_arch)" in amd64) arch=x86_64 ;; arm64) arch=aarch64 ;; esac
-  tmp=$(mktemp -d)
-  if curl -fsSL --retry 2 -o "$tmp/aws.zip" "https://awscli.amazonaws.com/awscli-exe-linux-$arch.zip" 2>>"$log_file"; then
-    unzip -q "$tmp/aws.zip" -d "$tmp" 2>>"$log_file" &&
-      "$tmp/aws/install" -i "$awscli_dir" -b "$HOME/.local/bin" --update >>"$log_file" 2>&1 && rc=0
-  else warn "couldn't download the AWS CLI (offline?)"; fi
-  rm -rf "$tmp"
-  return "$rc"
-}
-uninstall_aws_cli() {
-  if [[ -d $awscli_dir ]]; then
-    rm -rf "$awscli_dir" "$HOME/.local/bin/aws" "$HOME/.local/bin/aws_completer"; ok "removed the AWS CLI"
-  else drop_tool aws; fi
-}
-
 label_kubectl() { echo "kubectl"; }
 title_kubectl() { echo "kubectl, which kx runs on"; }
 detail_kubectl() { echo "latest stable kubectl from dl.k8s.io (sha256-checked) in ~/.local/bin"; }
@@ -1278,14 +1237,6 @@ fetch_kubectl() {
   return "$rc"
 }
 uninstall_kubectl() { drop_tool kubectl; }
-
-label_direnv() { echo "direnv"; }
-title_direnv() { echo "direnv, so okcli pin switches the AWS profile when you cd into a folder"; }
-detail_direnv() { echo "latest direnv from GitHub (sha256-checked) in ~/.local/bin; the toolkit's shell setup hooks it in"; }
-state_direnv() { tool_state direnv; }
-install_direnv() { get_tool direnv "okcli pin needs it" "about 10 MB" fetch_direnv; }
-fetch_direnv() { gh_tool direnv/direnv "direnv.linux-$(dl_arch)" direnv; }
-uninstall_direnv() { drop_tool direnv; }
 
 # ---------------------------------------------------------------- apps ---
 # Programs a command needs for one of its jobs; the command offers to set its part
@@ -1413,7 +1364,7 @@ state_eks_clusters() {
 install_eks_clusters() {
   (( $(eks_contexts) )) && { ok "already set up ${D}(kx sync / kx ignore to change)${R}"; return; }
   if dry; then say "      ${D}would run kx sync: tick AWS accounts, then the clusters to add${R}"; return; fi
-  if ! "$repo/okta/bin/okcli" __profiles 2>/dev/null | grep -q .; then
+  if ! "$repo/layers/bluetools/bin/okcli" __profiles 2>/dev/null | grep -q .; then
     warn "okcli has no AWS profiles yet: run ${B}okcli sync${R}, then ${B}kx sync${R}"; return
   fi
   [[ $mode == yes ]] && { skip "pick them yourself: kx sync"; return; }

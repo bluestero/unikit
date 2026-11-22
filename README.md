@@ -8,7 +8,7 @@ Every command speaks the same words: `<tool>` picker, `<tool> <name>` switch, `l
 |---|---|
 | `tk` | The front door: `tk` picks and runs any toolkit command, `tk ls` lists them, `tk doctor` (every check of its commands and parts in one box), `tk install` / `tk uninstall` from anywhere, `tk configs` (and `fk configs`, for its parts) switches starship, btop, rofi, kitty, readline and the yazi keys between the toolkit's preset, the app's own default, what you had before, or one step back (the app stays installed; "edited preset" means you changed the toolkit's copy, which is a link into this repo); "Edit my patch" keeps your own changes in `~/.config/work-toolkit/patches/`, never touched by the toolkit and read after the preset so they win (kitty, rofi and readline include it; starship gets the two merged into `~/.local/state/work-toolkit/starship.toml`; btop gets a settings file of its own, so changes made in its menu stay out of the repo and "Keep these changes as my patch" saves them). |
 | `uk` | unikit, the base under the two kits (`tk`, `fk`): `uk status` shows the folder, the layers, how much of each kit is set up and the version, `uk layers` lists the [layers](#layers) (enter: set up or remove its parts, remove it; alt-a adds one; alt-i shows what each one is), `uk doctor` checks the whole (the commands are unikit's, each layer is well formed and at the commit you trusted, no two bring the same part or command), `uk layer check <dir>` checks a layer you're making before you push it, `uk update` pulls what's new in unikit and each layer (see Updates), `uk version` shows unikit's version and each layer's. The long names `unikit`, `toolkit` and `feelkit` (for `uk`, `tk`, `fk`) are linked by the commands part, only where no other program has the name. |
-| `okcli` | Okta AWS profiles: picker, refresh-all, per-shell switch, global default, repo pins. See `okta/README.md`. |
+| `okcli` | Okta AWS profiles: picker, refresh-all, per-shell switch, global default, repo pins. Comes from the bluetools layer (its `docs/okcli.md`). |
 | `kx` | Kubernetes contexts **per shell** (switching in one terminal never moves another), namespaces, global default, EKS contexts linked to okcli profiles. Also a friendly front to kubectl: `kx pods`, `why`, `logs`, `shell`, `deploys`, `configs`, `secrets`, `services`, `forward`, `events`, `top`, `get` (see `kx help`). |
 | `twin` | Twingate exit nodes: picker, `twin gb`, `twin off`. Codes come from the node names. |
 | `ws` | Open workspaces in your IDE. Picker: ↑↓ pick, ←→ switch IDE (● = already open there, gets focused), tab ticks several, ctrl-x closes the window (needs `window-calls`). `ws <name>`, `ws close <name>`, `ws ls`, `ws default [ide]`, `ws edit` (your list: `~/.config/ws/workspaces`, which can include your layers' shared lists). |
@@ -223,7 +223,7 @@ bluefeels' parts (kitty backgrounds, themes, accents, icons and the GNOME looks)
 | `yazi-keys` | Two keys for yazi: `>` picks a folder inside the current one with fzf (up to 6 levels, no hidden folders), and ctrl+backspace deletes a word in yazi's text fields. Written as one marked block (`# >>> work toolkit >>>`) in `~/.config/yazi/keymap.toml`, from `yazi/keymap.toml`: added to your file if you have one (the rest stays yours), the file is made if not; if yours already has `prepend_keymap = [ ... ]` lines it says so and leaves it alone. Uninstall removes only the block |
 | `direnv` | latest direnv from GitHub (sha256-checked) in `~/.local/bin`, for `okcli pin`; the shell setup hooks it in. Skipped if you already have one; uninstall only removes the toolkit's |
 | `keys` | `~/.inputrc` → `shell/inputrc` (case-insensitive Tab, Up/Down search by what's typed) |
-| `commands` | `uk`, `tk`, `fk` (for now also `okcli`, `kx`, `twin`, `ctx`, `ws`) and every layer's `bin/` commands in `~/.local/bin`; a name another program has is left alone |
+| `commands` | `uk`, `tk`, `fk` (for now also `kx`, `twin`, `ctx`, `ws`) and every layer's `bin/` commands in `~/.local/bin`; a name another program has is left alone |
 | `starship` | `~/.config/starship.toml` → `starship/starship.toml`, and starship itself (latest from GitHub, sha256-checked) in `~/.local/bin` if it isn't installed |
 | `fzf` | fzf 0.74.5 from GitHub (checksum-checked) in `~/.local/bin`, ahead of Ubuntu's 0.44. Every picker then shows where you are (`12/426`, `3/17 of 426` while searching), and k-theme gets its tabs. Uninstall goes back to apt's |
 | `kitty` | the kitty terminal itself: the latest official build (checksum-checked) in `~/.local/kitty.app`; `kitty`/`kitten` in `~/.local/bin`, the app menu entry and Ctrl+Alt+T point at it. Ubuntu's apt kitty stays as the fallback (uninstall goes back to it). `./install.sh ls` shows when there's a newer one |
@@ -320,7 +320,6 @@ lib/setup.sh, components.sh install/uninstall plumbing and the component list
 lib/platform.sh             OS, distro, package manager, GNOME? (components.sh `requires_of` says what each part needs)
 lib/bashrc_plan.py          the ~/.bashrc cleanup (same result every run)
 lib/bashrc_restore.py       uninstall: puts the lines the cleanup took out back
-okta/                       okcli and its README
 kube/bin/kx, kube/shell/    kx and its shell hook
 twingate/bin/twin, shell/   twin
 ws/bin/ws, shell/           ws (lib/workspaces.sh reads the lists)
@@ -329,7 +328,7 @@ lib/layers.sh               what a layer can hold; layers/ (gitignored) holds th
 claude/skills/work-toolkit/ the Claude Code skill (what each tool is for, what to ask before)
 kitty/                      kitty config (kitty.conf), k-config, kitty-focus, the "Open in Terminal" installer
 starship/starship.toml      prompt
-shell/init.sh               the one file bash and zsh load (common.sh, direnv, starship, tools)
+shell/init.sh               the one file bash and zsh load (common.sh, layers, starship, tools)
 shell/common.sh             personal aliases, PATH, env, dex, nvm (both shells)
 shell/inputrc               bash key settings
 zsh/zshrc                   zsh setup

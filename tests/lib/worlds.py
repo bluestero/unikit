@@ -3,7 +3,7 @@ import os
 
 from fixture import REPO
 
-OKCLI = os.path.join(REPO, "okta/bin/okcli")
+OKCLI = os.path.join(REPO, "layers/bluetools/bin/okcli")
 KX = os.path.join(REPO, "kube/bin/kx")
 WS = os.path.join(REPO, "ws/bin/ws")
 HAT = os.path.join(REPO, "bin/hat")

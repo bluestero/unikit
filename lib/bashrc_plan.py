@@ -41,7 +41,7 @@ def drop_lines(text, *patterns):
 s = cut(s, r"^# >>> ble\.sh.*\n", r"^# <<< ble\.sh.*$")
 s = drop_lines(s, r".*blesh/ble\.sh.*", r".*\bble-attach\b.*")
 
-# Okta settings -> okta/shell/okta-env.sh
+# Okta settings -> a layer's shell/init.sh (bluetools has the defaults)
 s = re.sub(r"^# Okta Config\n(?:export OKTA_AWSCLI_[A-Z_]+=.*\n)+", "", s, flags=re.M)
 s = drop_lines(s, r"export OKTA_AWSCLI_[A-Z_]+=.*", r"# alias okcli=.*",
                r"# replaced by okcli .*alias okcli=.*")
