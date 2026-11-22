@@ -3,7 +3,20 @@
 open come first, then every installed app. Pick a window to bring it to the front,
 an app to start it. (Rofi's own window list only sees X11 windows, not GNOME's
 Wayland ones, so the windows come from the Window Calls extension.)"""
-import glob, json, os, subprocess, sys
+import glob, json, os, subprocess, sys, time
+
+LOG = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "work-toolkit", "launch.log")
+
+
+def log(msg):
+    """one line in launch.log (k-launch rotates it): what was slow, to find the odd 1-2 s open"""
+    try:
+        os.makedirs(os.path.dirname(LOG), exist_ok=True)
+        with open(LOG, "a") as f:
+            f.write(time.strftime("%F %T ") + msg + "\n")
+    except OSError:
+        pass
+
 
 GDBUS = ["gdbus", "call", "--session", "--dest", "org.gnome.Shell",
          "--object-path", "/org/gnome/Shell/Extensions/Windows", "--method"]
@@ -48,12 +61,17 @@ def desktop_entries():
 
 
 def windows():
+    t = time.monotonic()
     try:
         o = subprocess.run(GDBUS + ["org.gnome.Shell.Extensions.Windows.List"],
                            capture_output=True, text=True, timeout=3).stdout
         return json.loads(o[o.index("'") + 1:o.rindex("'")])
-    except Exception:
+    except Exception as e:
+        log(f"apps: window list failed after {time.monotonic() - t:.2f}s ({type(e).__name__})")
         return []
+    finally:
+        if time.monotonic() - t > 0.3:
+            log(f"apps: window list took {time.monotonic() - t:.2f}s")
 
 
 def row(label, info, icon="", meta=""):
@@ -67,6 +85,14 @@ def row(label, info, icon="", meta=""):
 
 
 def listing():
+    t = time.monotonic()
+    try:
+        _listing()
+    finally:
+        log(f"apps: listed in {time.monotonic() - t:.2f}s")
+
+
+def _listing():
     apps = desktop_entries()
     by_class = {}                      # window class -> (name, icon)
     for did, _, kv in apps:
