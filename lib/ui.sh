@@ -61,7 +61,7 @@ confirm() {
   local prompt="$1" default="${2:-y}" reply
   [[ -t 0 ]] || return 1   # never act on a default without a human to ask
   # A small picker with the default on top; esc means no. (Inside a kx list,
-  # questions go in the list's own header instead: kube/lib/list.sh.)
+  # questions go in the list's own header instead: lib/inplace.sh.)
   if command -v fzf >/dev/null && [[ -e /dev/tty ]]; then
     local yes="Yes" no="No" first second
     if [[ "$default" == y ]]; then first=$yes second=$no; else first=$no second=$yes; fi

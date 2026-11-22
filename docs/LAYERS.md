@@ -64,7 +64,9 @@ Helpers (`lib/setup.sh`): `ask "question" [y\|n]`, `choose "question" option…`
 `fail`, `say`, `dry` (true in `--dry-run`), `linked <link> <target>`, `link_file`, `unlink_file`
 (backs up a real file first, puts it back after), `set_block <file> <body>`, `has_block`,
 `drop_block` (unikit's marked block in an rc file: **one per file**, so declare the file in
-`touches_`), `apt_install`, `as_root`, `backup`.
+`touches_`), `apt_install`, `as_root`, `backup`; for a program from its releases, `get_tool`,
+`gh_tool`, `tool_state`, `drop_tool` (a `ver_<program>` function gives its version when
+`--version` doesn't).
 
 Rules every part keeps:
 

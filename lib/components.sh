@@ -17,7 +17,7 @@
 # shellcheck source=layers.sh
 . "$repo/lib/layers.sh"
 
-COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi kubectl eks-clusters twingate gh clipboard zed vscode repos claude-skill claude-hook claude-guard claude-guidelines)
+COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi twingate gh clipboard zed vscode repos claude-skill claude-hook claude-guard claude-guidelines)
 # Shown in groups in the checklist; the rest are optional extras.
 RECOMMENDED=(bash zsh-hook keys commands starship fzf)
 KITTY_PARTS=(kitty kitty-config kitty-nautilus)
@@ -26,7 +26,7 @@ DESKTOP_PARTS=(window-calls alt-tab-desktop hide-docker-tray app-keys rofi)
 LOOK_PARTS=(claude-guidelines)   # components with a settings menu; a layer adds its own (LOOK_PARTS+=)
 WORKSPACE_PARTS=(repos)
 CLAUDE_PARTS=(claude-skill claude-hook claude-guard claude-guidelines)
-CLOUD_PARTS=(kubectl eks-clusters twingate)
+CLOUD_PARTS=(twingate)
 APP_PARTS=(gh clipboard zed vscode)
 # Which repo a component comes from: the toolkit, or the layer that adds it (bluefeels, ...).
 repo_of() { echo "${LAYER_OF[$1]:-toolkit}"; }
@@ -85,7 +85,7 @@ requires_of() {
   # a layer's component names its own needs (requires_<id>)
   if declare -F "$(fn requires "$1")" >/dev/null; then "$(fn requires "$1")"; return; fi
   case "$1" in
-    fzf|kitty|login-shell|yazi|yazi-keys|kubectl|gh|zed) echo "linux" ;;
+    fzf|kitty|login-shell|yazi|yazi-keys|gh|zed) echo "linux" ;;
     zsh|btop|twingate|clipboard|vscode)    echo "apt" ;;
     kitty-nautilus|rofi)                   echo "gnome apt" ;;
     window-calls|alt-tab-desktop|hide-docker-tray|app-keys) echo "gnome" ;;
@@ -102,8 +102,7 @@ component_unsupported() {
 # Parts that need another part set up first (a layer adds its own: NEEDS[id]=...).
 # One whose needs aren't set up yet is "needs" and can still be picked: picking it
 # picks what it needs too (lib/tabs.sh), and the run sets that up first (install.sh).
-declare -A NEEDS=([kitty-config]=kitty [kitty-nautilus]=kitty [login-shell]=zsh [yazi-keys]=yazi
-  [eks-clusters]="kubectl aws-cli")
+declare -A NEEDS=([kitty-config]=kitty [kitty-nautilus]=kitty [login-shell]=zsh [yazi-keys]=yazi)
 # component_state <id>: sets STATE and NOTE (unsupported here, else the component's own
 # check), and NEED: the parts it needs that aren't set up yet (STATE=needs).
 component_state() {
@@ -216,7 +215,7 @@ uninstall_keys() { unlink_file "$HOME/.inputrc" "$inputrc_src"; }
 touches_keys() { echo "$HOME/.inputrc"; }
 
 # ------------------------------------------------------------ commands ---
-cmd_bins=(kube/bin/kx twingate/bin/twin bin/ctx bin/uk bin/tk bin/fk ws/bin/ws)
+cmd_bins=(twingate/bin/twin bin/ctx bin/uk bin/tk bin/fk ws/bin/ws)
 # the long names: links to the short ones, made only where no other program has the name
 declare -A cmd_long=([unikit]=bin/uk [toolkit]=bin/tk [feelkit]=bin/fk)
 # cmd_taken <name>: the other program that has that name (not ours or a layer's), or 1
@@ -239,7 +238,7 @@ cmd_layer_bins() {
 }
 label_commands() { echo "Toolkit commands"; }
 title_commands() { echo "uk, tk, fk and the layers' commands, usable from anywhere"; }
-detail_commands() { echo "uk, tk, fk (for now also kx, twin, ctx, ws) and every layer's bin/ commands (not tk-/fk- subcommands) in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too; a name another program has is left alone"; }
+detail_commands() { echo "uk, tk, fk (for now also twin, ctx, ws) and every layer's bin/ commands (not tk-/fk- subcommands) in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too; a name another program has is left alone"; }
 state_commands() {
   local b n=0 total=${#cmd_bins[@]} l
   for b in "${cmd_bins[@]}"; do linked "$HOME/.local/bin/${b##*/}" "$repo/$b" && (( n++ )); done
@@ -1170,15 +1169,13 @@ uninstall_app_keys() {
 }
 
 # ----------------------------------------------- what the tools run on ---
-# kubectl (kx), starship
-# (the prompt): the newest release for this CPU, in ~/.local (no sudo). One that's
-# already installed some other way (apt, brew, by hand) counts and is left alone.
-# ver_of <program>: its version number
+# Programs from their releases (starship here, the layers' tools): the newest release for
+# this CPU, in ~/.local (no sudo). One that's already installed some other way (apt, brew,
+# by hand) counts and is left alone.
+# ver_of <program>: its version number; a part's ver_<program> (- as _) when --version isn't it
 ver_of() {
-  case "${1##*/}" in
-    kubectl) "$1" version --client ;;
-    *)       "$1" --version ;;
-  esac 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1
+  local f; f=$(fn ver "${1##*/}")
+  if declare -F "$f" >/dev/null; then "$f" "$1"; else "$1" --version; fi 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1
 }
 # tool_state <command>: installed (with version, and where when it isn't ours) or missing
 tool_state() {
@@ -1214,29 +1211,6 @@ gh_tool() {
   (( rc )) || logf "$3 $GH_VER installed to ~/.local/bin"
   return "$rc"
 }
-
-label_kubectl() { echo "kubectl"; }
-title_kubectl() { echo "kubectl, which kx runs on"; }
-detail_kubectl() { echo "latest stable kubectl from dl.k8s.io (sha256-checked) in ~/.local/bin"; }
-state_kubectl() { tool_state kubectl; }
-doctor_kubectl() {   # tk doctor: kx's own checks, and its shell hook
-  type -P kx >/dev/null && kx doctor
-  [[ -n ${KX_SHELL:-} ]] && echo "✓ shell hook" || echo "! kx's shell hook isn't loaded — tk install bash"
-}
-install_kubectl() { get_tool kubectl "kx runs on it" "about 60 MB" fetch_kubectl; }
-fetch_kubectl() {
-  local v url sum tmp rc=1
-  v=$(curl -fsS -m 10 https://dl.k8s.io/release/stable.txt 2>>"$log_file") || { warn "couldn't find the latest kubectl (offline?)"; return 1; }
-  url="https://dl.k8s.io/release/$v/bin/linux/$(dl_arch)/kubectl"
-  sum=$(curl -fsS -m 10 "$url.sha256" 2>>"$log_file") || { warn "couldn't get kubectl's checksum"; return 1; }
-  tmp=$(mktemp -d)
-  fetch_checked "$url" "$sum" "$tmp/kubectl" && mkdir -p "$HOME/.local/bin" &&
-    install -m 755 "$tmp/kubectl" "$HOME/.local/bin/kubectl" && rc=0
-  rm -rf "$tmp"
-  (( rc )) || logf "kubectl $v installed to ~/.local/bin"
-  return "$rc"
-}
-uninstall_kubectl() { drop_tool kubectl; }
 
 # ---------------------------------------------------------------- apps ---
 # Programs a command needs for one of its jobs; the command offers to set its part
@@ -1345,36 +1319,6 @@ install_vscode() {
   rm -rf "$tmp"
 }
 uninstall_vscode() { apt_drop code "VS Code"; }
-
-# -------------------------------------------------------- eks-clusters ---
-# Runs kx sync: tick the AWS accounts to search, then the clusters to add.
-# Unticked ones go in ~/.config/kx/ignore, so later syncs skip them.
-kx_ignore_file="${XDG_CONFIG_HOME:-$HOME/.config}/kx/ignore"
-eks_contexts() { KUBECONFIG="${KX_BASE_KUBECONFIG:-$HOME/.kube/config}" kubectl config get-contexts -o name 2>/dev/null | grep -c .; }
-label_eks_clusters() { echo "EKS clusters"; }
-title_eks_clusters() { echo "Pick which AWS accounts and EKS clusters kx shows"; }
-detail_eks_clusters() { echo "runs kx sync: ticked clusters go in ~/.kube/config, unticked ones in ~/.config/kx/ignore (kx ignore / kx sync to change later)"; }
-state_eks_clusters() {
-  local n; NOTE=""
-  type -P kubectl >/dev/null && type -P aws >/dev/null || { STATE=n/a; NOTE="needs kubectl and the aws CLI"; return; }
-  n=$(eks_contexts)
-  if (( n )) || [[ -e $kx_ignore_file ]]; then STATE=installed; NOTE="$n context(s) · kx sync / kx ignore to change"
-  else STATE=missing; fi
-}
-install_eks_clusters() {
-  (( $(eks_contexts) )) && { ok "already set up ${D}(kx sync / kx ignore to change)${R}"; return; }
-  if dry; then say "      ${D}would run kx sync: tick AWS accounts, then the clusters to add${R}"; return; fi
-  if ! "$repo/layers/bluetools/bin/okcli" __profiles 2>/dev/null | grep -q .; then
-    warn "okcli has no AWS profiles yet: run ${B}okcli sync${R}, then ${B}kx sync${R}"; return
-  fi
-  [[ $mode == yes ]] && { skip "pick them yourself: kx sync"; return; }
-  ask "Pick your EKS clusters now? (tick accounts, then clusters; unticked ones are skipped from now on)" || { skip "later: kx sync"; return; }
-  if "$repo/kube/bin/kx" sync </dev/tty >/dev/tty 2>&1; then ok "done ${D}(kx ignore shows what's skipped)${R}"
-  else warn "kx sync didn't finish; run it again with: kx sync"; fi
-}
-uninstall_eks_clusters() {
-  ok "your clusters stay in ~/.kube/config (kx rm <context> removes one); the skip list stays in ${kx_ignore_file/#$HOME/\~}"
-}
 
 # --------------------------------------------------------------- repos ---
 # Clones what your workspace list names (lines with a GitHub repo) that isn't there

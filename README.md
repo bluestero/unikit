@@ -223,7 +223,7 @@ bluefeels' parts (kitty backgrounds, themes, accents, icons and the GNOME looks)
 | `yazi-keys` | Two keys for yazi: `>` picks a folder inside the current one with fzf (up to 6 levels, no hidden folders), and ctrl+backspace deletes a word in yazi's text fields. Written as one marked block (`# >>> work toolkit >>>`) in `~/.config/yazi/keymap.toml`, from `yazi/keymap.toml`: added to your file if you have one (the rest stays yours), the file is made if not; if yours already has `prepend_keymap = [ ... ]` lines it says so and leaves it alone. Uninstall removes only the block |
 | `direnv` | latest direnv from GitHub (sha256-checked) in `~/.local/bin`, for `okcli pin`; the shell setup hooks it in. Skipped if you already have one; uninstall only removes the toolkit's |
 | `keys` | `~/.inputrc` → `shell/inputrc` (case-insensitive Tab, Up/Down search by what's typed) |
-| `commands` | `uk`, `tk`, `fk` (for now also `kx`, `twin`, `ctx`, `ws`) and every layer's `bin/` commands in `~/.local/bin`; a name another program has is left alone |
+| `commands` | `uk`, `tk`, `fk` (for now also `twin`, `ctx`, `ws`) and every layer's `bin/` commands in `~/.local/bin`; a name another program has is left alone |
 | `starship` | `~/.config/starship.toml` → `starship/starship.toml`, and starship itself (latest from GitHub, sha256-checked) in `~/.local/bin` if it isn't installed |
 | `fzf` | fzf 0.74.5 from GitHub (checksum-checked) in `~/.local/bin`, ahead of Ubuntu's 0.44. Every picker then shows where you are (`12/426`, `3/17 of 426` while searching), and k-theme gets its tabs. Uninstall goes back to apt's |
 | `kitty` | the kitty terminal itself: the latest official build (checksum-checked) in `~/.local/kitty.app`; `kitty`/`kitten` in `~/.local/bin`, the app menu entry and Ctrl+Alt+T point at it. Ubuntu's apt kitty stays as the fallback (uninstall goes back to it). `./install.sh ls` shows when there's a newer one |
@@ -320,7 +320,6 @@ lib/setup.sh, components.sh install/uninstall plumbing and the component list
 lib/platform.sh             OS, distro, package manager, GNOME? (components.sh `requires_of` says what each part needs)
 lib/bashrc_plan.py          the ~/.bashrc cleanup (same result every run)
 lib/bashrc_restore.py       uninstall: puts the lines the cleanup took out back
-kube/bin/kx, kube/shell/    kx and its shell hook
 twingate/bin/twin, shell/   twin
 ws/bin/ws, shell/           ws (lib/workspaces.sh reads the lists)
 bin/hat, lib/hat.sh         hat: Claude, GitHub and AWS per folder

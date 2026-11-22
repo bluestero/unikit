@@ -1,6 +1,6 @@
 # Questions inside a list that stays open (CLAUDE.md: never leave the picker to ask).
 # For a ui_fzf list whose keys run callbacks that print fzf actions (hat does this;
-# kx has its own, kube/lib/list.sh). Needs fzf 0.63+.
+# kx has its own, in bluetools' lib/kx/list.sh). Needs fzf 0.63+.
 #
 # The list keeps its state in a folder, $IP (one file per value: ip_get / ip_set).
 #   mode       list (default), confirm, ask, or the list's own modes
