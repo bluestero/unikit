@@ -17,14 +17,14 @@
 # shellcheck source=layers.sh
 . "$repo/lib/layers.sh"
 
-COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi claude-skill claude-hook claude-guard claude-guidelines)
+COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi claude-skill claude-guidelines)
 # Shown in groups in the checklist; the rest are optional extras.
 RECOMMENDED=(bash zsh-hook keys commands starship fzf)
 KITTY_PARTS=(kitty kitty-config kitty-nautilus)
 DESKTOP_PARTS=(window-calls alt-tab-desktop hide-docker-tray app-keys rofi)
 # Components with a settings look: naming one that is installed opens the keep / look / defaults menu
 LOOK_PARTS=(claude-guidelines)   # components with a settings menu; a layer adds its own (LOOK_PARTS+=)
-CLAUDE_PARTS=(claude-skill claude-hook claude-guard claude-guidelines)
+CLAUDE_PARTS=(claude-skill claude-guidelines)
 # Which repo a component comes from: the toolkit, or the layer that adds it (bluefeels, ...).
 repo_of() { echo "${LAYER_OF[$1]:-toolkit}"; }
 # the layer a part comes from, for the installers' LAYER column (unikit: the base's own)
@@ -1225,8 +1225,8 @@ apt_drop() {
 
 # -------------------------------------------------------------- claude ---
 # Claude Code reads its config from $CLAUDE_CONFIG_DIR (shell/common.sh sets it, hat per
-# folder), else ~/.claude. The skill teaches Claude the toolkit; the hook hands it
-# `ctx plain` at the start of every session. The four Claude parts go in every profile:
+# folder), else ~/.claude. claude-skill links the layers' skills; a layer's Claude parts (bluetools'
+# start hook and PROD guard) use claude_each and claude_state too. They go in every profile:
 # ~/.claude, each hat profile (~/.claude-profiles/<name>) and $CLAUDE_CONFIG_DIR.
 claude_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 claude_dirs() {   # every profile folder, one per line (none there yet: where claude will make one)
@@ -1258,7 +1258,7 @@ claude_state() {
   elif (( n )); then STATE=partial NOTE="not in $miss"
   else STATE=missing; fi
 }
-cs_pairs() {   # <link><TAB><skill folder>: the toolkit's skill, then each layer's
+cs_pairs() {   # <link><TAB><skill folder>: unikit's skills (none of its own now), then each layer's
   local d
   for d in "$repo"/claude/skills/*/ "$repo"/layers/*/claude/skills/*/; do
     [[ -d $d ]] && printf '%s\t%s\n' "$claude_dir/skills/$(basename "$d")" "${d%/}"
@@ -1266,7 +1266,7 @@ cs_pairs() {   # <link><TAB><skill folder>: the toolkit's skill, then each layer
 }
 cs_has() { local l t; while IFS=$'\t' read -r l t; do linked "$l" "$t" || return 1; done < <(cs_pairs); }
 label_claude_skill() { echo "Claude skill"; }
-title_claude_skill() { echo "Claude Code knows okcli, kx, ctx and the rest, in every repo"; }
+title_claude_skill() { echo "Claude Code knows your layers' commands (their skills), in every repo"; }
 detail_claude_skill() { echo "skills/<name> in each Claude profile links to claude/skills/<name> (and each layer's)"; }
 state_claude_skill() { claude_state cs_has; }
 cs_install() { local l t
@@ -1286,67 +1286,6 @@ install_claude_skill() {
 }
 cs_uninstall() { local l t; while IFS=$'\t' read -r l t; do unlink_file "$l" "$t"; done < <(cs_pairs); }
 uninstall_claude_skill() { claude_each cs_uninstall; }
-
-# The hook is the one SessionStart entry whose command is $ch_cmd (the guard: the one
-# PreToolUse entry for Bash whose command is $cgd_cmd). settings.json is edited as
-# JSON (python), everything else in it is kept as is.
-ch_settings="$claude_dir/settings.json"
-ch_cmd="ctx plain 2>/dev/null || true"
-ch_json() {   # ch_json has|add|remove [command event matcher]  (add/remove print the new settings)
-  python3 -I - "$ch_settings" "${2:-$ch_cmd}" "$1" "${3:-SessionStart}" "${4:-}" <<'PY'
-import json, os, sys
-path, cmd, op, event, matcher = sys.argv[1:]
-d = json.load(open(path)) if os.path.exists(path) and os.path.getsize(path) else {}
-ss = d.setdefault("hooks", {}).setdefault(event, [])
-mine = lambda g: any(h.get("command") == cmd for h in g.get("hooks", []))
-if op == "has":
-    sys.exit(0 if any(mine(g) for g in ss) else 1)
-ss[:] = [g for g in ss if not mine(g)]
-if op == "add":
-    ss.append({**({"matcher": matcher} if matcher else {}), "hooks": [{"type": "command", "command": cmd, "timeout": 10}]})
-if not ss: del d["hooks"][event]
-if not d["hooks"]: del d["hooks"]
-print(json.dumps(d, indent=2))
-PY
-}
-ch_write() {   # ch_write add|remove [command event matcher]
-  local tmp b; tmp=$(mktemp)
-  ch_json "$@" >"$tmp" || { rm -f "$tmp"; fail "couldn't read ${ch_settings/#$HOME/\~} (not valid JSON?)"; return 1; }
-  mkdir -p "$claude_dir"; b=$(backup "$ch_settings")
-  cat "$tmp" >"$ch_settings"; rm -f "$tmp"
-  logf "  $1 ${3:-SessionStart} hook in $ch_settings${b:+ (backup: $b)}"
-  ok "done${b:+ (backup: ${b/#$HOME/\~})}"
-}
-ch_has() { ch_json has 2>/dev/null; }
-label_claude_hook() { echo "Claude start hook"; }
-title_claude_hook() { echo "Every Claude Code session starts knowing your AWS profile, pin and cluster"; }
-detail_claude_hook() { echo "a SessionStart hook in each Claude profile's settings.json that runs: $ch_cmd"; }
-state_claude_hook() { claude_state ch_has; }
-ch_install() { ch_has && return
-  ask "Add the start hook to ${ch_settings/#$HOME/\~}? (runs ${C}ctx plain${R} when a session opens)" && { dry || ch_write add; } || skip; }
-install_claude_hook() { claude_each ch_install; }
-ch_uninstall() { ch_has || return 0; ch_write remove; }
-uninstall_claude_hook() { claude_each ch_uninstall; }
-
-# The guard (claude/guard.sh, through tk): before each Bash command, has you approve
-# one that changes something on PROD or leans on an inherited PROD profile/context.
-# With no tk to run, Claude Code lets every command through, so the part says so.
-cgd_cmd="tk __guard"
-cgd_json() { ch_json "$1" "$cgd_cmd" PreToolUse Bash; }
-cgd_has() { cgd_json has 2>/dev/null; }
-label_claude_guard() { echo "Claude PROD guard"; }
-title_claude_guard() { echo "Claude Code asks you first before changing anything on PROD"; }
-detail_claude_guard() { echo "a PreToolUse hook for Bash in each Claude profile's settings.json that runs: $cgd_cmd"; }
-state_claude_guard() { claude_state cgd_has
-  if [[ $STATE == installed || $STATE == partial ]] && ! type -P tk >/dev/null; then
-    STATE=partial NOTE="it can't run: the tk command isn't on PATH (set up commands)${NOTE:+; $NOTE}"
-  fi; }
-cgd_install() { cgd_has && return
-  ask "Add the PROD guard to ${ch_settings/#$HOME/\~}? (Claude asks you before a command that changes PROD)" && { dry || ch_write add "$cgd_cmd" PreToolUse Bash; } || skip; }
-install_claude_guard() { claude_each cgd_install
-  type -P tk >/dev/null || warn "the guard runs the tk command, which isn't on PATH, so it checks nothing yet: set up ${B}commands${R}"; }
-cgd_uninstall() { cgd_has || return 0; ch_write remove "$cgd_cmd" PreToolUse Bash; }
-uninstall_claude_guard() { claude_each cgd_uninstall; }
 
 # Coding guidelines and skills for Claude Code, as Claude Code plugins: each comes from its
 # authors' GitHub repo (a plugin marketplace), and `claude plugin update` keeps them current.

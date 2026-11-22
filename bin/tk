@@ -11,20 +11,12 @@ ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 UI_EVAL_FILE="${TK_EVAL_FILE:-}"
 KIT=tk
 KIT_WHAT="what you work with"
-# unikit's own tools until they move to the bluetools layer (tasks/14):
+# unikit's own tools until they move to the bluefeels layer (tasks/14 step 5):
 # name | group | what it does | program it needs | kit | layer
 KIT_TOOLS=(
   "k-config|Kitty|edit kitty.conf|kitty|tk|unikit"
 )
 # shellcheck source=../lib/kit.sh
 . "$ROOT/lib/kit.sh"
-
-# tk's own: claude-guard's hook, until it moves to bluetools (tasks/14)
-kit_own() {
-  case "$1" in
-    __guard)        exec "$ROOT/claude/guard.sh" ;;   # Claude Code's PreToolUse hook (claude-guard)
-    *)              return 2 ;;
-  esac
-}
 
 kit_main "$@"

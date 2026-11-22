@@ -1,5 +1,5 @@
 """The Claude skills picker (install.sh claude-skill), in a scratch copy of the repo whose one
-layer brings two skills (alpha, beta) next to unikit's own, with 1, 2 or 7 fake Claude profiles:
+layer brings two skills (alpha, beta), with 1, 2 or 7 fake Claude profiles:
 ticks start on what's in every profile, ◐ for some; then the profiles; alt-g picks exact
 profile/skill pairs; removing something asks in the list first, default No."""
 import os
@@ -65,7 +65,7 @@ def done(t):
 def test_one_profile_picks_and_applies_without_asking_for_profiles(sb):
     repo = setup(sb, ["default"])
     t = start(sb, repo)
-    assert "work-toolkit" in t.text() and "alpha" in t.text() and "[✓]" not in t.text(), t.text()
+    assert "alpha" in t.text() and "[✓]" not in t.text(), t.text()
     to(t, "alpha")
     t.key("tab")
     t.wait(lambda t: "[✓]" in t.cursor_line(), what="alpha ticked")
@@ -78,7 +78,7 @@ def test_two_profiles_partial_starts_unticked_then_the_profiles(sb):
     repo = setup(sb, ["default", "work"])
     link(sb, repo, "work", "alpha")
     t = start(sb, repo)
-    row = t.line_with("alpha")
+    row = next(l for l in t.text().splitlines() if "alpha" in l and "team" in l)   # its row, not the preview's title
     assert "◐" in row and "work" in row and "[✓]" not in row, t.text()
     to(t, "alpha")
     t.wait_for("✓ work")                                          # the preview: per profile
