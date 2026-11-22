@@ -18,8 +18,18 @@ from term import Term  # noqa: E402
 
 CASES = os.path.join(REPO, "tests", "cases")
 LAYERS = os.path.join(REPO, "layers")
-# Run only when named: speed budgets are what task 11 works towards, not a gate yet.
-ONLY_WHEN_NAMED = {"speed"}
+# a layer's own helpers (layers/<layer>/tests/lib), after unikit's: name them after the layer
+if os.path.isdir(LAYERS):
+    for _d in sorted(os.listdir(LAYERS)):
+        if os.path.isdir(os.path.join(LAYERS, _d, "tests", "lib")):
+            sys.path.append(os.path.join(LAYERS, _d, "tests", "lib"))
+
+
+# Run only when named: speed budgets (speed, a layer's speed_<name>) are what task 11 works
+# towards, not a gate yet.
+def only_when_named(name):
+    return name == "speed" or name.startswith("speed_")
+
 
 G, R, Y, D, X = "\033[32m", "\033[31m", "\033[33m", "\033[38;5;248m", "\033[0m"
 if not sys.stdout.isatty():
@@ -60,7 +70,7 @@ def main(argv):
         if w not in names:
             print(f"✗ no case file '{w}' · there are: {' '.join(names)}")
             return 2
-    run = want or [n for n in names if n not in ONLY_WHEN_NAMED]
+    run = want or [n for n in names if not only_when_named(n)]
     passed = failed = skipped = 0
     for name in run:
         mod = load(name, files[name])
