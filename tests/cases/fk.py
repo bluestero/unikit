@@ -1,6 +1,6 @@
 """fk, the feelkit kit's front door, in a scratch copy of the repo with no layers but the
 test's own: empty without a look layer; a layer's tools lines fill its picker and help;
-a layer's bin/fk-<name> is fk <name>, and fk's own words can't be taken."""
+a layer's fk/<name> is fk <name>, and fk's own words can't be taken."""
 import os
 import shutil
 import subprocess
@@ -14,13 +14,13 @@ def copy(sb, layer=True):
     shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns(".git", "layers.lock", "tests", "tasks", "layers", "*.zip"))
     if layer:   # a look layer: one subcommand, one that tries to take fk install, and their tools lines
         d = dst + "/layers/look"
-        os.makedirs(d + "/bin")
+        os.makedirs(d + "/fk")
         with open(d + "/kit", "w") as f:
             f.write("fk\n")
-        for name, body in (("fk-hello", 'echo "hello from the layer: $*"'), ("fk-install", "echo taken")):
-            with open(d + "/bin/" + name, "w") as f:
+        for name, body in (("hello", 'echo "hello from the layer: $*"'), ("install", "echo taken")):
+            with open(d + "/fk/" + name, "w") as f:
                 f.write("#!/bin/sh\n" + body + "\n")
-            os.chmod(d + "/bin/" + name, 0o755)
+            os.chmod(d + "/fk/" + name, 0o755)
         with open(d + "/tools", "w") as f:
             f.write("fk hello|Desktop|says hello|\nk-work|Work|a tk command|\n")
             f.write("k-tk|Work|a tk command too||tk\n")

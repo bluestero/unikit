@@ -161,7 +161,9 @@ def start_starship(sb, edit):
     t = Term([TK, "configs"], sb.env)
     t.wait_for("starship")
     t.settle()
-    t.key("enter")                                   # starship is the first row
+    t.key("starship")
+    t.settle()
+    t.key("enter")
     t.wait_for("now uses")
     t.settle()
     pick(t, "Edit my patch")

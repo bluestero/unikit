@@ -4,8 +4,9 @@
 # is nothing to register. A layer can have any of these, all optional:
 #
 #   bin/              its commands, put on PATH after unikit's (a command unikit has stays
-#                     unikit's); bin/tk-<name> is also tk <name>, bin/fk-<name> fk <name> (the kit's
-#                     own words, ls, install, uninstall and help, stay the kit's)
+#                     unikit's)
+#   tk/, fk/          the kit's subcommands, not on PATH: tk/<name> is tk <name>, fk/<name> fk <name>
+#                     (the kit's own words, ls, install, uninstall and help, stay the kit's)
 #   shell/init.sh     sourced by every shell (bash and zsh) before the tools load:
 #                     settings the tools read (OKTA_AWSCLI_*, KX_ALIAS_RULES, ...), aliases
 #   components.sh     installer components: COMPONENTS+=(id ...), names no one else has (a layer
@@ -63,6 +64,12 @@ layer_tools() {
 layer_bin() {
   local f
   for f in "$1"/layers/*/bin/"$2"; do [[ -x $f ]] && { printf '%s\n' "$f"; return 0; }; done
+  return 1
+}
+# layer_sub <toolkit root> <kit> <name>: the first layer's <kit>/<name>; 1 when no layer has it
+layer_sub() {
+  local f
+  for f in "$1"/layers/*/"$2"/"$3"; do [[ -f $f && -x $f ]] && { printf '%s\n' "$f"; return 0; }; done
   return 1
 }
 # own_repo <dir>: a git clone of its own (a layer copied in by hand is part of nothing,

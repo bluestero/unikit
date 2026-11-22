@@ -1,4 +1,4 @@
-"""fk looks (feelkit layer): one list; the choices and the reset question open in it.
+"""fk configs (the bluefeels layer's GNOME extensions): one list; the choices and the reset question open in it.
 dconf and gsettings are fakes: no real setting is read or changed."""
 import os
 
@@ -17,7 +17,7 @@ def skip():
 def start(sb):
     os.makedirs(sb.path(f"~/.local/share/gnome-shell/extensions/{VITALS}"))
     sb.write(sb.fix + "/enabled-extensions", f"['{VITALS}']\n")
-    t = Term([FK, "looks"], sb.env)
+    t = Term([FK, "configs"], sb.env)
     t.wait_for("Vitals")
     t.settle()
     return t

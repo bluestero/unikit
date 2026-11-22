@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # fk - the feelkit: how things look. Empty until layers fill it: their fk parts (fk install),
-# their commands (tools lines for fk) and subcommands (a layer's bin/fk-<name> is fk <name>).
+# their commands (tools lines for fk) and subcommands (a layer's fk/<name> is fk <name>).
 # The same words as tk (lib/kit.sh). `fk help` lists them.
 set -uo pipefail
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"

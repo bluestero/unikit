@@ -2,7 +2,7 @@
 help and version; uk layer add / rm without a terminal; the uk layers list (about card, add,
 remove); uk doctor on a well formed layer and a broken one; tk layer is gone; the installers'
 LAYER column; the long command names never take a name another program has; tk and fk are
-siblings (the same words, an empty kit says so, a layer's bin/<kit>-<name>)."""
+siblings (the same words, an empty kit says so, a layer's <kit>/<name>)."""
 import os
 import re
 import shutil
@@ -83,10 +83,11 @@ def test_layer_add_and_rm_without_a_terminal(sb):
 
 def test_tk_layer_is_gone(sb):
     repo = copy(sb)
-    code, out = run(sb, repo, "tk", "layer", "ls")
-    assert code == 1 and "uk layers" in out, out
+    for word in ("layer", "status", "version", "update"):            # uk's words now
+        code, out = run(sb, repo, "tk", word)
+        assert code == 1 and f"unknown command '{word}'" in out, out
     code, out = run(sb, repo, "tk", "help")
-    assert "tk layer" not in out, out
+    assert "tk layer" not in out and "tk status" not in out, out
 
 
 def test_doctor_passes_a_good_layer_and_names_a_broken_ones_faults(sb):
@@ -104,7 +105,8 @@ def test_doctor_passes_a_good_layer_and_names_a_broken_ones_faults(sb):
     os.makedirs(bad + "/bin")
     with open(bad + "/kit", "w") as f:
         f.write("gk\n")
-    for name in ("fk-install", "tk", "hello-good", "notrun"):
+    os.makedirs(bad + "/fk")
+    for name in ("../fk/install", "tk", "hello-good", "notrun"):
         with open(bad + "/bin/" + name, "w") as f:
             f.write("#!/bin/sh\n")
         if name != "notrun":
@@ -113,7 +115,7 @@ def test_doctor_passes_a_good_layer_and_names_a_broken_ones_faults(sb):
         f.write("nowhere|Work|a command it doesn't have|\nhalf|Work\n")
     code, out = run(sb, repo, "uk", "doctor")
     assert code == 1, out
-    for fault in ("kit file says 'gk'", "bin/fk-install never runs", "bin/tk never runs: unikit's tk comes first",
+    for fault in ("kit file says 'gk'", "fk/install never runs", "bin/tk never runs: unikit's tk comes first",
                   "bin/hello-good: bad has a hello-good too", "bin/notrun isn't executable",
                   "there's no bin/nowhere", "tools line 'half|Work' needs"):
         assert fault in out or fault.replace("bad has", "good has") in out, (fault, out)
@@ -224,16 +226,17 @@ def test_the_kits_are_siblings(sb):
     repo = copy(sb)
     for kit in ("tk", "fk"):                                      # the same words in both
         code, out = run(sb, repo, kit, "help")
-        assert code == 0 and all(f"{kit} {w}" in out for w in ("ls", "install", "uninstall", "help")), out
+        assert code == 0 and all(f"{kit} {w}" in out for w in ("ls", "install", "uninstall", "doctor", "help")), out
     code, out = run(sb, repo, "fk", "help")
     assert "Nothing here yet. Add a layer: uk layers" in out, out
-    code, out = run(sb, repo, "fk", "ls")
-    assert code == 0 and "Nothing here yet" in out, out
-    d = repo + "/layers/acme"                                    # a layer's subcommand: bin/tk-<name>
-    os.makedirs(d + "/bin")
-    with open(d + "/bin/tk-hello", "w") as f:
+    for word in ("ls", "doctor"):
+        code, out = run(sb, repo, "fk", word)
+        assert code == 0 and "Nothing here yet" in out, out
+    d = repo + "/layers/acme"                                    # a layer's subcommand: tk/<name>
+    os.makedirs(d + "/tk")
+    with open(d + "/tk/hello", "w") as f:
         f.write('#!/bin/sh\necho "hello $*"\n')
-    os.chmod(d + "/bin/tk-hello", 0o755)
+    os.chmod(d + "/tk/hello", 0o755)
     with open(d + "/tools", "w") as f:
         f.write("tk hello|Work|says hello|\n")
     code, out = run(sb, repo, "tk", "hello", "there")
@@ -244,3 +247,32 @@ def test_the_kits_are_siblings(sb):
     assert re.search(r"tk hello\s+says hello\s+acme\s+✓ ready", out), out
     code, out = run(sb, repo, "fk", "hello")
     assert code != 0 and "unknown command 'hello'" in out, "tk's subcommand isn't fk's"
+
+
+def test_each_kits_doctor_runs_its_parts_own_checks(sb):
+    repo = copy(sb)
+    d = repo + "/layers/acme"
+    os.makedirs(d)
+    with open(d + "/kit", "w") as f:
+        f.write("fk\n")
+    with open(d + "/components.sh", "w") as f:
+        f.write('''COMPONENTS+=(acme-look acme-off)
+label_acme_look() { echo look; }; state_acme_look() { STATE=installed; }
+doctor_acme_look() { echo "✓ colours"; echo "! the font is gone — fk install acme-look"; }
+label_acme_off() { echo off; }; state_acme_off() { STATE=missing; }
+doctor_acme_off() { echo "! never asked: not set up"; }
+''')
+    code, out = run(sb, repo, "fk", "doctor")
+    assert code == 1 and re.search(r"acme-look\s+! the font is gone\s+→ fk install acme-look", out), out
+    assert "1 other check passes" in out and "never asked" not in out, out
+    assert re.search(r"fk\s+! 1 of 2 parts set up\s+→ fk install acme-off", out), out
+    code, out = run(sb, repo, "tk", "doctor")
+    assert "acme" not in out, "fk's parts stay out of tk doctor"
+
+
+def test_uk_status_shows_each_kit(sb):
+    repo = copy(sb)
+    code, out = run(sb, repo, "uk", "status")
+    assert code == 0 and "folder" in out and re.search(r"\btk\s+\d+ of \d+ parts set up", out), out
+    assert "fk " not in out, "a kit with no parts here has no line"
+    assert re.search(r"version\s+\S+", out), out

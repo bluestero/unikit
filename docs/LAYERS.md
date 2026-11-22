@@ -18,7 +18,8 @@ All optional. A layer with none of these is an error (`uk doctor` says so).
 
 | Path | What unikit does with it |
 |---|---|
-| `bin/<command>` | on PATH in every shell, **after** unikit's own folders: a command unikit has never runs from a layer. The `commands` part also links it into `~/.local/bin` (not where another program has the name). `bin/tk-<name>` is also `tk <name>`, `bin/fk-<name>` `fk <name>` (not `ls`, `install`, `uninstall`, `help`: every kit has those, and tk's `status`, `doctor`, `configs`, `version` for now) |
+| `bin/<command>` | on PATH in every shell, **after** unikit's own folders: a command unikit has never runs from a layer. The `commands` part also links it into `~/.local/bin` (not where another program has the name) |
+| `tk/<name>`, `fk/<name>` | the kit's subcommands: `tk <name>`, `fk <name>`. Not on PATH, so there's one way to run each. Not `ls`, `install`, `uninstall`, `help`: every kit has those |
 | `shell/init.sh` | sourced by every bash and zsh, before unikit's tools load: settings they read (`OKTA_AWSCLI_*`, `KX_ALIAS_RULES`, …), aliases. Layers load by name, the ones in its `requires` before it. Runs in every new terminal: keep it fast and silent |
 | `components.sh` | installer parts (below) |
 | `kit` | one line, `tk` or `fk`: the kit its parts go to (default `tk`). A part can name its own: `kit_<id>() { echo fk; }` |
@@ -51,6 +52,8 @@ Optional, per part:
 | `group_<id>` | its installer tab (`GROUP_ABOUT[<group>]="one line"` for a new group) |
 | `touches_<id>` | what it changes, one per line: a file, or `dconf:/a/path/`. Before it changes something another layer's part set up, the installer asks (below) |
 | `addboth_<id>` | sets it up beside the other layer's, when that makes sense ("Add both") |
+| `config_<id>` | a preset for `<kit> configs` (the part's kit), one line: `file\|name\|program\|the config\|the preset\|link, block or merge\|your patch's file name\|what it is`, or a GNOME extension's settings: `dconf\|name\|uuid\|dconf path\|the preset (a dconf dump)\|name its originals keep\|what it is\|keys to ignore (regex)`. `config_after_<id>` (a change made: what has to notice it) and `config_saved_<id>` (its patch edited: the result line) when it needs them. The top of `lib/configs.sh` has the details |
+| `doctor_<id>` | its own checks for `<kit> doctor`, run when the part is set up: a line each, `✓ what's fine` or `! what's wrong — the fix` |
 | `requires_<id>` | what the machine needs: `linux`, `apt`, `gnome` (space separated) |
 | `kit_<id>` | `fk` or `tk`, against the layer's `kit` |
 | `NEEDS[<id>]="other-id"` | a part that must be set up first |

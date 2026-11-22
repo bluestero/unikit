@@ -1,20 +1,30 @@
 #!/usr/bin/env bash
-# tk configs: the apps the toolkit gives its own config (starship, btop, rofi, kitty,
-# readline, yazi keys), each switchable between the toolkit's preset, the app's own
-# default (no config from the toolkit), what you had before the toolkit, and back
-# one step (undo). One list that stays open, like fk looks: enter on an app shows its
-# choices in the same list; results go in the footer.
+# <kit> configs: the presets the kit's parts bring, in one list that stays open. Enter on one
+# shows its choices in the same list; results go in the footer. A part brings a preset with
+# config_<id> (docs/LAYERS.md), one line, of one of two kinds:
 #
-# A preset is a link into the repo, so editing the config edits the repo's copy: the
-# list calls that "edited preset". Every change first keeps what was there, so undo
-# (one step) brings it back, your edits included; leaving an edited preset puts the
-# repo's copy back as committed, so uk update and git stay clean.
+#   file|name|program|the config|the preset|how|your patch's file|what it is
+#     A config file. Shown when the program is installed. Choices: the toolkit's preset, the app's
+#     own default (no config from the toolkit), what you had before the toolkit, back one step
+#     (undo). How it's put in place: link (the file is a link to the preset), block (a marked
+#     block in your own file), merge (a file of its own: the preset with your patch laid over it,
+#     btop's). A preset is a link into the repo, so editing the config edits the repo's copy: the
+#     list calls that "edited preset". Every change first keeps what was there, so undo (one step)
+#     brings it back, your edits included; leaving an edited preset puts the repo's copy back as
+#     committed, so uk update and git stay clean.
+#   dconf|name|extension uuid|dconf path|the preset|name its originals are kept under|what it is|ignore regex
+#     A GNOME extension's settings (a dconf dump). Shown when the extension is installed and
+#     enabled. Choices: keep, re-apply the preset, reset to the app's defaults, put back what
+#     you had before, undo (look_* in components.sh). The ignore regex last: it can hold |.
 #
-# Your own changes go in a patch instead: your file in ~/.config/work-toolkit/patches, which
-# the preset pulls in last (kitty globinclude, rofi @import, readline $include), so it wins.
-# starship and btop can't include a file: starship gets the two merged into a file of its own
-# (shell/init.sh, lib/toml_patch.py), btop a settings file of its own (bt_build in components.sh).
-# The toolkit never writes to it once it is made; anyone can copy someone's patch.
+# Your own changes go in a patch: your file in ~/.config/work-toolkit/patches, which the preset
+# pulls in last (kitty globinclude, rofi @import, readline $include, dconf loaded after), so it
+# wins. starship and btop can't include a file: starship gets the two merged into a file of its
+# own (shell/init.sh, lib/toml_patch.py), btop a settings file of its own (bt_build in
+# components.sh). The toolkit never writes to a patch once it is made; anyone can copy someone's.
+#
+# A part can also have config_after_<id> (what has to notice a change; prints a note) and
+# config_saved_<id> (after you edit its patch: prints the result line).
 set -uo pipefail
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 repo=$(cd "$(dirname "$SELF")/.." && pwd)
@@ -28,24 +38,36 @@ mode=ask details=0
 snap_dir="$orig_dir/configs"   # <id>.last (what was there before the last change) and <id>.kind
 patch_dir="$HOME/.config/work-toolkit/patches"   # the presets name this folder; keep them in step
 
-# id|name shown|program it's for|the config|the preset|how it's put in place (link: the file is a
-# link to the preset; block: a marked block in your own file; merge: btop's own file, the preset with
-# your patch laid over it)|your patch's file in $patch_dir (empty:
-# the preset can't take one)|what it is
+# __refresh needs no kit (shell/init.sh, at shell start); everything else is <kit> configs
+if [[ ${1:-} != __refresh ]]; then KIT=${1:-tk}; shift; fi
+
+# the kit's presets, one per line: id|kind|the rest of its config_<id> line
 cfg_table() {
-  printf '%s\n' \
-    "starship|starship|starship|$ss|$ss_src|link|starship.toml|the prompt" \
-    "btop|btop|btop|$bt|$bt_src|merge|btop.conf|system monitor" \
-    "rofi|rofi|rofi|$rofi_conf|$rofi_src|link|rofi.rasi|launcher style" \
-    "kitty|kitty|kitty|$kc|$kc_src|link|kitty.conf|terminal settings" \
-    "readline|readline|bash|$HOME/.inputrc|$inputrc_src|link|inputrc|keys at the bash prompt (~/.inputrc)" \
-    "yazi|yazi keys|yazi|$yk_file|$yk_src|block||> and ctrl+backspace in yazi"
-}
-cfg_row() {   # id → sets id nice app live src kind patch about
-  local line; line=$(cfg_table | grep -m1 "^$1|") || return 1
-  IFS='|' read -r id nice app live src kind patch about <<<"$line"
-  [[ -n $patch ]] && patch="$patch_dir/$patch"
+  local id f
+  for id in $(kit_parts "$KIT"); do
+    f=$(fn config "$id"); declare -F "$f" >/dev/null && printf '%s|%s\n' "$id" "$("$f")"
+  done
   return 0
+}
+# cfg_row <id>: sets ctype, nice, about and the kind's own: file: app live src kind patch;
+# dconf: uuid path src name ign
+cfg_row() {
+  local line; line=$(grep -m1 "^$1|" <(cfg_table)) || return 1
+  IFS='|' read -r id ctype _ <<<"$line"
+  if [[ $ctype == dconf ]]; then IFS='|' read -r id ctype nice uuid path src name about ign <<<"$line"
+  else
+    IFS='|' read -r id ctype nice app live src kind patch about <<<"$line"
+    [[ -n $patch ]] && patch="$patch_dir/$patch"
+  fi
+  return 0
+}
+# the ones that apply here: the program installed, the extension installed and enabled
+cfg_ids() {
+  local id ctype a b
+  while IFS='|' read -r id ctype _ a _; do
+    if [[ $ctype == dconf ]]; then gx_present "$a" && gx_enabled "$a" && echo "$id"
+    else type -P "$a" >/dev/null && echo "$id"; fi
+  done < <(cfg_table)
 }
 # your patch has something in it (more than comments)
 cfg_patched() { [[ -n $patch && -f $patch ]] && grep -qvE '^[[:space:]]*(#|//|$)' "$patch"; }
@@ -60,16 +82,21 @@ cfg_new_patch() {
     echo
     sed "s|^|$c |" "$src"; } >"$patch"
 }
-cfg_ids() { local line; while IFS= read -r line; do type -P "$(cut -d'|' -f3 <<<"$line")" >/dev/null && echo "${line%%|*}"; done < <(cfg_table); }
 
 # the preset changed in the repo (no git: never)
-cfg_dirty() { git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 && ! git -C "$repo" diff --quiet HEAD -- "$src" 2>/dev/null; }
+cfg_dirty() { git -C "$(dirname "$src")" rev-parse --git-dir >/dev/null 2>&1 && ! git -C "$(dirname "$src")" diff --quiet HEAD -- "$src" 2>/dev/null; }
 # the preset as committed, back in the repo
-cfg_clean() { [[ $kind != block ]] && cfg_dirty && git -C "$repo" show "HEAD:${src#"$repo"/}" >"$src"; return 0; }
+cfg_clean() {
+  local top; top=$(git -C "$(dirname "$src")" rev-parse --show-toplevel 2>/dev/null)
+  [[ $kind != block ]] && cfg_dirty && git -C "$top" show "HEAD:${src#"$top"/}" >"$src"; return 0
+}
 
-# CS: preset (as committed), edited (the preset, changed), own (your file), default (none)
+# CS: preset (as committed), edited (the preset, changed), own (your file), default (none);
+# a dconf preset: preset or own
 cfg_state() {
-  if [[ $kind == link ]]; then
+  if [[ $ctype == dconf ]]; then
+    if look_applied "$path" "$src" "$ign" "$name"; then CS=preset; else CS=own; fi
+  elif [[ $kind == link ]]; then
     if linked "$live" "$src"; then if cfg_dirty; then CS=edited; else CS=preset; fi
     elif [[ -e $live || -L $live ]]; then CS=own
     else CS=default; fi
@@ -86,6 +113,11 @@ cfg_state() {
   fi
 }
 cfg_word() {
+  if [[ $ctype == dconf ]]; then
+    if [[ $1 == preset ]]; then printf '%s' "${C_GREEN}✓${C_RESET} toolkit preset"; [[ -f $(look_patch "$name") ]] && printf ' + my patch'
+    else printf '%s' "your own settings"; fi
+    return 0
+  fi
   case $1 in
     preset)  printf '%s' "${C_GREEN}✓${C_RESET} toolkit preset" ;;
     edited)  printf '%s' "${C_YELLOW}edited preset${C_RESET}" ;;
@@ -108,8 +140,25 @@ cfg_before() { local o; o=$(original_of "$live"); [[ -n $o && -f $o ]] && printf
 
 CH_PRE="Toolkit preset"; CH_APP="App's default"; CH_OLD="What you had before"; CH_UND="Undo the last change"
 CH_EDT="Edit my patch"; CH_DRP="Drop my patch"; CH_KPT="Keep these changes as my patch"
-cfg_choices() {   # what an app can switch to now: choice<TAB>what it does
+# What a dconf choice does (look_choices gives the choices)
+cfg_look_note() {
+  case $1 in
+    "$LOOK_KEEP") echo "nothing changes" ;;
+    "$LOOK_APP")  echo "the toolkit's preset for these settings" ;;
+    "$LOOK_RST")  echo "asks first; undo brings them back" ;;
+    "$LOOK_PRE")  echo "what you had before the toolkit set them" ;;
+    "$LOOK_UND")  echo "one step back" ;;
+    "$LOOK_KPT")  echo "what you changed goes in your patch (~/.config/work-toolkit/patches), loaded after the preset" ;;
+    "$LOOK_DRP")  echo "back to the plain preset (your patch is kept as <name>.dropped)" ;;
+  esac
+}
+cfg_choices() {   # what a preset can switch to now: choice<TAB>what it does
   cfg_state
+  if [[ $ctype == dconf ]]; then
+    local c differs=""; [[ $CS == own ]] && differs=1
+    look_choices "$name" "$differs" | while IFS= read -r c; do printf '%s\t%s\n' "$c" "$(cfg_look_note "$c")"; done
+    return 0
+  fi
   case $CS in
     preset) ;;
     edited) printf '%s\t%s\n' "$CH_PRE" "the toolkit's ${src#"$repo"/} as committed (your edits kept for undo)" ;;
@@ -134,6 +183,7 @@ cfg_choices() {   # what an app can switch to now: choice<TAB>what it does
 # cfg_do <choice>: prints the result line (✓ … or ✗ …)
 cfg_do() {
   local pick=$1
+  if [[ $ctype == dconf ]]; then look_do "$path" "$src" "$name" "$nice" "$pick" "$ign"; return; fi
   setup_phase=install keep_original "$live"   # your own file, kept once (what you had before)
   case $pick in
     "$CH_PRE") cfg_snap; cfg_clean
@@ -155,7 +205,8 @@ cfg_do() {
     "$CH_KPT") cfg_keep; echo "✓ $nice: its changes are your patch now (${patch/#$HOME/\~})" ;;
     *) echo "✗ nothing changed"; return 0 ;;
   esac
-  cfg_after
+  local f; f=$(fn config_after "$id"); declare -F "$f" >/dev/null && "$f"
+  return 0
 }
 # undo: what was there before the last change comes back; undo again redoes it
 cfg_undo() {
@@ -178,26 +229,10 @@ cfg_keep() {
   [[ -s $t ]] && { printf '\n# kept from btop (%s)\n' "$(date +%F)"; cat "$t"; } >>"$patch"
   rm -f "$t"; bt_build
 }
-# starship: your patch merged over the preset (shell/init.sh does the same at start); prints an error
-ss_merged="$HOME/.local/state/work-toolkit/starship.toml"
-cfg_ss_merge() {
-  if [[ -f $patch && -e $live ]]; then python3 -I "$repo/lib/toml_patch.py" "$live" "$patch" "$ss_merged" 2>&1 | sed "s|^$HOME|~|; s|^|✗ starship: your patch has an error: |"
-  else rm -f "$ss_merged"; fi
-}
-# what has to notice the change
-cfg_after() {
-  local kbg; kbg=$(layer_bin "$repo" k-bg)
-  case $id in
-    starship) cfg_ss_merge >/dev/null   # (an error shows when you edit the patch)
-      [[ -n $kbg ]] && "$kbg" __sync_prompt >/dev/null 2>&1 ;;   # its accent copy is what starship reads
-    kitty) echo "  (kitty: ctrl+shift+f5 reloads it)" ;;
-  esac
-  return 0
-}
 
 # ------------------------------------------------------------------ list ---
-cfg_rows() {   # a title row, then app · config · what it is, the id after a TAB
-  local i S=$'\x1f' id nice app live src kind patch about
+cfg_rows() {   # a title row, then name · config · what it is, the id after a TAB
+  local i S=$'\x1f' id ctype nice app live src kind patch about uuid path name ign
   printf 'APP%sCONFIG%sWHAT IT IS\n' "$S" "$S"
   for i in $(cfg_ids); do cfg_row "$i"; cfg_state; printf '%s\t%s\n' "$nice$S$(cfg_word "$CS")$S$about" "$id"; done
 }
@@ -207,41 +242,42 @@ cfg_menu_rows() {   # a title row, then choice · what it does, the choice after
   cfg_choices | while IFS=$'\t' read -r c n; do printf '%s\t%s\n' "$c$S$n" "$c"; done
 }
 cfg_lay() { print_table 3 "$(ui_pick_width)" <"$IP/cells.$1" >"$IP/rows.$1"; }
-CFG_KEYS="# Pick an app, then which config it uses
+CFG_KEYS="# Pick one, then which config it uses
 enter: choose · esc: close"
 
 cfg_list() {
-  [[ -n $(cfg_ids) ]] || die "none of the apps the toolkit configures is installed · see: tk install"
-  ui_fzf_at_least 0.63 || die "the list needs fzf 0.63 or newer · ./install.sh fzf"
+  [[ -n $(cfg_table) ]] || { info "Nothing here yet: $KIT's parts bring no presets. Add a layer: uk layers"; return 0; }
+  [[ -n $(cfg_ids) ]] || die "none of the apps with a preset here is installed · see: $KIT install"
+  ui_fzf_at_least 0.63 || die "the list needs fzf 0.63 or newer · tk install fzf"
   IP=$(mktemp -d) || return 1; export IP
   trap 'rm -rf "$IP"' EXIT
   ip_set mode list
   cfg_rows >"$IP/cells.list"; cfg_lay list
-  local cb k; cb="bash $(printf %q "$SELF") __key"
+  local cb k; cb="bash $(printf %q "$SELF") $KIT __key"
   local -a binds=(--bind "start:unbind(y,n)")
   for k in enter esc y n resize; do binds+=(--bind "$k:transform:$cb $k {2} {q}"); done
-  ui_fzf 'tk · configs' --toast --with-shell='bash -c' --delimiter='\t' --with-nth=1 --header-lines=1 \
+  ui_fzf "$KIT · configs" --toast --with-shell='bash -c' --delimiter='\t' --with-nth=1 --header-lines=1 \
     --prompt='app> ' --footer=' ' --header="$CFG_KEYS" "${binds[@]}" <"$IP/rows.list" >/dev/null
-  return 0
+  return 0   # esc is the way out (fzf's 130), not an error
 }
 
 cfg_relist() { cfg_rows >"$IP/cells.list"; cfg_lay list; cat "$IP/rows.list"; }
-cfg_to_list() {   # [toast]: back to the apps, the cursor on the one just changed
+cfg_to_list() {   # [toast]: back to the list, the cursor on the one just changed
   # the rows are made as fzf reloads: after the editor (Edit my patch) they have changed
   local n; n=$(awk -F'\t' -v id="$(ip_get cur)" '$2 == id { print NR - 1; exit }' "$IP/rows.list")
-  local -a a=("$(ip_back)" "$(ip_fz reload-sync "bash $(printf %q "$SELF") __relist")" "pos(${n:-1})"
+  local -a a=("$(ip_back)" "$(ip_fz reload-sync "bash $(printf %q "$SELF") $KIT __relist")" "pos(${n:-1})"
     "$(ip_fz change-header "$(ui_keys "$CFG_KEYS")")" "$(ip_fz change-prompt 'app> ')")
   if [[ -n ${1:-} ]]; then a+=("$(ui_toast "$1")"); else a+=("$(ip_fz change-footer " ")"); fi
   ip_join "${a[@]}"
 }
 cfg_run() {   # choice → back to the list with the result in the footer
-  local out; out=$(cfg_do "$1" 2>&1 | grep -v '^$' | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+  local out; out=$(cfg_do "$1" 2>&1); out=$(strip_ansi "$out" | grep -v '^$' | tr '\n' ' ' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
   [[ $out == ✓* ]] || out="✗ ${out:-nothing changed}"
   cfg_to_list "$out"
 }
 
 cfg_key() {   # key value query (value: the id in the list, the choice in the menu)
-  local k=$1 v=$2 q=$3 m id nice app live src kind patch about
+  local k=$1 v=$2 q=$3 m id ctype nice app live src kind patch about uuid path name ign
   m=$(ip_get mode)
   if [[ $k == resize ]]; then
     local w=list; [[ $m == list ]] || w=menu
@@ -266,11 +302,17 @@ cfg_key() {   # key value query (value: the id in the list, the choice in the me
         esc) cfg_to_list ;;
         enter)
           [[ -n $v ]] || return 0
+          if [[ $ctype == dconf ]]; then
+            if [[ $v == "$LOOK_RST" ]]; then
+              ip_set pick "$v"; ip_confirm "Reset $nice to the app's defaults? (the menu can undo it)" reset n; return
+            fi
+            cfg_run "$v"; return
+          fi
           if [[ $v == "$CH_EDT" ]]; then   # the editor full screen, then back to the list
             [[ -f $patch ]] || cfg_new_patch
             [[ $kind == merge ]] && cfg_snap   # its file is made again afterwards: undo brings this one back
             ip_join "$(ip_fz execute "${VISUAL:-${EDITOR:-nano}} $(printf %q "$patch")")" \
-              "$(ip_fz transform "bash $(printf %q "$SELF") __edited $id")"; return
+              "$(ip_fz transform "bash $(printf %q "$SELF") $KIT __edited $id")"; return
           fi
           if [[ $v == "$CH_DRP" ]]; then
             ip_set pick "$v"; ip_confirm "Drop your $nice patch? It's kept as ${patch##*/}.dropped." drop n; return
@@ -298,17 +340,10 @@ case "${1:-}" in
   __relist) [[ -z ${NO_COLOR:-} ]] && ui_color; cfg_relist ;;
   __edited)   # after the editor: what the patch feeds, then back to the list with how it went
     [[ -z ${NO_COLOR:-} ]] && ui_color; cfg_row "${2:-}" || exit 0
-    case $id in
-      starship) err=$(cfg_ss_merge); kbg=$(layer_bin "$repo" k-bg)
-        [[ -n $kbg ]] && "$kbg" __sync_prompt >/dev/null 2>&1
-        if [[ -n $err ]]; then cfg_to_list "$(head -1 <<<"$err")"
-        else cfg_to_list "✓ starship: your patch saved (new terminals pick it up; with k-bg, this one too)"; fi ;;
-      btop) bt_build; cfg_to_list "✓ btop: your patch saved (btop reads it when it starts)" ;;
-      kitty) cfg_to_list "✓ kitty: your patch saved (ctrl+shift+f5 reloads kitty)" ;;
-      *) cfg_to_list "✓ $nice: your patch saved" ;;
-    esac ;;
+    f=$(fn config_saved "$id")
+    if declare -F "$f" >/dev/null; then cfg_to_list "$("$f")"; else cfg_to_list "✓ $nice: your patch saved"; fi ;;
   __refresh)  # shell start, after the preset or the patch changed: btop's file again, unless btop changed it
-    cfg_row btop && [[ -f $bt_made && -f $live && ! -L $live ]] &&
-      [[ $(sha256sum "$live" | cut -d' ' -f1) == "$(<"$bt_made")" ]] && bt_build ;;
-  *)     ui_unknown "tk configs" "$1" ;;
+    [[ -f $bt_made && -f $bt && ! -L $bt ]] &&
+      [[ $(sha256sum "$bt" | cut -d' ' -f1) == "$(<"$bt_made")" ]] && bt_build ;;
+  *)     ui_unknown "$KIT configs" "$1" ;;
 esac

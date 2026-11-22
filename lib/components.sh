@@ -206,6 +206,7 @@ uninstall_bash() {
 # ---------------------------------------------------------------- keys ---
 inputrc_src="$repo/shell/inputrc"
 label_keys() { echo "Tab & history keys"; }
+config_keys() { echo "file|readline|bash|$HOME/.inputrc|$inputrc_src|link|inputrc|keys at the bash prompt (~/.inputrc)"; }
 title_keys() { echo "Smarter Tab completion; ↑/↓ searches history by what you typed"; }
 detail_keys() { echo "~/.inputrc for bash (case-insensitive Tab, Up/Down search by what's typed)"; }
 state_keys() { NOTE=""; if linked "$HOME/.inputrc" "$inputrc_src"; then STATE=installed; else STATE=missing; fi; }
@@ -226,13 +227,13 @@ cmd_taken() {   # like type -P, without a subshell: tk ls checks every layer com
   [[ -L $f && $(readlink -f "$f") == "$repo"/* ]] && return 1
   printf '%s' "${f/#$HOME/\~}"
 }
-# cmd_layer_bins: the layers' commands (their bin/, repo-relative), one per line; not
-# bin/tk-<name> / bin/fk-<name> (the kit runs those), nor a name unikit or an earlier layer already has
+# cmd_layer_bins: the layers' commands (their bin/, repo-relative), one per line; not a name
+# unikit or an earlier layer already has
 cmd_layer_bins() {
   local f n seen=" ${cmd_bins[*]##*/} "
   for f in "$repo"/layers/*/bin/*; do
     [[ -f $f && -x $f ]] || continue
-    n=${f##*/}; [[ $n == tk-* || $n == fk-* || $seen == *" $n "* ]] && continue
+    n=${f##*/}; [[ $seen == *" $n "* ]] && continue
     seen+="$n "; printf '%s\n' "${f#"$repo"/}"
   done
 }
@@ -298,6 +299,20 @@ uninstall_commands() {
 # ------------------------------------------------------------ starship ---
 ss="$HOME/.config/starship.toml"; ss_src="$repo/starship/starship.toml"
 label_starship() { echo "Starship prompt"; }
+config_starship() { echo "file|starship|starship|$ss|$ss_src|link|starship.toml|the prompt"; }
+# your patch merged over the preset (shell/init.sh does the same at start); prints an error
+ss_merged="$HOME/.local/state/work-toolkit/starship.toml"; ss_patch="$HOME/.config/work-toolkit/patches/starship.toml"
+ss_merge() {
+  if [[ -f $ss_patch && -e $ss ]]; then python3 -I "$repo/lib/toml_patch.py" "$ss" "$ss_patch" "$ss_merged" 2>&1 | sed "s|^$HOME|~|; s|^|✗ starship: your patch has an error: |"
+  else rm -f "$ss_merged"; fi
+}
+ss_sync() { local kbg; kbg=$(layer_bin "$repo" k-bg); [[ -n $kbg ]] && "$kbg" __sync_prompt >/dev/null 2>&1; return 0; }   # its accent copy is what starship reads
+config_after_starship() { ss_merge >/dev/null; ss_sync; }   # (an error shows when you edit the patch)
+config_saved_starship() {
+  local err; err=$(ss_merge); ss_sync
+  if [[ -n $err ]]; then head -1 <<<"$err"
+  else echo "✓ starship: your patch saved (new terminals pick it up; with k-bg, this one too)"; fi
+}
 title_starship() { echo "Prompt showing git branch, k8s cluster, AWS profile and PROD warnings"; }
 detail_starship() { echo "prompt config (git + GitHub account when it isn't your default, Python virtualenv, k8s, AWS profile + expiry, PROD markers); starship itself, latest from GitHub (sha256-checked), in ~/.local/bin if it isn't installed"; }
 state_starship() { NOTE=""; if linked "$ss" "$ss_src"; then STATE=installed; else STATE=missing; fi
@@ -455,6 +470,9 @@ uninstall_kitty() {
 # -------------------------------------------------------- kitty-config ---
 kc="$HOME/.config/kitty/kitty.conf"; kc_src="$repo/kitty/kitty.conf"
 label_kitty_config() { echo "Kitty settings"; }
+config_kitty_config() { echo "file|kitty|kitty|$kc|$kc_src|link|kitty.conf|terminal settings"; }
+config_after_kitty_config() { echo "  (kitty: ctrl+shift+f5 reloads it)"; }
+config_saved_kitty_config() { echo "✓ kitty: your patch saved (ctrl+shift+f5 reloads kitty)"; }
 title_kitty_config() { echo "Use the toolkit's kitty terminal settings"; }
 detail_kitty_config() { echo "~/.config/kitty/kitty.conf from kitty/kitty.conf"; }
 state_kitty_config() { NOTE=""
@@ -496,6 +514,8 @@ bt_ours() { [[ -f $bt && ! -L $bt && "$(bt_kv "$bt")" == "$(bt_merge | bt_kv)" ]
 bt_build() { mkdir -p "${bt%/*}" "${bt_made%/*}"; rm -f "$bt"; bt_merge >"$bt" && sha256sum "$bt" | cut -d' ' -f1 >"$bt_made"; }
 kth="$(layer_bin "$repo" k-theme)"   # a layer's; colours follow the theme only when one has it
 label_btop() { echo "btop"; }
+config_btop() { echo "file|btop|btop|$bt|$bt_src|merge|btop.conf|system monitor"; }
+config_saved_btop() { bt_build; echo "✓ btop: your patch saved (btop reads it when it starts)"; }
 title_btop() { echo "btop system monitor, set up to follow your kitty colour theme"; }
 detail_btop() { echo "btop (apt) if missing; ~/.config/btop/btop.conf -> btop/btop.conf; kitty.theme written by k-theme"; }
 state_btop() { NOTE=""
@@ -569,6 +589,7 @@ uninstall_yazi() {
 yk_src="$repo/yazi/keymap.toml"
 yk_file="$HOME/.config/yazi/keymap.toml"
 label_yazi_keys() { echo "yazi keys"; }
+config_yazi_keys() { echo "file|yazi keys|yazi|$yk_file|$yk_src|block||> and ctrl+backspace in yazi"; }
 title_yazi_keys() { echo "yazi: > picks a folder inside this one; ctrl+backspace deletes a word"; }
 detail_yazi_keys() { echo "a marked block from yazi/keymap.toml in ~/.config/yazi/keymap.toml (the file is made if it's missing); needs fzf"; }
 # yazi's keymap can't have both prepend_keymap = [...] and [[...prepend_keymap]] for one layer:
@@ -1046,8 +1067,20 @@ kb_del() {
   gsettings set $kb_root custom-keybindings "$cur"; dconf reset -f "$path"
 }
 label_rofi() { echo "Rofi launcher"; }
+config_rofi() { echo "file|rofi|rofi|$rofi_conf|$rofi_src|link|rofi.rasi|launcher style"; }
 title_rofi() { echo "Alt+Space opens an app launcher (Alt+Shift+Space ssh, Super+X power menu, Super+S speaker/mic/wifi/bluetooth), styled like kitty"; }
 detail_rofi() { echo "rofi (apt) if missing; ~/.config/rofi/config.rasi -> rofi/config.rasi; four GNOME shortcuts (Alt+Space, Alt+Shift+Space, Super+X, Super+S); launcher icon (rofi/rofi-icon.png) in the app list and dock"; }
+# rofi's config @imports files (colours, your patch); a missing one makes rofi open with an error box
+doctor_rofi() {
+  local imp miss=""
+  [[ -r ~/.config/rofi/config.rasi ]] || return 0
+  while IFS= read -r imp; do
+    imp=${imp/#\~/$HOME}; [[ $imp == /* ]] || imp=$HOME/.config/rofi/$imp
+    [[ -e $imp ]] || miss+="${imp/#$HOME/\~} "
+  done < <(sed -n 's/^[[:space:]]*@import[[:space:]]*"\(.*\)".*/\1/p' ~/.config/rofi/config.rasi)
+  if [[ -z $miss ]]; then echo "✓ config files all there"
+  else echo "! config needs ${miss% }, which is missing — $(kit_of rofi) install rofi"; fi
+}
 state_rofi() { NOTE=""
   type -P gsettings >/dev/null || { STATE=unsupported; NOTE="needs GNOME"; return; }
   local n=0
@@ -1187,6 +1220,10 @@ label_okta_aws_cli() { echo "okta-aws-cli"; }
 title_okta_aws_cli() { echo "okta-aws-cli, so okcli can sign you in to AWS through Okta"; }
 detail_okta_aws_cli() { echo "latest okta-aws-cli from GitHub (sha256-checked) in ~/.local/bin"; }
 state_okta_aws_cli() { tool_state okta-aws-cli; }
+doctor_okta_aws_cli() {   # tk doctor: okcli's own checks, and its shell hook
+  type -P okcli >/dev/null && okcli doctor
+  [[ -n ${OKCLI_SHELL:-} ]] && echo "✓ shell hook" || echo "! okcli's shell hook isn't loaded — tk install bash"
+}
 install_okta_aws_cli() { get_tool okta-aws-cli "okcli signs in to AWS with it" "about 10 MB" fetch_okta_aws_cli; }
 fetch_okta_aws_cli() { gh_tool okta/okta-aws-cli "okta-aws-cli_{v}_linux_$(dl_arch).tar.gz" okta-aws-cli; }
 uninstall_okta_aws_cli() { drop_tool okta-aws-cli; }
@@ -1223,6 +1260,10 @@ label_kubectl() { echo "kubectl"; }
 title_kubectl() { echo "kubectl, which kx runs on"; }
 detail_kubectl() { echo "latest stable kubectl from dl.k8s.io (sha256-checked) in ~/.local/bin"; }
 state_kubectl() { tool_state kubectl; }
+doctor_kubectl() {   # tk doctor: kx's own checks, and its shell hook
+  type -P kx >/dev/null && kx doctor
+  [[ -n ${KX_SHELL:-} ]] && echo "✓ shell hook" || echo "! kx's shell hook isn't loaded — tk install bash"
+}
 install_kubectl() { get_tool kubectl "kx runs on it" "about 60 MB" fetch_kubectl; }
 fetch_kubectl() {
   local v url sum tmp rc=1
@@ -1262,6 +1303,10 @@ label_twingate() { echo "Twingate"; }
 title_twingate() { echo "The Twingate client, which twin switches on and off"; }
 detail_twingate() { echo "Twingate's installer (binaries.twingate.com, adds its apt source; sudo); then sudo twingate setup, once"; }
 state_twingate() { tool_state twingate; }
+doctor_twingate() {
+  if [[ "$(twingate status -d 2>/dev/null | head -n1)" == online ]]; then echo "✓ connected"
+  else echo "! Twingate isn't connected — open the Twingate app"; fi
+}
 install_twingate() {
   type -P twingate >/dev/null && { ok "twingate is already installed"; return; }
   ask "Install the Twingate client? (Twingate's installer adds its apt source; sudo may ask for your password)" || { skip; return; }

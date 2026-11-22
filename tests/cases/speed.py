@@ -128,16 +128,16 @@ def test_hat(sb):
            move=("alt-right", "alt-left", "alt-right", "alt-left"))   # one folder: columns move
 
 
-def test_fk_looks(sb):
+def test_fk_configs(sb):
     if not os.path.exists(FK_LAYER):
         return
     vitals = "Vitals@CoreCoding.com"
     os.makedirs(sb.path(f"~/.local/share/gnome-shell/extensions/{vitals}"))
     sb.write(sb.fix + "/enabled-extensions", f"['{vitals}']\n")
-    t, secs = opened(sb, lambda sb: ([FK, "looks"], "Vitals", None))
-    rows = [("fk looks · open", record("fk looks · open", secs, OPEN), OPEN)]
+    t, secs = opened(sb, lambda sb: ([FK, "configs"], "Vitals", None))
+    rows = [("fk configs · open", record("fk configs · open", secs, OPEN), OPEN)]
     enter = [t.timed_key("enter", lambda t: "Keep my settings" in t.text())]
-    rows.append(("fk looks · enter → choices", record("fk looks · enter → choices", enter, CALLBACK), CALLBACK))
+    rows.append(("fk configs · enter → choices", record("fk configs · enter → choices", enter, CALLBACK), CALLBACK))
     t.close()
     check(*rows)
 

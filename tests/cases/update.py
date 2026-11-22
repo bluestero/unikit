@@ -162,7 +162,7 @@ def test_update_fixes_the_rename_and_cleans_up(sb):
     repo = set_up_v1(sb)
     push_v2(sb)
     trust_upstream(sb, repo)
-    code, out = run(sb, repo + "/bin/tk", "update", "--yes")      # tk update is uk update
+    code, out = run(sb, repo + "/bin/uk", "update", "--yes")
     assert code == 0, out
     links = bin_links(sb)
     assert set(links) == {"new-name", "same-cmd"}, (links, out)              # renamed: new link, the dead ones gone

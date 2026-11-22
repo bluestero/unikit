@@ -123,6 +123,8 @@ trust_card() {   # dir
   [[ -r $d/shell/init.sh ]] && printf '• every new shell runs its shell/init.sh (%s lines)\n' "$(wc -l <"$d/shell/init.sh")"
   for f in "$d"/bin/*; do [[ -f $f ]] && c+="${f##*/}, "; done
   [[ -n $c ]] && printf '• commands: %s\n' "${c%, }"
+  c=""; for f in "$d"/tk/* "$d"/fk/*; do [[ -f $f ]] && c+="$(basename "$(dirname "$f")") ${f##*/}, "; done
+  [[ -n $c ]] && printf '• kit subcommands: %s\n' "${c%, }"
   if [[ -r $d/components.sh ]]; then
     n=$( (COMPONENTS=(); . "$d/components.sh" >/dev/null 2>&1; printf '%s' "${#COMPONENTS[@]}") )
     printf '• setting up its %s part(s) runs its components.sh\n' "$n"
@@ -342,8 +344,8 @@ unikit_owns() { local f; for f in "$ROOT"/bin/* "$ROOT"/{okta,kube,twingate,ws,k
 check_layer() {
   local d=$1 l=${2:-${1##*/}} k t n g w p c f
   check "$l" ok there
-  if ! [[ -d $d/bin || -r $d/shell/init.sh || -r $d/components.sh || -r $d/tools || -r $d/workspaces || -d $d/claude/skills ]]; then
-    check "$l" bad "has none of what a layer can hold (bin/, shell/init.sh, components.sh, tools, workspaces, claude/skills/)" "lib/layers.sh lists them"
+  if ! [[ -d $d/bin || -d $d/tk || -d $d/fk || -r $d/shell/init.sh || -r $d/components.sh || -r $d/tools || -r $d/workspaces || -d $d/claude/skills ]]; then
+    check "$l" bad "has none of what a layer can hold (bin/, tk/, fk/, shell/init.sh, components.sh, tools, workspaces, claude/skills/)" "lib/layers.sh lists them"
   fi
   if [[ -f $d/kit ]]; then
     k=$(head -1 "$d/kit")
@@ -364,21 +366,27 @@ check_layer() {
       IFS='|' read -r n g w p k <<<"$t"
       if [[ -z $n || -z $g || -z $w ]]; then check "$l" bad "tools line '$t' needs name|group|what it does|program"; continue; fi
       [[ -z $k || -v KIT_LABEL[$k] ]] || check "$l" bad "tools line $n names the kit '$k' (tk or fk)"
-      c=$n; [[ $n == [tf]k\ * ]] && c="${n%% *}-${n#* }"   # fk looks is bin/fk-looks
-      if [[ -x $d/bin/$c ]] || [[ -v OWNER[$c] ]] || type -P "$c" >/dev/null; then check "$l" ok "$n"
-      else check "$l" bad "tools lists $n, but there's no bin/$c"; fi
+      if [[ $n == [tf]k\ * ]]; then   # fk dash2dock is fk/dash2dock
+        if [[ -x $d/${n%% *}/${n#* } ]]; then check "$l" ok "$n"; else check "$l" bad "tools lists $n, but there's no ${n%% *}/${n#* }"; fi
+      elif [[ -x $d/bin/$n ]] || [[ -v OWNER[$n] ]] || type -P "$n" >/dev/null; then check "$l" ok "$n"
+      else check "$l" bad "tools lists $n, but there's no bin/$n"; fi
     done <"$d/tools"
   fi
   for f in "$d"/bin/*; do
     [[ -e $f ]] || continue
     c=${f##*/}
     [[ -x $f ]] || check "$l" bad "bin/$c isn't executable" "chmod +x $f"
-    case $c in   # a kit's own words (lib/kit.sh; tk's extras in bin/tk) come before a layer's
-      [tf]k-ls|[tf]k-list|[tf]k-install|[tf]k-uninstall|[tf]k-help|tk-st|tk-status|tk-doctor|tk-configs|tk-version|tk-update|tk-layer|tk-layers)
-        check "$l" bad "bin/$c never runs: ${c%%-*} ${c#*-} is ${c%%-*}'s own"; continue ;; esac
     if [[ ${OWNER[$c]:-} == unikit ]]; then check "$l" bad "bin/$c never runs: unikit's $c comes first on PATH"
     elif [[ -v OWNER[$c] ]]; then check "$l" bad "bin/$c: ${OWNER[$c]} has a $c too; the one first on PATH runs"
     else OWNER[$c]=$l; fi
+  done
+  for f in "$d"/tk/* "$d"/fk/*; do   # the kits' subcommands; a kit's own words (lib/kit.sh) come first
+    [[ -e $f ]] || continue
+    k=$(basename "$(dirname "$f")") c=${f##*/}
+    [[ -x $f ]] || check "$l" bad "$k/$c isn't executable" "chmod +x $f"
+    case $c in ls|list|install|uninstall|configs|doctor|help|-h|--help)
+      check "$l" bad "$k/$c never runs: $k $c is $k's own" ;; esac
+
   done
 }
 
@@ -596,6 +604,42 @@ cmd_update() {
   return "$rc"
 }
 
+# ---------------------------------------------------------------- status ---
+# Each kit's parts: "kit set-up total left-ids" per kit with parts that apply here
+kits_state() {
+  ( repo=$ROOT mode=dry details=0
+    # shellcheck source=../lib/setup.sh
+    . "$ROOT/lib/setup.sh" >/dev/null 2>&1
+    # shellcheck source=../lib/components.sh
+    . "$ROOT/lib/components.sh" >/dev/null 2>&1
+    local k id n total left
+    for k in tk fk; do
+      n=0 total=0 left=""
+      for id in $(kit_parts "$k"); do
+        "$(fn state "$id")" >/dev/null 2>&1
+        [[ $STATE == n/a || $STATE == unsupported ]] && continue
+        total=$((total + 1))
+        if [[ $STATE == installed ]]; then n=$((n + 1)); else left+="$id "; fi
+      done
+      (( total )) && printf '%s %s %s %s\n' "$k" "$n" "$total" "$left"
+    done )
+}
+cmd_status() {
+  [[ -t 1 ]] || ui_no_color
+  local k n total left rows="" names="" d r
+  rows+="folder"$'\t'"${ROOT/#$HOME/\~}"$'\n'
+  while IFS= read -r d; do names+="${d##*/}, "; done < <(layer_dirs "$ROOT")
+  rows+="layers"$'\t'"${names:+${names%, }  }$(ui_hint 'uk layers')"$'\n'
+  while read -r k n total left; do
+    [[ -n $k ]] || continue
+    if [[ -z $left ]]; then rows+="$k"$'\t'"${C_GREEN}all $total parts set up${C_RESET}"$'\n'
+    else rows+="$k"$'\t'"${C_YELLOW}$n of $total parts set up${C_RESET}  $(ui_hint "$k install ${left% }")"$'\n'; fi
+  done < <(kits_state)
+  if r=$(rev_of "$ROOT") && [[ -n $r ]]; then rows+="version"$'\t'"$(version) ${C_DIM}($r)${C_RESET}  $(ui_hint 'uk update')"
+  else rows+="version"$'\t'"$(version) ${C_DIM}(not a git repo, so no updates)${C_RESET}"; fi
+  printf '%s\n' "$rows" | ui_fields "uk · unikit"
+}
+
 # --------------------------------------------------------------- version ---
 cmd_version() {
   local r d; r=$(rev_of "$ROOT")
@@ -607,6 +651,7 @@ cmd_version() {
 cmd_pick() {
   if [[ ! -t 0 || ! -t 1 ]] || ! type -P fzf >/dev/null; then cmd_help; return; fi
   local sel rows="COMMAND${S}WHAT IT DOES"$'\n'
+  rows+="uk status${S}what's set up in each kit, the layers, the version"$'\n'
   rows+="uk layers${S}the layers: add, remove, set up, about"$'\n'
   rows+="uk doctor${S}is each layer well formed; no clashes"$'\n'
   rows+="uk update${S}pull what's new in unikit and each layer"$'\n'
@@ -626,12 +671,13 @@ cmd_help() {
   ui_help uk "unikit: the base; tk and fk are its kits" <<'EOF'
 ## Commands
 uk	pick one of these and run it
+uk status	the folder, the layers, how much of each kit is set up, the version	also uk st
 uk layers	the layers in a list: add one, set up or remove its parts, remove it; alt-i shows what each one is	not in a terminal: a table
 uk layer add <git-url> [name]	clone a layer, show what of it runs and ask before keeping it (pinned in layers.lock), then offer to set up its parts	name: repo name without unix- and -toolkit · --yes: no asking
 uk layer rm <name>	delete a layer (only when nothing in it is unpushed)
 uk layer check <dir>	a layer you're making, before you push it: well formed, no clashes with unikit or the layers here
 uk update	what's new in unikit and each layer; pulls the ones you tick (a layer whose code changed since you trusted it starts unticked: alt-i shows the diff), then each part: up to date, needs a fix, new or removed	--yes pulls all but changed layer code; no terminal: pulls nothing
-uk doctor	the whole: the commands are unikit's, each layer is well formed, no two bring the same part or command	each part: tk doctor
+uk doctor	the whole: the commands are unikit's, each layer is well formed, no two bring the same part or command	each kit's commands and parts: tk doctor, fk doctor
 uk version	unikit's version and each layer's (also -v, --version)
 uk help	this page
 
@@ -646,6 +692,7 @@ case "${1:-}" in
   layers)         shift; if [[ -z ${1:-} ]]; then cmd_layers; else cmd_layer "$@"; fi ;;
   layer)          shift; cmd_layer "$@" ;;
   doctor)         cmd_doctor ;;
+  st|status)      cmd_status ;;
   update)         shift; cmd_update "$@" ;;
   version|-v|--version) cmd_version ;;
   help|-h|--help) cmd_help ;;

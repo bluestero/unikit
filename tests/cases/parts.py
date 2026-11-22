@@ -137,7 +137,6 @@ def test_commands_links_the_layers_commands(sb):
     link = lambda n: os.path.realpath(sb.path("~/.local/bin/" + n))
     assert link("k-bg") == os.path.realpath(repo + "/layers/bluefeels/bin/k-bg"), out
     assert link("uk") == os.path.realpath(repo + "/bin/uk"), out
-    assert not os.path.lexists(sb.path("~/.local/bin/fk-looks")), "fk runs its subcommands"
     assert not os.path.lexists(sb.path("~/.local/bin/k-rofi")) and "k-rofi is already" in out, out
     out = sh(sb, repo, 'component_state commands; echo "$STATE"; uninstall_commands >/dev/null')
     assert out.strip() == "installed", out

@@ -5,7 +5,7 @@ description: The user's work shell toolkit (okcli for Okta AWS profiles and repo
 
 # Work toolkit
 
-A set of shell commands (`tk status` shows the toolkit's folder; `tk ls` lists every command,
+A set of shell commands (`uk status` shows the toolkit's folder; `tk ls` lists every command,
 including the ones its layers add; `uk layers` lists the layers).
 They decide which AWS account and role, and which Kubernetes cluster, a command runs against.
 Different repos need different access levels, so get this right before touching AWS or Kubernetes.
