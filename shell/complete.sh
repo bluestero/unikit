@@ -4,6 +4,8 @@
 # A command adds the words that come later with a function _work_complete_<cmd>
 # (- as _): it reads COMP_WORDS / COMP_CWORD and prints one word per line (spaces
 # allowed). Loaded last by shell/init.sh; a layer's commands come from its tools file.
+# A layer's shell/init.sh may register one itself (`complete -o default -F _work_complete
+# <cmd>` for a command that also takes paths): this file then leaves it alone.
 
 _work_complete() {
   local cmd="${COMP_WORDS[0]##*/}" cur="${COMP_WORDS[COMP_CWORD]}" words="" fn w
@@ -21,22 +23,6 @@ $words
 EOF
 }
 
-# hat: the second word of claude / github, then the profile or account
-_work_complete_hat() {
-  local d
-  case "$COMP_CWORD:${COMP_WORDS[1]}" in
-    2:claude) printf '%s\n' add rm ;;
-    2:github) printf '%s\n' add rm login ;;
-    3:claude) [ "${COMP_WORDS[2]}" = rm ] && command ls -1 "${CLAUDE_PROFILES_DIR:-$HOME/.claude-profiles}" ;;
-    3:github)
-      case "${COMP_WORDS[2]}" in rm|login)
-        for d in "${XDG_CONFIG_HOME:-$HOME/.config}"/hat/github/*.gitconfig; do
-          [ -f "$d" ] && { d=${d##*/}; printf '%s\n' "${d%.gitconfig}"; }
-        done ;;
-      esac ;;
-  esac
-}
-
 # uk layer: add / rm / ls / check, then rm takes a layer's name
 _work_root_uk=$_work_root   # init unsets _work_root once loaded; Tab needs it later
 _work_complete_uk() {
@@ -49,14 +35,12 @@ _work_complete_uk() {
 if [ -n "${ZSH_VERSION:-}" ]; then
   autoload -U +X bashcompinit 2>/dev/null && bashcompinit
 fi
-for _c in hat k-config uk fk dex $(sed -n 's/^\([a-z][a-z0-9-]*\)|.*/\1/p' "$_work_root"/layers/*/tools 2>/dev/null); do
+for _c in k-config uk fk dex $(sed -n 's/^\([a-z][a-z0-9-]*\)|.*/\1/p' "$_work_root"/layers/*/tools 2>/dev/null); do
   if [ -n "${ZSH_VERSION:-}" ]; then
     (( ${+_comps[$_c]} )) && continue
   else
     complete -p "$_c" >/dev/null 2>&1 && continue
   fi
-  # hat show/set/off take a folder: with no word of ours, the shell completes paths
-  if [ "$_c" = hat ]; then complete -o default -F _work_complete "$_c" 2>/dev/null
-  else complete -F _work_complete "$_c" 2>/dev/null; fi
+  complete -F _work_complete "$_c" 2>/dev/null
 done
 unset _c

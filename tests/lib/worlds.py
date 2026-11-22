@@ -6,7 +6,7 @@ from fixture import REPO
 OKCLI = os.path.join(REPO, "layers/bluetools/bin/okcli")
 KX = os.path.join(REPO, "layers/bluetools/bin/kx")
 WS = os.path.join(REPO, "ws/bin/ws")
-HAT = os.path.join(REPO, "bin/hat")
+HAT = os.path.join(REPO, "layers/bluetools/bin/hat")
 FK = os.path.join(REPO, "bin/fk")
 FK_LAYER = os.path.join(REPO, "layers/bluefeels")   # the look layer the fk tests use
 

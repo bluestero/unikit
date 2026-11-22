@@ -22,14 +22,6 @@ def test_first_word_comes_from_the_help_page(sb):
     assert words(sb, "k-config", "h") == ["help"]
 
 
-def test_hat_offers_each_word_once_then_accounts(sb):
-    w = words(sb, "hat", "")
-    assert "github" in w and len(w) == len(set(w)), w
-    assert words(sb, "hat", "github", "") == ["add", "rm", "login"]
-    sb.write("~/.config/hat/github/me.gitconfig", "[user]\n\temail = me@x.io\n")
-    assert words(sb, "hat", "github", "login", "") == ["me"]
-
-
 def test_a_layer_command_adds_its_own_words_with_spaces_escaped(sb):
     script = 'printf "%s\\n" "Media API" "DaaS"'
     out = subprocess.run(["bash", "-c", f'''

@@ -88,7 +88,6 @@ fi
 for _f in \
   ws/shell/ws.sh \
   kitty/shell/k-config.sh \
-  shell/hat.sh \
   shell/tk.sh \
   shell/complete.sh
 do

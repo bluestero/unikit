@@ -15,7 +15,7 @@ ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 # shellcheck source=../lib/ui.sh
 . "$ROOT/lib/ui.sh"
 # shellcheck source=../lib/hat.sh
-. "$ROOT/lib/hat.sh"
+. "$ROOT/layers/bluetools/lib/hat.sh"
 
 { IFS= read -r cwd; cmd=$(cat); } < <(python3 -I -c '
 import json, sys

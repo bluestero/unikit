@@ -13,7 +13,7 @@ ROOT="$(cd "$(dirname "$SELF")/../.." && pwd)"
 # shellcheck source=../../lib/workspaces.sh
 . "$ROOT/lib/workspaces.sh"
 # shellcheck source=../../lib/hat.sh
-. "$ROOT/lib/hat.sh"
+. "$ROOT/layers/bluetools/lib/hat.sh"
 # shellcheck source=../../lib/inplace.sh
 . "$ROOT/lib/inplace.sh"
 

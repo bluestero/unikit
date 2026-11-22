@@ -17,7 +17,7 @@
 # shellcheck source=layers.sh
 . "$repo/lib/layers.sh"
 
-COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi gh clipboard zed vscode repos claude-skill claude-hook claude-guard claude-guidelines)
+COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi zed vscode repos claude-skill claude-hook claude-guard claude-guidelines)
 # Shown in groups in the checklist; the rest are optional extras.
 RECOMMENDED=(bash zsh-hook keys commands starship fzf)
 KITTY_PARTS=(kitty kitty-config kitty-nautilus)
@@ -26,7 +26,7 @@ DESKTOP_PARTS=(window-calls alt-tab-desktop hide-docker-tray app-keys rofi)
 LOOK_PARTS=(claude-guidelines)   # components with a settings menu; a layer adds its own (LOOK_PARTS+=)
 WORKSPACE_PARTS=(repos)
 CLAUDE_PARTS=(claude-skill claude-hook claude-guard claude-guidelines)
-APP_PARTS=(gh clipboard zed vscode)
+APP_PARTS=(zed vscode)
 # Which repo a component comes from: the toolkit, or the layer that adds it (bluefeels, ...).
 repo_of() { echo "${LAYER_OF[$1]:-toolkit}"; }
 # the layer a part comes from, for the installers' LAYER column (unikit: the base's own)
@@ -82,8 +82,8 @@ requires_of() {
   # a layer's component names its own needs (requires_<id>)
   if declare -F "$(fn requires "$1")" >/dev/null; then "$(fn requires "$1")"; return; fi
   case "$1" in
-    fzf|kitty|login-shell|yazi|yazi-keys|gh|zed) echo "linux" ;;
-    zsh|btop|clipboard|vscode)    echo "apt" ;;
+    fzf|kitty|login-shell|yazi|yazi-keys|zed) echo "linux" ;;
+    zsh|btop|vscode)    echo "apt" ;;
     kitty-nautilus|rofi)                   echo "gnome apt" ;;
     window-calls|alt-tab-desktop|hide-docker-tray|app-keys) echo "gnome" ;;
   esac
@@ -1219,37 +1219,6 @@ apt_drop() {
     dry || { as_root apt-get remove -y "$1" >>"$log_file" 2>&1 && ok "package removed" || fail "apt failed (see $log_file)"; }
   else ok "$2 stays"; fi
 }
-
-# gh, from GitHub's release (the tar.gz holds gh_<v>_linux_<arch>/bin/gh)
-label_gh() { echo "GitHub CLI (gh)"; }
-title_gh() { echo "The gh command: hat signs it in per GitHub account, for PRs and the API"; }
-detail_gh() { echo "latest gh from GitHub (sha256-checked) in ~/.local/bin"; }
-state_gh() { tool_state gh; }
-install_gh() { get_tool gh "hat signs it in to your GitHub accounts" "about 15 MB" fetch_gh; }
-fetch_gh() {
-  local tmp d rc=1
-  gh_latest cli/cli "gh_{v}_linux_$(dl_arch).tar.gz" || { warn "couldn't find the latest gh (offline?)"; return 1; }
-  tmp=$(mktemp -d) d="gh_${GH_VER}_linux_$(dl_arch)"
-  fetch_checked "$GH_URL" "$GH_SHA" "$tmp/dl" && tar xzf "$tmp/dl" -C "$tmp" "$d/bin/gh" 2>>"$log_file" &&
-    mkdir -p "$HOME/.local/bin" && install -m 755 "$tmp/$d/bin/gh" "$HOME/.local/bin/gh" && rc=0
-  rm -rf "$tmp"
-  (( rc )) || logf "gh $GH_VER installed to ~/.local/bin"
-  return "$rc"
-}
-uninstall_gh() { drop_tool gh; }
-
-# wl-copy on Wayland, xclip on X11
-clip_pkg() { [[ ${XDG_SESSION_TYPE:-} == x11 ]] && echo xclip || echo wl-clipboard; }
-label_clipboard() { echo "Clipboard tool"; }
-title_clipboard() { echo "wl-copy (xclip on X11), so hat can copy keys and sign-in codes for you"; }
-detail_clipboard() { echo "$(clip_pkg) (apt) if neither wl-copy nor xclip is installed"; }
-state_clipboard() { NOTE=""; if type -P wl-copy >/dev/null || type -P xclip >/dev/null; then STATE=installed; else STATE=missing; fi; }
-install_clipboard() {
-  type -P wl-copy >/dev/null || type -P xclip >/dev/null && { ok "already installed"; return; }
-  ask "Install $(clip_pkg)? (apt, needs sudo)" || { skip; return; }
-  dry || { apt_install "$(clip_pkg)" && ok "installed" || fail "apt failed (see $log_file)"; }
-}
-uninstall_clipboard() { apt_drop "$(clip_pkg)" "$(clip_pkg)"; }
 
 # Zed's own installer: ~/.local/zed.app, zed in ~/.local/bin, its launcher entry (no sudo)
 label_zed() { echo "Zed"; }
