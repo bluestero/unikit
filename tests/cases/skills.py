@@ -170,11 +170,11 @@ def test_seven_profiles_count_and_exact_pairs(sb):
 def test_skills_ls_names_each_skills_layer_and_profiles(sb):
     repo = setup(sb, ["default", "work"])
     link(sb, repo, "work", "alpha")
-    p = subprocess.run([repo + "/bin/skills", "ls"], env=sb.env, cwd=sb.home, capture_output=True, text=True,
+    p = subprocess.run([repo + "/bin/uk", "skills", "ls"], env=sb.env, cwd=sb.home, capture_output=True, text=True,
                        timeout=30, stdin=subprocess.DEVNULL)
     lines = [l.split() for l in p.stdout.splitlines()]
     assert ["alpha", "team", "◐", "work"] in lines and ["beta", "team", "–", "none"] in lines, p.stdout + p.stderr
-    p = subprocess.run([repo + "/bin/skills", "alpha"], env=sb.env, cwd=sb.home, capture_output=True, text=True,
+    p = subprocess.run([repo + "/bin/uk", "skills", "alpha"], env=sb.env, cwd=sb.home, capture_output=True, text=True,
                        timeout=30, stdin=subprocess.DEVNULL)
     lines = [l.split() for l in p.stdout.splitlines()]
     assert ["about", "the", "alpha", "skill"] in lines and ["work", "✓", "has", "it"] in lines, p.stdout + p.stderr

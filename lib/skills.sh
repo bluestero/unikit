@@ -1,4 +1,4 @@
-# The Claude skills picker (tk install claude-skill, in a terminal, fzf 0.63+). Every skill
+# The Claude skills picker (uk skills, and tk install claude-skill in a terminal; fzf 0.63+). Every skill
 # comes from unikit or a layer (claude/skills/<name>/); each Claude profile gets a link per
 # skill. One list, open throughout:
 #   by skill (the start)   a row per skill: its layer, the profiles that have it (names while

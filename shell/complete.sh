@@ -23,25 +23,21 @@ $words
 EOF
 }
 
-# uk layer: add / rm / ls / check, then rm takes a layer's name
+# uk layer: add / rm / ls / check, then rm takes a layer's name; uk skills: ls, help, the skills' names
 _work_root_uk=$_work_root   # init unsets _work_root once loaded; Tab needs it later
 _work_complete_uk() {
   case "$COMP_CWORD:${COMP_WORDS[1]}" in
     2:layer|2:layers) printf '%s\n' ls add rm check ;;
     3:layer|3:layers) [ "${COMP_WORDS[2]}" = rm ] && command ls -1 "$_work_root_uk/layers" 2>/dev/null ;;
+    2:skills) printf '%s\n' ls help
+              command ls -1d "$_work_root_uk"/claude/skills/*/ "$_work_root_uk"/layers/*/claude/skills/*/ 2>/dev/null | sed 's|/$||; s|.*/||' ;;
   esac
-}
-
-# skills <name>: the skills' names (unikit's and each layer's)
-_work_complete_skills() {
-  [ "$COMP_CWORD" -eq 1 ] || return 0
-  command ls -1d "$_work_root_uk"/claude/skills/*/ "$_work_root_uk"/layers/*/claude/skills/*/ 2>/dev/null | sed 's|/$||; s|.*/||'
 }
 
 if [ -n "${ZSH_VERSION:-}" ]; then
   autoload -U +X bashcompinit 2>/dev/null && bashcompinit
 fi
-for _c in uk fk skills dex $(sed -n 's/^\([a-z][a-z0-9-]*\)|.*/\1/p' "$_work_root"/layers/*/tools 2>/dev/null); do
+for _c in uk fk dex $(sed -n 's/^\([a-z][a-z0-9-]*\)|.*/\1/p' "$_work_root"/layers/*/tools 2>/dev/null); do
   if [ -n "${ZSH_VERSION:-}" ]; then
     (( ${+_comps[$_c]} )) && continue
   else

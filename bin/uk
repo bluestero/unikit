@@ -696,6 +696,7 @@ uk layer rm <name>	delete a layer (only when nothing in it is unpushed)
 uk layer check <dir>	a layer you're making, before you push it: well formed, no clashes with unikit or the layers here
 uk update	what's new in unikit and each layer; pulls the ones you tick (a layer whose code changed since you trusted it starts unticked: alt-i shows the diff), then each part: up to date, needs a fix, new or removed	--yes pulls all but changed layer code; no terminal: pulls nothing
 uk doctor	the whole: the commands are unikit's, each layer is well formed, no two bring the same part or command	each kit's commands and parts: tk doctor, fk doctor
+uk skills	the Claude skills each Claude profile has, in a list: tick which profiles get which	uk skills ls: a table · uk skills <name>: one skill
 uk version	unikit's version and each layer's (also -v, --version)
 uk help	this page
 
@@ -712,6 +713,7 @@ case "${1:-}" in
   doctor)         cmd_doctor ;;
   st|status)      cmd_status ;;
   update)         shift; cmd_update "$@" ;;
+  skills)         shift; exec "$ROOT/lib/skills-cmd.sh" "$@" ;;
   version|-v|--version) cmd_version ;;
   help|-h|--help) cmd_help ;;
   __key)     [[ -z ${NO_COLOR:-} ]] && ui_color; lay_key "${2:-}" "${3:-}" "${4:-}" ;;
