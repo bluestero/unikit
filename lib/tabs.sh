@@ -57,7 +57,7 @@ tabs_pick() {
   for k in y n esc; do binds+=(--bind="$k:transform:$cb key '$T' $k {2}"); done
   bash "$repo/lib/tabs.sh" layout "$T"
   local what="set up"; [[ -n ${update:-} ]] && what=update
-  ui_fzf "${layer:-work toolkit} · $what" --no-input --delimiter=$'\t' --with-nth=1 <"$T/view" \
+  ui_fzf "${layer:-unikit} · $what" --no-input --delimiter=$'\t' --with-nth=1 <"$T/view" \
       --footer=' ' --with-shell='bash -c' "${binds[@]}" \
       --bind="start:unbind(y,n)+transform:$cb header '$T'" \
       --bind="focus:transform:$cb foot '$T' {2}" \

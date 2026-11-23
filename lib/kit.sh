@@ -157,7 +157,7 @@ kit_help() {
     printf '%s ls\tthe commands below: what each does, its layer, ready or what it needs\n' "$KIT"
     printf '%s install [part...]\tset up the %s parts the layers bring: a tab per group, then one question per change\t%s install ls lists them\n' "$KIT" "$KIT" "$KIT"
     printf '%s uninstall [part...]\tremove them, putting your own settings back\n' "$KIT"
-    printf '%s configs\tthe presets its parts bring: the toolkit preset, the app default, what you had before, undo; your own patch on top\tpatches: ~/.config/work-toolkit/patches\n' "$KIT"
+    printf '%s configs\tthe presets its parts bring: the toolkit preset, the app default, what you had before, undo; your own patch on top\tpatches: ~/.config/unikit/patches\n' "$KIT"
     printf '%s doctor\tevery check of its commands and parts, in one box\n' "$KIT"
     printf '%s help\tthis page\n' "$KIT"
     if declare -F kit_help_own >/dev/null; then printf '\n'; kit_help_own; fi

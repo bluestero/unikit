@@ -12,7 +12,7 @@ from fixture import REPO
 from term import Term
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
-           "GIT_COMMITTER_EMAIL": "t@t", "WORK_TOOLKIT_PLAIN": "1"}
+           "GIT_COMMITTER_EMAIL": "t@t", "UNIKIT_PLAIN": "1"}
 
 
 def part(pid, cmd):

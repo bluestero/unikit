@@ -45,7 +45,7 @@ def test_a_look_file_is_copied_out_of_the_repo(sb):
     repo = copy(sb)
     look = repo + "/layers/bluefeels/gnome/dash-to-panel/settings.dconf"
     out = sh(sb, repo, f'look_apply /org/x/ {look} dash-to-panel && look_file {look} | grep show-apps-icon-file')
-    copied = sb.path("~/.local/share/work-toolkit/looks/dash-to-panel/apps-button.svg")
+    copied = sb.path("~/.local/state/unikit/looks/dash-to-panel/apps-button.svg")
     assert os.path.isfile(copied), out
     assert copied in out and repo not in out, out
     shutil.rmtree(repo + "/layers/bluefeels/gnome/dash-to-panel")   # the layer's files gone: the icon stays
@@ -89,3 +89,24 @@ def test_commands_links_the_layers_commands(sb):
     out = sh(sb, repo, 'component_state commands; echo "$STATE"; uninstall_commands >/dev/null')
     assert out.strip() == "installed", out
     assert not os.path.lexists(sb.path("~/.local/bin/k-bg")) and not os.path.lexists(sb.path("~/.local/bin/uk"))
+
+
+def test_the_work_toolkit_folders_move_to_their_unikit_names(sb):
+    repo = copy(sb)
+    sb.write("~/.local/state/work-toolkit/setup.log", "old log\n")
+    sb.write("~/.config/work-toolkit/patches/kitty.conf", "font_size 12\n")
+    sb.write("~/.config/unikit/patches/btop.conf", "theme=x\n")          # the new one there already: both kept
+    sb.write("~/.local/share/work-toolkit/looks/dash-to-panel/apps-button.svg", "<svg/>")
+    old = sb.path("~/.local/share/work-toolkit/looks/")
+    sb.fake("dconf", f'[ "$1" = dump ] && printf "[org/x]\\nicon=\'{old}dash-to-panel/apps-button.svg\'\\nother=1\\n"; exit 0')
+    sh(sb, repo, "true")                                                  # the installer's libraries: moved
+    assert sb.read("~/.local/state/unikit/setup.log").startswith("old log")
+    assert sb.read("~/.config/unikit/patches/kitty.conf") == "font_size 12\n" and sb.read("~/.config/unikit/patches/btop.conf") == "theme=x\n"
+    assert os.path.isfile(sb.path("~/.local/state/unikit/looks/dash-to-panel/apps-button.svg"))
+    for o in ("~/.local/state/work-toolkit", "~/.config/work-toolkit", "~/.local/share/work-toolkit/looks"):
+        assert os.path.islink(sb.path(o)), o + ": the old name is a link to the new folder"
+    new = sb.path("~/.local/state/unikit/looks/dash-to-panel/apps-button.svg")
+    assert f"dconf write /org/x/icon '{new}'" in sb.calls("dconf"), sb.calls("dconf")
+    n = len(sb.calls("dconf"))
+    sh(sb, repo, "true")                                                  # once: nothing more the second time
+    assert len(sb.calls("dconf")) == n, sb.calls("dconf")

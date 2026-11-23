@@ -7,6 +7,9 @@
 
 _work_root="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")/.." && pwd)"
 
+# The folders once named work-toolkit move to their unikit names (once; lib/migrate.sh).
+[ -r "$_work_root/lib/migrate.sh" ] && . "$_work_root/lib/migrate.sh" && unikit_migrate
+
 # Layers (lib/layers.sh): extra parts in layers/<name>/, each from its own repo.
 # Listed with ls, not a glob: an empty glob is an error in zsh.
 # (Loops use $(...) because zsh doesn't split a plain variable into words.)

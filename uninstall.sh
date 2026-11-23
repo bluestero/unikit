@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Removes parts of the work toolkit. Shows a checklist of what's installed;
+# Removes parts of unikit and its layers. Shows a checklist of what's installed;
 # pick with tab, confirm with enter. Safe to run any number of times.
 # `./uninstall.sh help` lists the commands. Files that were replaced get their
 # backup put back. Repo files are never deleted.
@@ -14,7 +14,7 @@ for arg in "$@"; do
     help|-h|--help) help=1 ;;
     -n|--dry-run)   mode=dry ;;
     -y|--yes)       mode=yes ;;
-    -p|--plain)     export WORK_TOOLKIT_PLAIN=1 ;;
+    -p|--plain)     export UNIKIT_PLAIN=1 ;;
     --layer=*)      layer=${arg#--layer=} ;;
     --kit=*)        kit=${arg#--kit=} ;;
     -*) printf '✗ unknown option %s · see: ./uninstall.sh help\n' "$arg" >&2; exit 2 ;;
@@ -26,7 +26,7 @@ done
 . "$repo/lib/components.sh"
 
 if (( help )); then
-  ui_help ./uninstall.sh "remove parts of the work toolkit" <<'EOF'
+  ui_help ./uninstall.sh "remove parts of unikit and its layers" <<'EOF'
 ## Commands
 ./uninstall.sh	checklist of what's installed; pick what to remove
 ./uninstall.sh <component>...	just those, e.g. ./uninstall.sh zsh
@@ -42,7 +42,7 @@ if (( help )); then
 
 You get your own setup back: replaced files, the lines taken out of ~/.bashrc,
 your default terminal, Ctrl+Alt+T and login shell. Repo files are never deleted.
-What you had before: ~/.local/state/work-toolkit/originals
+What you had before: ~/.local/state/unikit/originals
 EOF
   exit 0
 fi
@@ -90,7 +90,7 @@ if (( ${#wanted[@]} )); then
 elif dry || (( list )); then
   { printf '%s\n' "${B}COMPONENT${R}"$'\x1f'"${B}WHAT IT IS${R}"
     for l in "${labels[@]}"; do printf '%s\n' "${l%%$'\t'*}"$'\x1f'"$D${l#*$'\t'}$R"; done
-  } | ui_table "work toolkit · installed" "${#present[@]} could be removed"
+  } | ui_table "unikit · installed" "${#present[@]} could be removed"
   exit 0
 elif [[ "$mode" == yes ]]; then
   echo "--yes needs the components named, e.g.: ./uninstall.sh --yes zsh"; exit 2

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Sets up the work toolkit on this machine. Safe to run any number of times:
+# Sets up unikit and its layers on this machine. Safe to run any number of times:
 # it checks what's already in place and only asks about what isn't.
 # `./install.sh help` lists the commands. Undo any part with ./uninstall.sh.
-# Log: ~/.local/state/work-toolkit/setup.log
+# Log: ~/.local/state/unikit/setup.log
 set -uo pipefail
 
 repo="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -15,7 +15,7 @@ for arg in "$@"; do
     -n|--dry-run)   mode=dry ;;
     -y|--yes)       mode=yes ;;
     -d|--details)   details=1 ;;
-    -p|--plain)     export WORK_TOOLKIT_PLAIN=1 ;;
+    -p|--plain)     export UNIKIT_PLAIN=1 ;;
     --layer=*)      layer=${arg#--layer=} ;;
     --kit=*)        kit=${arg#--kit=} ;;
     --update=*)     update=${arg#--update=} ;;   # uk update: what the pull changed (lib/update.sh)
@@ -34,7 +34,7 @@ preticked=()
 [[ -n $update ]] && . "$repo/lib/update.sh"
 
 if (( help )); then
-  ui_help ./install.sh "set up the work toolkit" <<'EOF'
+  ui_help ./install.sh "set up unikit and its layers" <<'EOF'
 ## Commands
 ./install.sh	a tab per group: tick what to set up, then one question per change	Enter = yes
 ./install.sh <component>...	just those, e.g. ./install.sh zsh
@@ -50,7 +50,7 @@ if (( help )); then
 --kit=<tk|fk>	only that kit's parts, from the toolkit and every layer (fk install uses it)
 
 ./install.sh ls names every component; ./uninstall.sh undoes any of them.
-Log: ~/.local/state/work-toolkit/setup.log
+Log: ~/.local/state/unikit/setup.log
 EOF
   exit 0
 fi
@@ -135,7 +135,7 @@ if (( named )) && (( ${#todo[@]} == named )); then
 fi
 if (( quick )); then
   ok_pad=""
-  if [[ "$mode" == ask && "${WORK_TOOLKIT_PLAIN:-0}" != 1 ]]; then use_gum || true; fi
+  if [[ "$mode" == ask && "${UNIKIT_PLAIN:-0}" != 1 ]]; then use_gum || true; fi
   for id in "${todo[@]}"; do "$(fn install "$id")"; done
   exit 0
 fi
@@ -148,7 +148,7 @@ printf '%s' "$table" | print_table 3 | sed 's/\x1b\[[0-9;]*m//g' >>"$log_file"
 if (( ! tabs )); then
   say ""
   if (( ${#todo[@]} )); then right="${#todo[@]} to $([[ -n $update ]] && echo look at || echo set up)"; else right="${G}all set${R}"; fi
-  printf '%s' "$table" | ui_table "work toolkit" "$right"
+  printf '%s' "$table" | ui_table "unikit" "$right"
   # Which machine this is, and what that rules out (the reasons are in the NOTE column).
   say "${D}This machine: $OS_NAME · $DESKTOP_NAME · ${PKG_MGR/none/no package manager}${R}"
   (( skipped )) && say "${D}$skipped component(s) can't run here and are skipped (⊘ above, with the reason).${R}"
@@ -172,9 +172,9 @@ fi
 
 # Use gum when it's there. Only a full setup (no components named) offers to
 # download it; "./install.sh window-calls" and the like just use the plain look.
-if [[ "$mode" == ask && "${WORK_TOOLKIT_PLAIN:-0}" != 1 ]] && use_gum; then
+if [[ "$mode" == ask && "${UNIKIT_PLAIN:-0}" != 1 ]] && use_gum; then
   (( named )) || { say "${G}✓${R} gum is installed, so the lists and questions use it ${D}(--plain for the plain ones)${R}"; say ""; }
-elif [[ "$mode" == ask && "${WORK_TOOLKIT_PLAIN:-0}" != 1 && $named == 0 ]]; then
+elif [[ "$mode" == ask && "${UNIKIT_PLAIN:-0}" != 1 && $named == 0 ]]; then
   if ask "Install gum for a nicer-looking installer? (small download to ~/.local/bin, no sudo)"; then
     if install_gum && use_gum; then ok "gum installed"
     else warn "carrying on with the plain installer"; fi

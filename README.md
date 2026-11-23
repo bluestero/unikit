@@ -15,7 +15,7 @@ their place and never changes for one. Anyone can write one, for either kit or b
 | Command | What it does |
 |---|---|
 | `uk` | unikit, the base under the two kits (`tk`, `fk`): `uk status` shows the folder, the layers, how much of each kit is set up and the version, `uk layers` lists the [layers](#layers) (enter: set up or remove its parts, remove it; alt-a adds one; alt-i shows what each one is), `uk doctor` checks the whole (the commands are unikit's, each layer is well formed and at the commit you trusted, no two bring the same part or command), `uk layer check <dir>` checks a layer you're making before you push it, `uk update` pulls what's new in unikit and each layer (see Updates), `uk skills` picks which Claude profiles get which skills (ctrl-p: the details pane; `uk skills ls` a table, `uk skills <name>` one skill), `uk version` shows unikit's version and each layer's. The long names `unikit`, `toolkit` and `feelkit` (for `uk`, `tk`, `fk`) are linked by the commands part, only where no other program has the name. |
-| `tk`, `fk` | The two kits, siblings with the same words: `<kit>` picks and runs any of its commands, `<kit> ls` lists them (what each does, its layer, ready or not), `<kit> install` / `<kit> uninstall` set up and remove its parts, `<kit> doctor` checks its commands and parts in one box, `<kit> help` shows it all, and a layer's `<kit>/<name>` is `<kit> <name>`. `<kit> configs` switches each preset its parts bring between the layer's preset, the app's own default, what you had before, or one step back (the app stays installed; "edited preset" means you changed the layer's copy, a link into its repo); "Edit my patch" keeps your own changes in `~/.config/work-toolkit/patches/`, never touched by the toolkit and read after the preset so they win. A kit with no layers says so ("Nothing here yet. Add a layer: uk layers"). |
+| `tk`, `fk` | The two kits, siblings with the same words: `<kit>` picks and runs any of its commands, `<kit> ls` lists them (what each does, its layer, ready or not), `<kit> install` / `<kit> uninstall` set up and remove its parts, `<kit> doctor` checks its commands and parts in one box, `<kit> help` shows it all, and a layer's `<kit>/<name>` is `<kit> <name>`. `<kit> configs` switches each preset its parts bring between the layer's preset, the app's own default, what you had before, or one step back (the app stays installed; "edited preset" means you changed the layer's copy, a link into its repo); "Edit my patch" keeps your own changes in `~/.config/unikit/patches/`, never touched by the toolkit and read after the preset so they win. A kit with no layers says so ("Nothing here yet. Add a layer: uk layers"). |
 
 ## Set it up on your machine
 
@@ -26,7 +26,7 @@ against the machine and marks what can't run there `⊘ not supported here`, wit
 **1. Have git and curl** (`sudo apt install git curl`). Whatever the layers' tools run on comes with
 their parts, the latest release for your CPU, in `~/.local` with no sudo where it can.
 
-**2. Get it.** One command: it clones unikit into `~/.local/share/unix-toolkit` (or updates it if
+**2. Get it.** One command: it clones unikit into `~/.local/share/unikit` (or updates it if
 it's there), adds the `tk` command, and adds the layers you name. Nothing else changes yet.
 
 ```bash
@@ -38,9 +38,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unikit/main/bootst
 GitHub account, `ssh -T git@github.com` checks it):
 
 ```bash
-git clone git@github.com:bluestero/unikit.git ~/.local/share/unix-toolkit
-mkdir -p ~/.local/bin && ln -sfn ~/.local/share/unix-toolkit/bin/tk ~/.local/bin/tk
-~/.local/share/unix-toolkit/bin/uk layer add git@github.com:bluestero/bluetools.git
+git clone git@github.com:bluestero/unikit.git ~/.local/share/unikit
+mkdir -p ~/.local/bin && ln -sfn ~/.local/share/unikit/bin/tk ~/.local/bin/tk
+~/.local/share/unikit/bin/uk layer add git@github.com:bluestero/bluetools.git
 ```
 
 Layers are added the same way later: `uk layer add <git URL>`, or alt-a in `uk layers`. It shows
@@ -73,7 +73,7 @@ ACME=~/work/acme                  # where the "acme" layer's repos go; change it
 A new list starts with one such pair per layer you have. New team repos go in the layer's
 `workspaces` file, so everyone gets them on `uk update`.
 
-**Updates:** `uk update` looks for updates to unikit and every layer (bluefeels too) and lists the ones with new commits (each one's commits under the cursor), ticked: untick one to hold it back (keep unikit ticked when you pull a layer: layers may need it), enter pulls the rest. A layer whose code changed since you last trusted it (its pin in `layers.lock`: anything but its docs and its `tools`, `kit`, `requires`, `workspaces`, `VERSION` lists) starts unticked, with the changed files under the cursor; alt-i shows their diff, and ticking it trusts them (its pin moves to what it pulled). `--yes` pulls everything else and holds those back. Then it lists every part, one tab per repo: up to date, updated (the pull changed its files; nothing to do), needs a fix (the pull broke it, or a link it made now points nowhere), new, or removed upstream (it cleans up the links that part left). Fixes and clean-ups start ticked; new parts don't; each change still asks. Nothing changes without asking, and a second run changes nothing. Maintainers: rename, move or drop a part's files freely: the installer records every link it makes (`~/.local/state/work-toolkit/links`), so `uk update` finds the ones left pointing nowhere. What isn't a link (dconf, apt, dotfile blocks) a dropped part can't clean up after the pull, so drop those by hand. Maintainers: bump `VERSION` (1.2.0 → 1.3.0 for new things, → 1.2.1 for fixes) when you push something the team will notice.
+**Updates:** `uk update` looks for updates to unikit and every layer (bluefeels too) and lists the ones with new commits (each one's commits under the cursor), ticked: untick one to hold it back (keep unikit ticked when you pull a layer: layers may need it), enter pulls the rest. A layer whose code changed since you last trusted it (its pin in `layers.lock`: anything but its docs and its `tools`, `kit`, `requires`, `workspaces`, `VERSION` lists) starts unticked, with the changed files under the cursor; alt-i shows their diff, and ticking it trusts them (its pin moves to what it pulled). `--yes` pulls everything else and holds those back. Then it lists every part, one tab per repo: up to date, updated (the pull changed its files; nothing to do), needs a fix (the pull broke it, or a link it made now points nowhere), new, or removed upstream (it cleans up the links that part left). Fixes and clean-ups start ticked; new parts don't; each change still asks. Nothing changes without asking, and a second run changes nothing. Maintainers: rename, move or drop a part's files freely: the installer records every link it makes (`~/.local/state/unikit/links`), so `uk update` finds the ones left pointing nowhere. What isn't a link (dconf, apt, dotfile blocks) a dropped part can't clean up after the pull, so drop those by hand. Maintainers: bump `VERSION` (1.2.0 → 1.3.0 for new things, → 1.2.1 for fixes) when you push something the team will notice.
 
 **Removing it:** `tk uninstall` shows a checklist of what's installed, and puts back what you had
 before (see [Going back to your own setup](#going-back-to-your-own-setup)).
@@ -155,12 +155,12 @@ and the plain built-in ones are used. Remove it with `rm ~/.local/bin/gum`.
 
 Both are safe to run any number of times: they check first and only touch what's missing
 (or still there). Replaced files are backed up as `<file>.bak-<time>`, and uninstall puts
-the backup back. Log: `~/.local/state/work-toolkit/setup.log`.
+the backup back. Log: `~/.local/state/unikit/setup.log`.
 
 ### Going back to your own setup
 
 The first time the installer changes something of yours, it keeps what you had in
-`~/.local/state/work-toolkit/originals/` (once, never overwritten). Uninstalling unikit's parts puts back:
+`~/.local/state/unikit/originals/` (once, never overwritten). Uninstalling unikit's parts puts back:
 
 | What | Put back on uninstall |
 |---|---|

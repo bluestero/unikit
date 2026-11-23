@@ -314,12 +314,12 @@ uninstall_zsh_hook() {
 # offers them back, or the app's own defaults (dconf reset).
 # look_applied PATH FILE [IGNORE] [NAME]: every setting in FILE is the same live (keys matching the
 # IGNORE regex are skipped: Dash to Panel stores panel keys per monitor).
-# Your patch (~/.config/work-toolkit/patches/<NAME>.dconf) is loaded after the look, so its
+# Your patch (~/.config/unikit/patches/<NAME>.dconf) is loaded after the look, so its
 # settings win; the toolkit never writes to it except when you ask (keep my changes as my patch).
-look_patch() { printf '%s' "$HOME/.config/work-toolkit/patches/$1.dconf"; }
+look_patch() { printf '%s' "$HOME/.config/unikit/patches/$1.dconf"; }
 # Files a look points at (@HERE@/<file>: an icon) are copied out of the repo, so the setting
 # outlives a moved toolkit or a removed layer; look_copy is where they go.
-look_copy() { printf '%s' "$HOME/.local/share/work-toolkit/looks/$(basename "$(dirname "$1")")"; }
+look_copy() { printf '%s' "$HOME/.local/state/unikit/looks/$(basename "$(dirname "$1")")"; }
 look_refs() { grep -o "@HERE@/[^'\"]*" "$1" 2>/dev/null | sed 's#^@HERE@/##' | sort -u; }
 look_copied() { local f; for f in $(look_refs "$1"); do cmp -s "$(dirname "$1")/$f" "$(look_copy "$1")/$f" || return 1; done; }
 look_file() { sed "s#@REPO@#$repo#; s#@HERE@#$(look_copy "$1")#" "$1"; }   # the look, its paths filled in

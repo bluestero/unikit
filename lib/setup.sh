@@ -5,7 +5,9 @@
 # already right, so running install/uninstall twice gives the same result.
 
 ts=$(date +%Y%m%d-%H%M%S)
-log_dir="$HOME/.local/state/work-toolkit"
+# shellcheck source=migrate.sh
+. "$repo/lib/migrate.sh"; unikit_migrate   # the work-toolkit folders, once
+log_dir="$HOME/.local/state/unikit"
 log_file="$log_dir/setup.log"
 mkdir -p "$log_dir"
 
@@ -86,7 +88,7 @@ ask_text() {
 # ---------------------------------------------------------------- gum ---
 # gum (github.com/charmbracelet/gum) gives the checklist and the questions a
 # nicer look. It's optional: without it the built-in plain versions are used.
-# --plain (or WORK_TOOLKIT_PLAIN=1) never uses it.
+# --plain (or UNIKIT_PLAIN=1) never uses it.
 
 GUM_VERSION=2.0.2
 GUM=""
@@ -95,7 +97,7 @@ GUM=""
 use_gum() {
   local g
   GUM=""
-  [[ "${WORK_TOOLKIT_PLAIN:-0}" == 1 || ! -t 0 || ! -t 1 ]] && return 1
+  [[ "${UNIKIT_PLAIN:-0}" == 1 || ! -t 0 || ! -t 1 ]] && return 1
   for g in "$(type -P gum 2>/dev/null)" "$HOME/.local/bin/gum"; do
     [[ -n "$g" && -x "$g" ]] || continue
     "$g" choose --help 2>&1 | grep -q -- '--label-delimiter' && { GUM=$g; return 0; }

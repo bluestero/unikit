@@ -20,7 +20,7 @@
 #     enabled. Choices: keep, re-apply the preset, reset to the app's defaults, put back what
 #     you had before, undo (look_* in components.sh). The ignore regex last: it can hold |.
 #
-# Your own changes go in a patch: your file in ~/.config/work-toolkit/patches, which the preset
+# Your own changes go in a patch: your file in ~/.config/unikit/patches, which the preset
 # pulls in last (kitty globinclude, rofi @import, readline $include, dconf loaded after), so it
 # wins. A program that can't include a file gets the two merged by its part (bluefeels: starship
 # into a file of its own at shell start, btop with the merge kind). The toolkit never writes to a patch once it is made; anyone can copy someone's.
@@ -38,7 +38,7 @@ mode=ask details=0
 # shellcheck source=inplace.sh
 . "$repo/lib/inplace.sh"
 snap_dir="$orig_dir/configs"   # <id>.last (what was there before the last change) and <id>.kind
-patch_dir="$HOME/.config/work-toolkit/patches"   # the presets name this folder; keep them in step
+patch_dir="$HOME/.config/unikit/patches"   # the presets name this folder; keep them in step
 
 # __refresh <id> needs no kit (a layer's shell/init.sh, at shell start); everything else is <kit> configs
 if [[ ${1:-} != __refresh ]]; then KIT=${1:-tk}; shift; fi
@@ -150,7 +150,7 @@ cfg_look_note() {
     "$LOOK_RST")  echo "asks first; undo brings them back" ;;
     "$LOOK_PRE")  echo "what you had before the toolkit set them" ;;
     "$LOOK_UND")  echo "one step back" ;;
-    "$LOOK_KPT")  echo "what you changed goes in your patch (~/.config/work-toolkit/patches), loaded after the preset" ;;
+    "$LOOK_KPT")  echo "what you changed goes in your patch (~/.config/unikit/patches), loaded after the preset" ;;
     "$LOOK_DRP")  echo "back to the plain preset (your patch is kept as <name>.dropped)" ;;
   esac
 }
