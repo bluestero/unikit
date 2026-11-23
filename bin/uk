@@ -126,7 +126,8 @@ trust_card() {   # dir
   c=""; for f in "$d"/tk/* "$d"/fk/*; do [[ -f $f ]] && c+="$(basename "$(dirname "$f")") ${f##*/}, "; done
   [[ -n $c ]] && printf '• kit subcommands: %s\n' "${c%, }"
   if [[ -r $d/components.sh ]]; then
-    n=$( (COMPONENTS=(); . "$d/components.sh" >/dev/null 2>&1; printf '%s' "${#COMPONENTS[@]}") )
+    # unikit's tables a layer adds to (NEEDS[id]=..., GROUP_ABOUT[name]=...) must be there first
+    n=$( (set +eu; COMPONENTS=(); declare -A NEEDS=() GROUP_ABOUT=(); . "$d/components.sh" >/dev/null 2>&1; printf '%s' "${#COMPONENTS[@]}") )
     printf '• setting up its %s part(s) runs its components.sh\n' "$n"
   fi
   if compgen -G "$d/claude/skills/*/" >/dev/null; then
