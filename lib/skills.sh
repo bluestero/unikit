@@ -42,7 +42,7 @@ sk_pick() {
   bash "$repo/lib/skills.sh" layout "$T"
   ui_fzf 'Claude skills' --no-input --delimiter=$'\t' --with-nth=1 <"$T/rows" \
       --footer=' ' --with-shell='bash -c' \
-      --preview="$cb preview '$T' {2}" --preview-window='right,40%,hidden,wrap' \
+      --preview="$cb preview '$T' {2}" --preview-window='right,40%,hidden,wrap-word' \
       --bind="ctrl-p:transform:$cb pane '$T'" \
       --bind="start:unbind(y,n)+transform:$cb header '$T'" \
       --bind="tab:transform:$cb tick '$T' {2} {n}" \

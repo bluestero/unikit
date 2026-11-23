@@ -401,7 +401,15 @@ ui_keys() {   # ui_keys <header text> [max divider width]
     while IFS= read -r line; do   # every hint: key, words, colours
       kc="$C_KEY" wc="$C_WORD"
       # "# text": a note (what marks in the list mean), grey, on its own above the keys
-      if [[ "$line" == '# '* ]]; then note+="${note:+$'\n'}$C_DIM${line#'# '}$C_RESET"; continue; fi
+      if [[ "$line" == '# '* ]]; then   # wrapped between words for the room it has
+        local wd nl="" ; local -a wds; read -ra wds <<<"${line#'# '}"
+        for wd in "${wds[@]}"; do
+          if [[ -n $nl ]] && (( ${#nl} + 1 + ${#wd} > room )); then note+="${note:+$'\n'}$C_DIM$nl$C_RESET"; nl=$wd
+          else nl+="${nl:+ }$wd"; fi
+        done
+        [[ -n $nl ]] && note+="${note:+$'\n'}$C_DIM$nl$C_RESET"
+        continue
+      fi
       if [[ "$line" == '!'* ]]; then   # a warning: one line, amber (! ) or red (!!)
         if [[ "$line" == '!!'* ]]; then line=${line#!!}; kc=$'\e[1;31m' wc=$C_RED
         else line=${line#!}; kc=$'\e[1;33m' wc=$C_YELLOW; fi

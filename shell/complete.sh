@@ -32,6 +32,12 @@ _work_complete_uk() {
   esac
 }
 
+# skills <name>: the skills' names (unikit's and each layer's)
+_work_complete_skills() {
+  [ "$COMP_CWORD" -eq 1 ] || return 0
+  command ls -1d "$_work_root_uk"/claude/skills/*/ "$_work_root_uk"/layers/*/claude/skills/*/ 2>/dev/null | sed 's|/$||; s|.*/||'
+}
+
 if [ -n "${ZSH_VERSION:-}" ]; then
   autoload -U +X bashcompinit 2>/dev/null && bashcompinit
 fi

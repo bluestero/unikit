@@ -99,7 +99,7 @@ def test_ctrl_p_opens_the_pane_right_then_below_then_closes_it(sb):
     t = start(sb, repo)
     assert "the alpha skill" not in t.text(), t.text()              # closed at first
     t.key("ctrl-p")
-    beside = lambda t: re.search(r"│ [–✓] (default|work)", t.cursor_line() or "")   # a pane line on the cursor's row
+    beside = lambda t: (t.line_with("beta") or "").split("beta", 1)[-1].count("│") >= 3   # the pane's two sides on beta's row
     t.wait(beside, what="the pane on the right, beside the rows")
     t.key("ctrl-p")
     t.wait(lambda t: not beside(t) and t.text().find("– default") > t.text().find("beta"),
@@ -173,4 +173,9 @@ def test_skills_ls_names_each_skills_layer_and_profiles(sb):
     p = subprocess.run([repo + "/bin/skills", "ls"], env=sb.env, cwd=sb.home, capture_output=True, text=True,
                        timeout=30, stdin=subprocess.DEVNULL)
     lines = [l.split() for l in p.stdout.splitlines()]
-    assert ["alpha", "team", "work"] in lines and ["beta", "team", "none"] in lines, p.stdout + p.stderr
+    assert ["alpha", "team", "◐", "work"] in lines and ["beta", "team", "–", "none"] in lines, p.stdout + p.stderr
+    p = subprocess.run([repo + "/bin/skills", "alpha"], env=sb.env, cwd=sb.home, capture_output=True, text=True,
+                       timeout=30, stdin=subprocess.DEVNULL)
+    lines = [l.split() for l in p.stdout.splitlines()]
+    assert ["about", "the", "alpha", "skill"] in lines and ["work", "✓", "has", "it"] in lines, p.stdout + p.stderr
+    assert ["default", "–", "not", "linked"] in lines, p.stdout
