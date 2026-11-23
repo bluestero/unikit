@@ -52,7 +52,8 @@ kit_ls() {
 }
 
 # The picker: enter runs the command. A plain command runs in the calling shell when the
-# kit's shell hook asked for it (so okcli and kx can change this terminal).
+# kit's shell hook asked for it (so a command that changes this terminal, like a profile or
+# context switch, still can).
 kit_pick() {
   if [[ ! -t 0 || ! -t 1 ]] || ! type -P fzf >/dev/null; then kit_ls; return; fi
   (( ${#TOOLS[@]} )) || { info "$KIT_EMPTY"; return 0; }

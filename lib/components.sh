@@ -117,7 +117,7 @@ component_state() {
 fn() { printf '%s_%s' "$1" "${2//-/_}"; }
 ver_lt() { [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" == "$1" ]]; }
 
-init_line="[ -f \"$repo/shell/init.sh\" ] && . \"$repo/shell/init.sh\"  # work toolkit (okcli, kx, twin, ctx)"
+init_line="[ -f \"$repo/shell/init.sh\" ] && . \"$repo/shell/init.sh\"  # work toolkit (unikit)"
 init_re='^\[ -f "[^"]*/shell/init\.sh" \] && \. "[^"]*/shell/init\.sh".*# work toolkit'
 
 # ---------------------------------------------------------------- bash ---
@@ -132,14 +132,14 @@ state_bash() {
   NOTE=""
   [[ -f "$rc" ]] || { STATE=missing; NOTE="no ~/.bashrc"; return; }
   if grep -qxF "$init_line" "$rc"; then STATE=installed
-  elif grep -qE "$init_re" "$rc"; then STATE=partial; NOTE="its line points at another folder"
+  elif grep -qE "$init_re" "$rc"; then STATE=partial; NOTE="its line is out of date (another folder, or an older one)"
   else STATE=missing; fi
 }
 install_bash() {
   local b tmp
   [[ -f "$rc" ]] && grep -qxF "$init_line" "$rc" && { ok "already there"; return; }
   if grep -qE "$init_re" "$rc" 2>/dev/null; then
-    ask "Point ~/.bashrc's unikit line at this folder?" || { skip; return; }
+    ask "Update ~/.bashrc's unikit line (this folder, the current form)?" || { skip; return; }
     dry && return
     b=$(backup "$rc"); tmp=$(mktemp)
     awk -v re="$init_re" -v l="$init_line" '$0 ~ re { if (!done) print l; done = 1; next } { print }' "$rc" >"$tmp"
@@ -537,7 +537,7 @@ ask_ws_folder() {
 }
 
 # ----------------------------------------------- what the tools run on ---
-# Programs from their releases (the layers' tools: starship, okcli's, kx's): the newest release for
+# Programs from their releases (what the layers' commands run on): the newest release for
 # this CPU, in ~/.local (no sudo). One that's already installed some other way (apt, brew,
 # by hand) counts and is left alone.
 # ver_of <program>: its version number; a part's ver_<program> (- as _) when --version isn't it
@@ -592,10 +592,10 @@ apt_drop() {
 }
 
 # -------------------------------------------------------------- claude ---
-# Claude Code reads its config from $CLAUDE_CONFIG_DIR (a layer's shell/init.sh may set it, hat per
-# folder), else ~/.claude. claude-skill links the layers' skills; a layer's Claude parts (bluetools'
-# start hook and PROD guard) use claude_each and claude_state too. They go in every profile:
-# ~/.claude, each hat profile (~/.claude-profiles/<name>) and $CLAUDE_CONFIG_DIR.
+# Claude Code reads its config from $CLAUDE_CONFIG_DIR (a layer may set it, or a folder's .envrc),
+# else ~/.claude. claude-skill links the layers' skills; a layer's Claude parts use claude_each and
+# claude_state too. They go in every profile: ~/.claude, each one in ~/.claude-profiles/<name> and
+# $CLAUDE_CONFIG_DIR.
 claude_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 claude_dirs() {   # every profile folder, one per line (none there yet: where claude will make one)
   local d

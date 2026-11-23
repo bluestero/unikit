@@ -1,5 +1,5 @@
-# Shared look and command rules for every toolkit command (okcli, kx, twin, ws,
-# k-bg, ctx). Sourced, not executed.
+# Shared look and command rules for every command, unikit's and its layers'. Sourced, not
+# executed.
 #
 # The command norm. Every tool uses these words for these jobs, and anything
 # else is an error (ui_unknown). Internal hooks for scripts start with __.
@@ -51,7 +51,7 @@ ui_unknown() {
   die "unknown command${3:+ or $3} '$2' · see: $1 help"
 }
 
-# A fix to run, shown after a problem: "expired → okcli refresh"
+# A fix to run, shown after a problem: "expired → <tool> refresh"
 ui_hint() { printf '%s→ %s%s' "$C_DIM" "$*" "$C_RESET"; }
 
 # the pink of gum's installer prompts: frame, title and prompt in bright magenta, the chosen row filled with it
@@ -60,7 +60,7 @@ UI_ASK_COLORS="pointer:16,prompt:13,label:13,border:13,fg+:16:bold,bg+:13"
 confirm() {
   local prompt="$1" default="${2:-y}" reply
   [[ -t 0 ]] || return 1   # never act on a default without a human to ask
-  # A small picker with the default on top; esc means no. (Inside a kx list,
+  # A small picker with the default on top; esc means no. (Inside a list that stays open,
   # questions go in the list's own header instead: lib/inplace.sh.)
   if command -v fzf >/dev/null && [[ -e /dev/tty ]]; then
     local yes="Yes" no="No" first second
@@ -270,7 +270,7 @@ ui_cols() {
 #   ├─────────────────────────┤
 #   │  line 2 …               │
 #   ╰─ footer ────────────────╯
-# The footer is for one fix that covers the whole box ("→ okcli refresh").
+# The footer is for one fix that covers the whole box ("→ <tool> refresh").
 ui_box() {
   local title="$1" right="${2:-}" rule="${3:-0}" foot="${4:-}" b="$C_LINE" r="$C_RESET" fw
   local -a lines=(); local line plain w=0 tw rw cols n i pad='  '
@@ -668,7 +668,7 @@ ui_cols_reorder() {
     { if (f) { $f = t[FNR]; print } else print t[FNR] }' "$d/t3" "$d/rows" >"$d/rows.new" && mv "$d/rows.new" "$d/rows"
 }
 
-# A key that changes what the rows show without closing the picker (kx's ctrl-d).
+# A key that changes what the rows show without closing the picker (a ctrl-d that adds a column).
 # The picker gets --live-rows=CMD (prints the raw table again) and a key bound
 # to a command that does its work, then prints `ui_live_reload <position>`:
 # the rows are laid out afresh, saved, and the picker reloads on the same row.
@@ -687,7 +687,7 @@ ui_live_onload() {   # start-position -> the --bind to pass
   printf '%s' "load:transform:f=\"\$UI_SORT_DIR/onload\"; if [ -s \"\$f\" ]; then cat \"\$f\"; : >\"\$f\"; else echo 'pos($1)'; fi"
 }
 
-# A message in the picker's footer that clears itself after 5 s (like the kx lists).
+# A message in the picker's footer that clears itself after 5 s (like the lists that stay open).
 # Used from a key's callback: prints the fzf action. ui_fzf sets up the rest.
 # $UI_TOAST_DIR/id is there while it shows (the cut-cell footer waits for it).
 ui_toast() {   # text
@@ -744,7 +744,7 @@ ui_sort_step() {
   # while sorted, fzf mustn't rank matches itself: typing filters, the order stays
   [[ "$was" == none && "$way" != none || "$was" != none && "$way" == none ]] && printf 'toggle-sort+'
   # unbind(load): a picker's load:pos(N) / select-all is for the first load only.
-  # A picker with --track (the kx lists) keeps the cursor on the same row through a
+  # A picker with --track (a list that stays open) keeps the cursor on the same row through a
   # reload, which would undo `first`: so tracking is off around this one reload.
   if [[ "$go" == stay ]]; then printf '%s' "$hdr+$re$foot"
   elif [[ -n "${UI_SORT_TRACK:-}" ]]; then printf '%s' "unbind(load)+$hdr+toggle-track+$re+first+toggle-track$foot"
@@ -823,7 +823,7 @@ ui_fzf() {
       local tf=0; (( tab )) && [[ "$nth" =~ ^[0-9]+$ ]] && tf=$nth
       UI_TABLE_FIELD=$tf print_table 3 "$(ui_pick_width)" <"$in/raw" >"$in/rows"
     else mv "$in/raw" "$in/rows"; fi
-    # a title row laid out before (twin, a list's own layout) and not coloured yet
+    # a title row laid out before (a command's or a list's own layout) and not coloured yet
     if [[ -n $UI_TABLE_TITLES && -n $C_CYAN && -f $in/rows ]] && ! head -1 "$in/rows" | grep -q $'\e\['; then
       local tf=0; (( tab )) && [[ "$nth" =~ ^[0-9]+$ ]] && tf=$nth
       LC_ALL=C awk -F '\t' -v OFS='\t' -v f="$tf" -v on="$C_CYAN$C_BOLD" -v off="$C_RESET" "$_UI_AWK"'
@@ -885,7 +885,7 @@ ui_fzf() {
     if [[ -s "$in/cells" ]]; then
       # the cut cell under the cursor, whole, under the list; the layout wrote $in/full
       # (key: the row as shown; fields: one per column, empty when not cut). Not in a
-      # picker with a footer of its own (the kx lists' status line).
+      # picker with a footer of its own (a list's status line).
       if (( ! footer )); then
         cat >"$in/footer.sh" <<'FOOTER'
 c=$(cut -d' ' -f1 "$UI_SORT_DIR/state"); K="$1" awk -F '\036' -v c="${c:-1}" '$1 == ENVIRON["K"] { print $(c + 1); exit }' "$UI_SORT_DIR/full" 2>/dev/null

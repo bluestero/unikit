@@ -45,7 +45,7 @@ FAKES = {
     "ssh": "exit 255",
     "ssh-add": "exit 1",
     "pgrep": "exit 1",                                   # no IDE windows open
-    "code": "exit 0",                                    # an IDE for ws
+    "code": "exit 0",                                    # an IDE (bluetools' ws)
     # kubectl: `config` is the real one on the scratch kubeconfig; the rest is canned
     "kubectl": textwrap.dedent(r'''
         case "$1" in

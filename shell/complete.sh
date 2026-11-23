@@ -1,5 +1,5 @@
-# Tab completion for every toolkit and layer command that has no completer of its
-# own (okcli, kx, twin, ws, tk and k-theme have theirs). The first word comes from
+# Tab completion for every unikit and layer command that has no completer of its
+# own (tk has its own; a layer may register its commands'). The first word comes from
 # the command's help page (the lines "<cmd> <word> ..."), so it never falls behind.
 # A command adds the words that come later with a function _work_complete_<cmd>
 # (- as _): it reads COMP_WORDS / COMP_CWORD and prints one word per line (spaces

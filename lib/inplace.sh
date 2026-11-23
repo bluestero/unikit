@@ -1,6 +1,6 @@
 # Questions inside a list that stays open (CLAUDE.md: never leave the picker to ask).
-# For a ui_fzf list whose keys run callbacks that print fzf actions (hat does this;
-# kx has its own, in bluetools' lib/kx/list.sh). Needs fzf 0.63+.
+# For a ui_fzf list whose keys run callbacks that print fzf actions (uk, the kits' configs and
+# skills lists, and layers' commands use it). Needs fzf 0.63+.
 #
 # The list keeps its state in a folder, $IP (one file per value: ip_get / ip_set).
 #   mode       list (default), confirm, ask, or the list's own modes
@@ -18,8 +18,8 @@
 # In a sortable picker (ui_fzf --sortable) the question's header goes through
 # ui_sort_keys, so the column titles stay under it and a resize wraps the keys again.
 # A list can bring its own storage and extras by defining, before it asks:
-#   ip_get <name> / ip_set <name> <value>   where the state lives (kx's lists keep it in their vars file)
-#   ip_top                                  a line shown above every question (kx: the PROD badge)
+#   ip_get <name> / ip_set <name> <value>   where the state lives (a list may keep it in a file of its own)
+#   ip_top                                  a line shown above every question (e.g. a PROD badge)
 #   IP_MAX                                  with a preview pane: the width the divider may reach
 # A question's actions bind y and n; the list's start should unbind them
 # (--bind start:unbind\(y,n\)) and its way back rebind nothing: ip_back does that part.

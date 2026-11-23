@@ -1,89 +1,67 @@
 # unikit
 
-A shell toolkit for work: AWS profiles, Kubernetes, Twingate, workspaces, a themed kitty, all behind one front door (`tk`). Your company's own parts (repos, settings, extra commands) come as a [layer](#layers) from their own repo.
+The base of a shell toolkit, and nothing more: `uk` manages the layers, and the two kits, `tk`
+(what you work with) and `fk` (how it looks), are filled by them. A **layer** is a repo of its own
+that brings commands, installer parts, shell settings and Claude skills; unikit finds them by
+their place and never changes for one. Anyone can write one, for either kit or both
+([docs/LAYERS.md](docs/LAYERS.md)).
 
-Every command speaks the same words: `<tool>` picker, `<tool> <name>` switch, `ls`, `status`, `current`, `default [name]`, `off`, `doctor`, `help` (see the top of `lib/ui.sh`). Anything else is an error.
+| Layer | Kit | What it brings |
+|---|---|---|
+| [bluetools](https://github.com/bluestero/bluetools) | tk | `okcli` (Okta AWS profiles), `kx` (Kubernetes per terminal), `twin` (Twingate), `ws` (workspaces in your IDE), `hat` (Claude, GitHub and AWS per folder), `ctx` (where am I), Claude Code's start hook and PROD guard, the `bluetools` skill |
+| [bluefeels](https://github.com/bluestero/bluefeels) | fk | kitty (config, background, theme, icons), the shell (starship, zsh, keys, btop, yazi), the GNOME desktop (rofi launcher, app keys, extensions and their looks), Claude guidelines |
+| your company's | either | its settings, team repos and commands (e.g. airpr: AirPR's containers, Postman, repos) |
 
-| Tool | What it does |
+| Command | What it does |
 |---|---|
-| `tk` | The front door: `tk` picks and runs any toolkit command, `tk ls` lists them, `tk doctor` (every check of its commands and parts in one box), `tk install` / `tk uninstall` from anywhere, `tk configs` (and `fk configs`, for its parts) switches starship, btop, rofi, kitty, readline and the yazi keys between the toolkit's preset, the app's own default, what you had before, or one step back (the app stays installed; "edited preset" means you changed the toolkit's copy, which is a link into this repo); "Edit my patch" keeps your own changes in `~/.config/work-toolkit/patches/`, never touched by the toolkit and read after the preset so they win (kitty, rofi and readline include it; starship gets the two merged into `~/.local/state/work-toolkit/starship.toml`; btop gets a settings file of its own, so changes made in its menu stay out of the repo and "Keep these changes as my patch" saves them). |
 | `uk` | unikit, the base under the two kits (`tk`, `fk`): `uk status` shows the folder, the layers, how much of each kit is set up and the version, `uk layers` lists the [layers](#layers) (enter: set up or remove its parts, remove it; alt-a adds one; alt-i shows what each one is), `uk doctor` checks the whole (the commands are unikit's, each layer is well formed and at the commit you trusted, no two bring the same part or command), `uk layer check <dir>` checks a layer you're making before you push it, `uk update` pulls what's new in unikit and each layer (see Updates), `uk version` shows unikit's version and each layer's. The long names `unikit`, `toolkit` and `feelkit` (for `uk`, `tk`, `fk`) are linked by the commands part, only where no other program has the name. |
-| `okcli` | Okta AWS profiles: picker, refresh-all, per-shell switch, global default, repo pins. Comes from the bluetools layer (its `docs/okcli.md`). |
-| `kx` | Kubernetes contexts **per shell** (switching in one terminal never moves another), namespaces, global default, EKS contexts linked to okcli profiles. Also a friendly front to kubectl: `kx pods`, `why`, `logs`, `shell`, `deploys`, `configs`, `secrets`, `services`, `forward`, `events`, `top`, `get` (see `kx help`). |
-| `twin` | Twingate exit nodes: picker, `twin gb`, `twin off`. Codes come from the node names. |
-| `ws` | Open workspaces in your IDE. Picker: ↑↓ pick, ←→ switch IDE (● = already open there, gets focused), tab ticks several, ctrl-x closes the window (needs `window-calls`). `ws <name>`, `ws close <name>`, `ws ls`, `ws default [ide]`, `ws edit` (your list: `~/.config/ws/workspaces`, which can include your layers' shared lists). |
-| `hat` | Which Claude profile, GitHub account and AWS profile a folder uses, for every repo under it. `hat` is one table of every folder wearing a hat, edited in place: ↑↓ folder, alt-←→ column, ←→ change the cell (tab searches the choices beside the table), enter saves them all; alt-a adds a folder, ctrl-x takes its hats off, alt-c / alt-g list the Claude profiles and GitHub accounts (add, remove). Questions open inside the table. `hat set ~/code claude=personal github=me`, `hat ls`, `hat show`, `hat exec -- <cmd>` (one command as the folder's hat: its AWS pin, and `gh` signed in as its account; for scripts and AI agents. In your shell `gh` already follows the folder's account by itself), `hat github add <account>` (added only once GitHub knows its key; then it offers to sign the `gh` command in as it too), `hat github login <account>` (that `gh` sign-in on its own; in the accounts list, enter does it without leaving the list and the GH column flags accounts without it). `ws ls` shows each workspace's. See [Hats](#hats-claude-github-and-aws-per-folder). |
-| `ctx` | One screen: AWS profile, cluster/namespace, Twingate, defaults and repo pin. `ctx plain` gives the same as labelled lines, (what Claude Code gets). Both show the folder's hat too: its GitHub account (flagged when git's email or `gh` doesn't match it) and Claude profile. |
-| `k-icon` | Kitty app icon: picker, `k-icon <name>`, `k-icon ls`. |
-| `k-bg` | Kitty background picker: the image previews live as you move through the list; ←/→ image brightness, shift+←/→ opacity (live); Enter keeps it, Esc puts the old one back. `k-bg <name>` / `k-bg off` / `k-bg bright 40` / `k-bg opacity 85` / `k-bg ls` / `k-bg status` / `k-bg accents on\|off`. Images live in `bluefeels/backgrounds/`. |
-| `k-theme` | Kitty colour theme picker with two tabs, ←/→ to switch: **Mine** (your short list, `~/.config/k-theme/mine`, everyone has their own; it always opens here) and **All** (every other theme: yours plus kitty's 400+). Colours preview live as you move; type to search. `ctrl-a` in All moves a theme to Mine, `ctrl-d` in Mine moves it back (Tab ticks several first). `ctrl-f` shows all → only dark → only light, in both tabs (your own themes are sorted by their background colour). Enter keeps the theme, Esc puts the old one back. Import a downloaded theme: drop the `.conf` in `~/.config/kitty/themes/` (or the team's `bluefeels/themes/`), or `k-theme add <file or URL> [name]`. `k-theme add <name>` / `rm <name>` / `<name>` / `default` / `ls [all]` / `status` / `update`. Only colour lines are taken from a theme, and k-bg accents still win for the cursor, selection and tabs. The tabs need fzf 0.60+ (`./install.sh fzf`); older fzf gets one list. |
-| starship | `starship/starship.toml`: git (plus the GitHub account when it isn't your default), Python virtualenv, k8s context/namespace, AWS profile and expiry, loud **PROD** markers. |
+| `tk`, `fk` | The two kits, siblings with the same words: `<kit>` picks and runs any of its commands, `<kit> ls` lists them (what each does, its layer, ready or not), `<kit> install` / `<kit> uninstall` set up and remove its parts, `<kit> doctor` checks its commands and parts in one box, `<kit> help` shows it all, and a layer's `<kit>/<name>` is `<kit> <name>`. `<kit> configs` switches each preset its parts bring between the layer's preset, the app's own default, what you had before, or one step back (the app stays installed; "edited preset" means you changed the layer's copy, a link into its repo); "Edit my patch" keeps your own changes in `~/.config/work-toolkit/patches/`, never touched by the toolkit and read after the preset so they win. A kit with no layers says so ("Nothing here yet. Add a layer: uk layers"). |
 
-## Set it up on your machine (teammates)
+## Set it up on your machine
 
-For Ubuntu with GNOME. About 10 minutes; nothing changes without asking first. On other systems (Arch, KDE, macOS) the installer checks each part against the machine and marks what can't run there `⊘ not supported here`, with the reason (needs GNOME, needs apt, Linux only for now); those can't be ticked.
+For Ubuntu with GNOME (bluefeels' desktop parts need it; unikit and bluetools need only bash and
+Linux). Nothing changes without asking first. On other systems the installer checks each part
+against the machine and marks what can't run there `⊘ not supported here`, with the reason.
 
-**1. Have git and curl.** The one command below needs them (`sudo apt install git curl`).
-Everything the tools run on comes with the installer, the latest release for your CPU, in
-`~/.local` with no sudo: fzf, starship, direnv, okta-aws-cli and the AWS CLI v2 (okcli),
-kubectl (kx). One you already have is used as it is. The one thing to install yourself is the
-[Twingate client](https://www.twingate.com/download), for `twin`.
+**1. Have git and curl** (`sudo apt install git curl`). Whatever the layers' tools run on comes with
+their parts, the latest release for your CPU, in `~/.local` with no sudo where it can.
 
-**2. Get it.** One command: it clones the toolkit into `~/.local/share/unix-toolkit` (or updates
-it if it's there) and adds the `tk` command. Nothing else changes yet.
+**2. Get it.** One command: it clones unikit into `~/.local/share/unix-toolkit` (or updates it if
+it's there), adds the `tk` command, and adds the layers you name. Nothing else changes yet.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unikit/main/bootstrap.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unikit/main/bootstrap.sh) --layer bluetools --layer bluefeels
 ```
 
-`--dir <folder>` puts the toolkit elsewhere. `--layer bluefeels` (or `--layer <git URL>` for any other
-layer; repeat it for more) adds a layer in the same go.
-
-Or step by step, to see what each part does (over SSH: needs an SSH key on your GitHub account,
-`ssh -T git@github.com` checks it). The folder can be anywhere; the installer records where it is.
+`--dir <folder>` puts it elsewhere. `--layer <name or git URL>` adds a layer (`bluetools` and
+`bluefeels` by name; repeat it for more). Or step by step (over SSH: needs an SSH key on your
+GitHub account, `ssh -T git@github.com` checks it):
 
 ```bash
-git clone git@github.com:bluestero/unikit.git ~/.local/share/unix-toolkit   # the toolkit
-mkdir -p ~/.local/bin
-ln -sfn ~/.local/share/unix-toolkit/bin/tk ~/.local/bin/tk                         # the tk command
-~/.local/bin/tk install                                                            # step 3 below
+git clone git@github.com:bluestero/unikit.git ~/.local/share/unix-toolkit
+mkdir -p ~/.local/bin && ln -sfn ~/.local/share/unix-toolkit/bin/tk ~/.local/bin/tk
+~/.local/share/unix-toolkit/bin/uk layer add git@github.com:bluestero/bluetools.git
 ```
 
-Plain `tk` works once you open a new terminal after installing. Layers are added the same way,
-over SSH: `uk layer add git@github.com:<owner>/<repo>.git`.
+Layers are added the same way later: `uk layer add <git URL>`, or alt-a in `uk layers`. It shows
+what of the layer runs here, asks, and offers to set up its parts.
 
 **3. Install.** A tab per group of parts. Nothing is ticked: tick what you want with Tab, then
 Enter twice (to the summary, then set up). Each change still asks first (Enter = yes).
 
 ```bash
-tk install
+tk install      # unikit's own parts and the tk layers' (bluetools)
+fk install      # the fk layers' (bluefeels)
 ```
 
-Your company has a [layer](#layers)? `uk layer add <its git URL>` (or alt-a in `uk layers`) shows what of it runs here, asks, and offers to set up its parts.
-
-**4. Open a new terminal and check.** `uk status` shows how much of each kit is set up; `tk doctor` and `fk doctor` list anything left, each with the command that fixes it.
-
-```bash
-uk status
-tk doctor
-```
-
-**5. First run of each tool:**
-
-| Command | Does |
-|---|---|
-| `okcli sync` | sign in to Okta once, tick the AWS account and role pairs to keep (your Okta org comes from your layer, or `export OKTA_AWSCLI_ORG_DOMAIN=… OKTA_AWSCLI_OIDC_CLIENT_ID=…`) |
-| `okcli default <profile>` | what new terminals start on (pick a dev one) |
-| `kx sync` | find the EKS clusters your AWS roles can see, tick which to keep (unticked ones are skipped from then on) |
-| `kx ignore` | what `kx sync` skips; `kx ignore <context\|cluster\|account>` hides one, `kx unignore <name>` brings it back |
-| `kx default <context>` | the cluster new terminals start on |
-| `ws edit` | your workspace list: add your own folders and repos (see below) |
-| `ctx` | check what this terminal points at |
-| `tk` | everything else: a picker of every command |
+**4. Open a new terminal and check.** `uk status` shows how much of each kit is set up; `tk doctor`
+and `fk doctor` list anything left, each with the command that fixes it. Each layer's README says
+how to start with its tools.
 
 **Your workspace list** is `~/.config/ws/workspaces`, outside the repo, so it's yours to edit
-(`ws edit`) and updates never change it. `ws` opens what's in it, and `tk install repos` clones
-any listed repo you don't have yet. A line `NAME=folder` sets a folder the paths below can use
+(bluetools' `ws edit`) and updates never change it. bluetools' `ws` opens what's in it and its
+`repos` part clones any listed repo you don't have yet; any layer reads its variables (`ws_var NAME`,
+`lib/workspaces.sh`). A line `NAME=folder` sets a folder the paths below can use
 as `$NAME`, and `@<layer>` brings in a layer's shared list:
 
 ```
@@ -128,11 +106,11 @@ Copying a folder into `layers/` works too (no updates then). Everything in a lay
 |---|---|
 | `bin/` | on PATH in every shell, after unikit's own (a command unikit has stays unikit's; `uk doctor` names a layer that tries) |
 | `tk/`, `fk/` | the kits' subcommands, not on PATH: `tk/<name>` is `tk <name>`, `fk/<name>` `fk <name>` (the kit's own words, `ls`, `install`, `uninstall`, `help`, stay the kit's) |
-| `shell/init.sh` | sourced by bash and zsh before the tools load: settings they read (`OKTA_AWSCLI_ORG_DOMAIN`, `OKTA_AWSCLI_OIDC_CLIENT_ID`, `OKCLI_NAMING_DEFAULT`, `KX_ALIAS_RULES`), aliases |
+| `shell/init.sh` | sourced by bash and zsh, layers by name (a layer's `requires` first): its settings, aliases, prompt hooks, completion |
 | `components.sh` | installer components (`COMPONENTS+=(…)` and the usual functions; `group_<id>` names its installer tab, `GROUP_ABOUT[<group>]="…"` says what a new group is). A part name unikit or another layer already has leaves this layer's parts out. `touches_<id>` says what a part changes (a file, or `dconf:/a/path/`): before it changes something another layer's part set up, the installer asks: skip it (the default, and what `--yes` does), replace, or add both (when the part has `addboth_<id>`) |
 | `tools` | commands for the kit's picker and help (`tk ls`, `tk`; `fk`): `name\|group\|what it does\|program it needs[\|kit]`; without the kit, the layer's |
 | `requires` | the layers it needs, one name per line. A layer needs only unikit and itself unless it says so here; `uk doctor` and `uk layer add` say when one isn't there |
-| `workspaces` | a shared `ws` list; `@<name>` in your own list brings it in |
+| `workspaces` | a shared workspace list (folders, the GitHub repo to clone, `NAME=folder` variables); `@<name>` in your own list brings it in |
 | `claude/skills/<skill>/` | Claude Code skills, linked by the `claude-skill` component |
 | `kit` | one line, `tk` or `fk`: the kit this layer's parts go to unless a part says otherwise (`kit_<id>() { echo fk; }`; `tk` without the file). `tk install` sets up the tk parts and `fk install` the fk parts, from the toolkit and every layer, and each leaves the other's out; `uk status` shows both ("6 of 11 parts set up → fk install") |
 
@@ -144,42 +122,26 @@ they need from the machine (`requires_<id>`: `gnome`, `apt`, `linux`) and list t
 
 ### Two kits: tk and fk
 
-`tk` (toolkit) is what you work with; `fk` (feelkit) is how it looks. They're siblings with the
-same words: `<kit>` opens a picker of its commands, `<kit> ls` lists them (what each does, its
-layer, ready or not), `<kit> install` / `<kit> uninstall` set up and remove its parts, `<kit> configs`
-switches each preset its parts bring (the toolkit's, the app's default, what you had before, undo, your
-patch on top), `<kit> doctor` checks its commands and parts (each part can add its own checks), `<kit> help` shows it all, and a layer's `<kit>/<name>` is `<kit> <name>`. Their commands, subcommands and
-parts come from layers; a kit with none says so ("Nothing here yet. Add a layer: uk layers").
-`tk` still has unikit's own tools until they move to bluetools.
-
-**bluefeels** is one such layer, optional: the kitty background, theme, accents and icons (`k-bg`,
-`k-theme`, `k-icon`), where new windows open, and the GNOME presets (Dash to Panel, Dash2Dock,
-Vitals, Blur my Shell, rounded corners, no animations), with `fk configs` (their presets: re-apply, reset, put back, undo, your patch) and `fk dash2dock`.
-The toolkit works without it: rofi and btop just keep their default colours.
-
-It lives in its own repo, [bluefeels](https://github.com/bluestero/bluefeels):
-
-```bash
-uk layer add https://github.com/bluestero/bluefeels.git bluefeels   # clones into layers/bluefeels, asks, offers to set it up
-fk install                                                            # the fk installer: Kitty looks, GNOME looks, Summary
-fk uninstall                                                          # removes the fk parts, your own settings put back
-```
+`tk` (toolkit) is what you work with; `fk` (feelkit) is how it looks. A layer's parts go to the kit
+in its `kit` file (`tk` without one), or a part names its own (`kit_<id>`). `tk install` sets up the
+tk parts and `fk install` the fk parts, from unikit and every layer, and each leaves the other's out;
+`uk status` shows both.
 
 ## Install / uninstall
 
 ```bash
 ./install.sh ls          # what's installed
 ./install.sh             # a tab per group: tick what to set up, then one question per change (Enter = yes)
-./install.sh zsh         # just one part
+./install.sh fzf         # just one part (fk install <part> for an fk one)
 ./install.sh --dry-run   # preview; --details also shows diffs
 ./uninstall.sh           # checklist of what's installed; pick what to remove
 ./install.sh --plain     # never use or offer gum
 ```
 
-The installer opens on a tab per group (Recommended, Kitty, Optional, Desktop, Cloud, Workspaces,
-Claude Code, then each layer's own; the fk kit's parts, bluefeels' among them, have their own: `fk install`). A tab says in one line what the group is, then lists its parts
+The installer opens on a tab per group (unikit's Recommended and Claude Code, then the groups its
+layers' parts name; the fk kit's parts have their own: `fk install`). A tab says in one line what the group is, then lists its parts
 with their state (installed, partly, not installed, needs <part>, not supported here) and what each gets you;
-a part that needs another one (yazi-keys needs yazi) can still be ticked: ticking it ticks that one too,
+a part that needs another one (bluefeels' yazi-keys needs yazi) can still be ticked: ticking it ticks that one too,
 and the run sets it up first. Not supported here means this machine can't run it (no GNOME, say); the
 footer shows what the part under the cursor touches on disk. ←/→ change tabs, Tab ticks,
 Enter goes to the **Summary** tab: everything that will be set up, with what `--dry-run` prints for the
@@ -197,110 +159,48 @@ the backup back. Log: `~/.local/state/work-toolkit/setup.log`.
 
 ### Going back to your own setup
 
-The toolkit never overrides your own aliases: bluefeels' `shell/common.sh` only adds an alias you don't
-have yet (yours from `~/.bashrc` or `~/.zshrc` wins).
 The first time the installer changes something of yours, it keeps what you had in
-`~/.local/state/work-toolkit/originals/` (once, never overwritten). Uninstalling puts back:
+`~/.local/state/work-toolkit/originals/` (once, never overwritten). Uninstalling unikit's parts puts back:
 
 | What | Put back on uninstall |
 |---|---|
-| `~/.bashrc` | the lines the installer took out go back where they were; whatever you edited since stays |
-| `~/.inputrc`, `starship.toml`, `kitty.conf` | your own file (they were links to the repo) |
-| `~/.zshrc`, `~/.zprofile`, `~/.zshenv` | only the toolkit's marked block is removed |
-| default terminal, Ctrl+Alt+T | what you had set before (else the system default) |
-| login shell | the one you had before (else bash) |
-| Claude Code `settings.json` | only the toolkit's hook entry is removed |
+| `~/.bashrc` | only unikit's line is removed |
+| `~/.zshrc`, `~/.zprofile` | only unikit's marked block is removed |
+| `fzf` | apt's again |
+| Claude Code skills | only the links to the layers' skills are removed |
 
-bluefeels' parts (kitty backgrounds, themes, accents, icons and the GNOME looks) are in
-[its own README](https://github.com/bluestero/bluefeels#parts) and set up with `fk install`.
+Each layer's README says what its own parts put back.
 
-| Component | What it sets up |
+| unikit's parts | What it sets up |
 |---|---|
-| `bash` | `~/.bashrc` gets one line loading `shell/init.sh` (and so every layer); uninstall takes it out. bluefeels' `bashrc-tidy` tidies the rest |
-| `direnv` | latest direnv from GitHub (sha256-checked) in `~/.local/bin`, for `okcli pin`; the shell setup hooks it in. Skipped if you already have one; uninstall only removes the toolkit's |
-| `commands` | `uk`, `tk`, `fk` (for now also `ws`) and every layer's `bin/` commands in `~/.local/bin`; a name another program has is left alone |
-| `fzf` | fzf 0.74.5 from GitHub (checksum-checked) in `~/.local/bin`, ahead of Ubuntu's 0.44. Every picker then shows where you are (`12/426`, `3/17 of 426` while searching), and k-theme gets its tabs. Uninstall goes back to apt's |
+| `bash` | `~/.bashrc` gets one line loading `shell/init.sh` (and so every layer); uninstall takes it out |
 | `zsh-hook` | `~/.zshrc` gets one managed block loading `shell/init.sh` (like bash's line); `~/.zprofile` one reading `~/.profile` |
-| `okta-aws-cli` | latest okta-aws-cli from GitHub (sha256-checked) in `~/.local/bin`, for `okcli`. Skipped if you already have one |
-| `aws-cli` | latest AWS CLI v2 from AWS (its own installer) in `~/.local/aws-cli`, `aws` in `~/.local/bin`, for `okcli whoami` and kx's EKS sign-in. Needs unzip |
-| `kubectl` | latest stable kubectl from dl.k8s.io (sha256-checked) in `~/.local/bin`, for `kx` |
-| `eks-clusters` | Runs `kx sync` (after `okcli sync`): tick the AWS accounts, then the EKS clusters you want. Unticked ones go in `~/.config/kx/ignore`. Skipped if you already have contexts. |
-| `twingate` | the Twingate client, for `twin`: Twingate's own installer (adds its apt source; sudo), then `sudo twingate setup` once. `twin` offers it when it isn't installed |
-| `gh` | latest GitHub CLI from GitHub (sha256-checked) in `~/.local/bin`, for `hat`'s GitHub sign-ins. Skipped if you already have one; `hat` offers it when it's missing (in the panel, it installs in the background and goes on to the sign-in) |
-| `clipboard` | apt `wl-clipboard` (`xclip` on X11), so `hat` can copy keys and sign-in codes. Skipped if either is there |
-| `zed` | Zed from its own installer in `~/.local` (no sudo), for `ws`. `ws` offers it when no IDE is installed |
-| `vscode` | VS Code from Microsoft's .deb (apt, sudo; it adds Microsoft's apt source), for `ws` |
-| `repos` | Checks `ssh -T git@github.com`, then clones the repos in your workspace list that are missing: your layers' shared lists plus your own (checklist, all ticked). Creates your list (`~/.config/ws/workspaces`) if needed. Never deletes clones. |
-| `claude-skill` | Links each layer's skills (`claude/skills/<name>`; bluetools has `bluetools`) into Claude Code's skills (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), so Claude knows okcli, kx, ctx and the rest in every repo: run AWS and kubectl through `okcli exec` / `kx exec` / `direnv exec`, and ask before prod changes or defaults. In a terminal it's a picker: the skills (their layer, which profiles have them; ✓ in every profile, ◐ in some), then which profiles get them; alt-g picks exact profile/skill pairs instead, and unticking one that's there removes it (asked first, default No) |
-| `claude-hook` | Adds a SessionStart hook to Claude Code's `settings.json` that runs `ctx plain`, so every session starts knowing the AWS profile (and if it's PROD), the repo pin and the cluster. Only that one entry is added or removed; the rest of the file is kept |
-| `claude-guard` | Adds a PreToolUse hook for Bash (`tk __guard`, bluetools' `tk/__guard`): Claude Code asks you first before a command that changes something on a PROD AWS profile or Kubernetes context, or that runs aws / kubectl without naming one while the inherited one is PROD; it also tells Claude when a session has under 15 minutes left. Anything else goes through the normal permission flow |
-
-## Hats: Claude, GitHub and AWS per folder
-
-Not an installer step: set it up when you need it, with `hat`.
-
-| | Where it goes | Covers |
-|---|---|---|
-| Claude profile | `export CLAUDE_CONFIG_DIR=…` in the folder's `.envrc` (direnv); profiles are `~/.claude-profiles/<name>` | everything under the folder |
-| AWS profile | `export AWS_PROFILE=…` in the `.envrc`, the same line `okcli pin` writes | everything under the folder |
-| GitHub account | `[includeIf "gitdir:<folder>/"]` in `~/.gitconfig` → `~/.config/hat/github/<account>.gitconfig` | every repo under the folder |
-
-A GitHub account is its commit name and email plus its SSH key. Its own small ssh config
-offers only that key to GitHub, so plain `git@github.com:` remotes sign in as that account;
-the agent still holds it, so a key with a passphrase asks once, as usual, and every other
-host reads your own `~/.ssh/config`. An account is added only when `ssh -T git@github.com`
-with its key answers with its name. `.envrc`
-files hat writes start with `source_up_if_exists`, so a repo's own `.envrc` doesn't drop its
-parent folder's hat. A hat on a folder inside another one wins there.
-
-`hat` lists every folder wearing a hat, however it got it (hat, `okcli pin`, or an `.envrc`
-you wrote). In `hat ls` and `ws ls`: `↑` from a parent folder, `⇄` set in the repo itself
-(its own git config), `–` the default.
-
-## Pin, switch, default (AWS and Kubernetes work the same way)
-
-| Level | AWS | Kubernetes | Scope |
-|---|---|---|---|
-| pin | `okcli pin shop-dev` | — | this repo (direnv `.envrc`) |
-| switch | `okcli shop-dev-ro` | `kx shop-dev`, `kx ns kube-system` | this shell only |
-| default | `okcli default shop-dev` | `kx default shop-dev` | new terminals |
-
-Making a prod profile/cluster the default asks for confirmation. Pickers open on a non-prod entry.
-
-## First run with kx
-
-```bash
-okcli sync              # every account+role you have, named <account>-<role>; tick and save
-kx sync                 # tick accounts -> finds their EKS clusters -> tick which to keep
-                        # (unticked accounts/clusters go in ~/.config/kx/ignore and are skipped next time)
-kx tidy                 # short names, link each cluster to its eks-<cluster>-read/admin role
-kx default shop-dev     # global default off prod
-kx doctor
-```
-
-Changing your mind later: run `kx sync` again (untick an added cluster to remove it, tick an
-ignored one to add it back), or `kx ignore shop-poc` / `kx ignore <account>` / `kx unignore <name>`,
-`ctrl-x` in the `kx` picker, `kx rm <context>` (remove, but let sync offer it again), or edit the
-list with `kx ignore edit`.
-
-Linked contexts authenticate with their own AWS profile (`AWS_PROFILE` in the kubeconfig
-exec credentials), so `kubectl` on `shop-prod` uses `prod-ro` even while your shell is on
-`shop-dev`. Change a link with `kx link <ctx> <profile>`.
+| `commands` | `uk`, `tk`, `fk` and every layer's `bin/` commands in `~/.local/bin` (for scripts and other programs); the long names `unikit`, `toolkit`, `feelkit` too; a name another program has is left alone |
+| `fzf` | fzf 0.74.5 from GitHub (checksum-checked) in `~/.local/bin`, ahead of Ubuntu's 0.44. Every picker then shows where you are (`12/426`, `3/17 of 426` while searching), and bluefeels' k-theme gets its tabs. Uninstall goes back to apt's |
+| `claude-skill` | Links each layer's skills (`claude/skills/<name>`) into Claude Code's skills (`$CLAUDE_CONFIG_DIR`, else `~/.claude`, and every profile in `~/.claude-profiles`). In a terminal it's a picker: the skills (their layer, which profiles have them; ✓ in every profile, ◐ in some), then which profiles get them; alt-g picks exact profile/skill pairs instead, and unticking one that's there removes it (asked first, default No) |
 
 ## Layout
 
 ```
-bin/tk                      the toolkit's front door (tk)
+bin/uk, bin/tk, bin/fk      the base and its two kits (lib/kit.sh: their shared words and pages)
 lib/ui.sh                   shared look + command rules for every command (box, help, colours, fzf)
-lib/setup.sh, components.sh install/uninstall plumbing and the component list
-lib/platform.sh             OS, distro, package manager, GNOME? (components.sh `requires_of` says what each part needs)
+lib/inplace.sh              questions inside a list that stays open
+lib/setup.sh, components.sh install/uninstall plumbing, unikit's parts and the helpers layers use
 lib/layers.sh               what a layer can hold; layers/ (gitignored) holds them
+lib/configs.sh              <kit> configs: the presets the kit's parts bring
+lib/workspaces.sh           the workspace list (yours plus the layers' shared ones)
+lib/platform.sh             OS, distro, package manager, GNOME? (requires_of says what each part needs)
 shell/init.sh               the one file bash and zsh load (the layers, then tk's hook and completion)
-install.sh / uninstall.sh   set up / remove, per component
-bootstrap.sh                the one-command download (clone or pull, add the tk command)
+install.sh / uninstall.sh   set up / remove, per part
+bootstrap.sh                the one-command download (clone or pull, add the tk command, add layers)
+docs/                       LAYERS.md (writing a layer) and layer-template/
 tests/                      kept tests (see below)
 ```
 
 ## Tests
 
-`tests/run.sh` drives the pickers in a pseudo-terminal, with a scratch HOME and fake system commands, so it never touches your settings, cloud or cluster (needs `uv`). Add a name to run one file of `tests/cases/` (e.g. `tests/run.sh kx`). `tests/run.sh speed` times keys and start-up against the budgets in `tests/cases/speed.py`.
+`tests/run.sh` drives the pickers in a pseudo-terminal, with a scratch HOME and fake system commands,
+so it never touches your settings, cloud or cluster (needs `uv`). It runs unikit's `tests/cases/` and
+each layer's `layers/<name>/tests/cases/`; add a name to run one file (e.g. `tests/run.sh uk`).
+`tests/run.sh speed` (and a layer's `speed_<name>`) times keys and start-up against the budgets in
+`tests/lib/budget.py`.

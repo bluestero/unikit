@@ -7,9 +7,10 @@
 # puts the tk command in ~/.local/bin. Nothing else changes: `tk install` then
 # shows the checklist. --dir <folder> puts the toolkit somewhere else.
 #
-# --layer <name or git URL> also adds a layer (repeat it for more): bluefeels (a look:
-# kitty and GNOME) by name, any other layer by its git URL. Example:
-#   bash <(curl -fsSL .../bootstrap.sh) --layer bluefeels
+# --layer <name or git URL> also adds a layer (repeat it for more): bluetools (the work
+# tools: okcli, kx, twin, ws, hat, ctx) and bluefeels (a look: kitty, the shell, GNOME) by
+# name, any other layer by its git URL. Example:
+#   bash <(curl -fsSL .../bootstrap.sh) --layer bluetools --layer bluefeels
 set -euo pipefail
 
 url="${TK_REPO:-https://github.com/bluestero/unikit.git}"
@@ -36,10 +37,12 @@ fi
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$dir/bin/tk" "$HOME/.local/bin/tk" && echo "✓ tk command in ~/.local/bin"
 
-# layers: bluefeels by name (bluefeel and feelkit, its old names, too); anything else is a git URL.
+# layers: bluetools and bluefeels by name (bluefeel and feelkit, bluefeels' old names, too);
+# anything else is a git URL.
 # `uk layer add` offers to set up its parts.
 for l in "${layers[@]}"; do
   if [[ $l == bluefeels || $l == bluefeel || $l == feelkit ]]; then l=https://github.com/bluestero/bluefeels.git name=bluefeels
+  elif [[ $l == bluetools ]]; then l=https://github.com/bluestero/bluetools.git name=bluetools
   else name=$(basename "${l%.git}"); name=${name#unix-}; name=${name%-toolkit}; fi
   if [[ -d $dir/layers/$name ]]; then echo "✓ layer $name already there"
   else echo; "$dir/bin/uk" layer add "$l" "$name" || echo "✗ couldn't add the layer $l (see above)" >&2; fi

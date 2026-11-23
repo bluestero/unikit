@@ -26,7 +26,7 @@
 #                     (kit: tk or fk; without it, the layer's kit)
 #   requires          the layers it needs, one name per line (uk doctor and uk layer add say
 #                     when one isn't there). A layer needs only unikit and itself, unless it says so here
-#   workspaces        a shared ws list; "@<name>" in your own list brings it in
+#   workspaces        a shared workspace list (lib/workspaces.sh); "@<name>" in your own list brings it in
 #   claude/skills/*/  Claude Code skills, linked by the claude-skill component
 #
 # Trust: a layer's code runs on your machine (every shell, its commands, the installer).

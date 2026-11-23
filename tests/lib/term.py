@@ -1,9 +1,9 @@
 """A terminal for tests: runs a command in a pseudo-terminal, sends keys, reads the screen.
 
-    t = Term(["okcli"], env, cols=120, rows=30)
-    t.wait_for("profile>")          # until the text is on screen (fails after a timeout)
+    t = Term(["uk", "layers"], env, cols=120, rows=30)
+    t.wait_for("layer>")            # until the text is on screen (fails after a timeout)
     t.key("down", "enter")          # named keys or plain text
-    t.wait_for("Refresh now?")
+    t.wait_for("Remove it?")
     t.wait_exit()                   # the exit code
 
 The screen is a pyte emulator, so what's checked is what a person would see

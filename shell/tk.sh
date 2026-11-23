@@ -1,5 +1,5 @@
-# tk shell hook: lets the tk picker run the chosen command in this shell (so
-# okcli and kx can still change this terminal), and adds tab completion.
+# tk shell hook: lets the tk picker run the chosen command in this shell (so a command
+# that changes this terminal still can), and adds tab completion.
 
 unalias tk 2>/dev/null
 tk() {

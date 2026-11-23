@@ -1,4 +1,4 @@
-# The workspace lists. Sourced by ws, the installer and layer commands.
+# The workspace lists. Sourced by the installer and layers' commands (bluetools' ws opens them).
 #
 #   layers/<name>/workspaces  a team's shared list, from a layer (lib/layers.sh);
 #                             in the layer's repo, so updates bring new entries
@@ -107,7 +107,7 @@ ws_personal_init() {
     mkdir -p "$(dirname "$mine")"
     {
       cat <<'EOF'
-# Your workspaces: ws opens these, and ./install.sh repos clones the missing ones.
+# Your workspaces: bluetools' ws opens these, and its repos part clones the missing ones.
 # This file is yours: it lives outside the toolkit repo, so updates never change it.
 #
 #   <folder>   [<github owner/repo>]     (no repo = just a folder, never cloned)

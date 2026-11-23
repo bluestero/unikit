@@ -1,7 +1,9 @@
-# work-toolkit: notes for Claude
+# unikit: notes for Claude
 
-Shell toolkit (okcli, kx, ctx, twin, ws, tk, k-bg, k-theme, kitty config). Shared
-look and helpers live in `lib/ui.sh`; every tool uses them.
+The base of a shell toolkit: `uk` (layers), the kits `tk` and `fk`, the installer framework
+and the pickers. Everything else comes from layers in `layers/<name>/` (each its own repo:
+bluetools, bluefeels, airpr; `docs/LAYERS.md`). Shared look and helpers live in `lib/ui.sh`;
+every command uses them, unikit's and the layers'.
 
 ## UI rules
 
@@ -10,11 +12,11 @@ look and helpers live in `lib/ui.sh`; every tool uses them.
   (both in `lib/ui.sh`). Asked from inside a list, the list must stay visible:
   the question goes in that list's header (amber frame, the row still
   highlighted; `lib/inplace.sh` does it for every list), never in a box that replaces it.
-  kx lists stay open throughout: actions run as fzf callbacks, slow work in the
+  Lists stay open throughout (bluetools' kx lists, uk layers): actions run as fzf callbacks, slow work in the
   background with progress in the footer; results (✓ ✗) fade after 5 s. Logs
   stay full screen; a shell or port-forward opens in its own kitty tab (needs fzf 0.63+).
   Outside a list they open a small box.
-- **Never leave the picker to ask.** This holds for every list, not only kx: yes/no
+- **Never leave the picker to ask.** This holds for every list: yes/no
   questions *and* typed ones (a folder, a port, a name) open in the picker itself,
   in its header and prompt, the way `lib/inplace.sh` does (`ip_confirm`,
   `ip_ask`); the list stays open before, during and after. A wrong answer never

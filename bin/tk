@@ -3,7 +3,7 @@
 # parts come from layers. `tk help` lists them.
 #
 # The picker hands the chosen command back to your shell (shell/tk.sh) instead of
-# running it here, so commands that change this terminal (okcli, kx) still can.
+# running it here, so commands that change this terminal (a profile or context switch) still can.
 
 set -uo pipefail
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
