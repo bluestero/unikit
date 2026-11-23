@@ -197,8 +197,8 @@ the backup back. Log: `~/.local/state/work-toolkit/setup.log`.
 
 ### Going back to your own setup
 
-The toolkit never overrides your own aliases: `shell/common.sh` only adds an alias you don't
-have yet (yours from `~/.bashrc` or `~/.zshrc` wins), and your own `dex` function wins too.
+The toolkit never overrides your own aliases: bluefeels' `shell/common.sh` only adds an alias you don't
+have yet (yours from `~/.bashrc` or `~/.zshrc` wins).
 The first time the installer changes something of yours, it keeps what you had in
 `~/.local/state/work-toolkit/originals/` (once, never overwritten). Uninstalling puts back:
 
@@ -216,14 +216,11 @@ bluefeels' parts (kitty backgrounds, themes, accents, icons and the GNOME looks)
 
 | Component | What it sets up |
 |---|---|
-| `bash` | `~/.bashrc` keeps the Ubuntu defaults plus one line loading `shell/init.sh`; PATH, nvm, direnv/starship hooks and exact copies of the toolkit's aliases move into the repo, clashing leftovers (ble.sh, old okcli hooks, duplicate nvm) are removed. Your own aliases stay. Uninstall puts the removed lines back |
+| `bash` | `~/.bashrc` gets one line loading `shell/init.sh` (and so every layer); uninstall takes it out. bluefeels' `bashrc-tidy` tidies the rest |
 | `direnv` | latest direnv from GitHub (sha256-checked) in `~/.local/bin`, for `okcli pin`; the shell setup hooks it in. Skipped if you already have one; uninstall only removes the toolkit's |
-| `keys` | `~/.inputrc` → `shell/inputrc` (case-insensitive Tab, Up/Down search by what's typed) |
 | `commands` | `uk`, `tk`, `fk` (for now also `ws`) and every layer's `bin/` commands in `~/.local/bin`; a name another program has is left alone |
 | `fzf` | fzf 0.74.5 from GitHub (checksum-checked) in `~/.local/bin`, ahead of Ubuntu's 0.44. Every picker then shows where you are (`12/426`, `3/17 of 426` while searching), and k-theme gets its tabs. Uninstall goes back to apt's |
 | `zsh-hook` | `~/.zshrc` gets one managed block loading `shell/init.sh` (like bash's line); `~/.zprofile` one reading `~/.profile` |
-| `zsh` | apt `zsh zsh-autosuggestions`; `~/.zshenv` gets one managed block |
-| `login-shell` | `chsh` to zsh (log out once) |
 | `window-calls` | GNOME extension Window Calls (from extensions.gnome.org) so `ws` can close and focus editor windows; log out once after installing |
 | `alt-tab-desktop` | GNOME extension in `gnome/`: after Super+D (show desktop), Alt+Tab returns to the window you minimized instead of the one before it; log out once after installing |
 | `hide-docker-tray` | Small GNOME extension (`gnome/hide-docker-tray@work-toolkit`, linked in) that hides Docker Desktop's tray item: no icon, empty menu, three dots that do nothing on click; log out once after installing |
@@ -243,13 +240,6 @@ bluefeels' parts (kitty backgrounds, themes, accents, icons and the GNOME looks)
 | `claude-hook` | Adds a SessionStart hook to Claude Code's `settings.json` that runs `ctx plain`, so every session starts knowing the AWS profile (and if it's PROD), the repo pin and the cluster. Only that one entry is added or removed; the rest of the file is kept |
 | `claude-guard` | Adds a PreToolUse hook for Bash (`tk __guard`, bluetools' `tk/__guard`): Claude Code asks you first before a command that changes something on a PROD AWS profile or Kubernetes context, or that runs aws / kubectl without naming one while the inherited one is PROD; it also tells Claude when a session has under 15 minutes left. Anything else goes through the normal permission flow |
 | `claude-guidelines` | Pick coding guidelines and skills for Claude Code, installed as Claude Code plugins from their authors' GitHub repos (`claude plugin install`, user scope, every project; `claude plugin update` keeps them current): [Karpathy guidelines](https://github.com/multica-ai/andrej-karpathy-skills), [Superpowers](https://github.com/obra/superpowers), [Anthropic's document and example skills](https://github.com/anthropics/skills) and a few [Trail of Bits security skills](https://github.com/trailofbits/skills). `--yes` installs only the Karpathy guidelines. Naming it again (`tk install claude-guidelines`) reopens the picker. An old copy of the guidelines in `CLAUDE.md` (the `tk:karpathy-guidelines` block earlier versions added) is removed once the plugin is in. Uninstalling removes the plugins on this list |
-
-## zsh
-
-`zsh/zshrc` is small: shared history, the bash keys, an arrow-key Tab menu (case-insensitive),
-and faded grey suggestions from history (Shift+Tab, → or End accepts, Alt+F one word; Tab is normal completion).
-`~/.zshrc` loads `shell/init.sh` (the `zsh-hook` part), which loads `zsh/zshrc` first, so zsh gets
-exactly the same aliases and tools as bash. Your own zsh tweaks go in `~/.zshrc` outside the managed block.
 
 ## Hats: Claude, GitHub and AWS per folder
 
@@ -310,14 +300,8 @@ bin/tk                      the toolkit's front door (tk)
 lib/ui.sh                   shared look + command rules for every command (box, help, colours, fzf)
 lib/setup.sh, components.sh install/uninstall plumbing and the component list
 lib/platform.sh             OS, distro, package manager, GNOME? (components.sh `requires_of` says what each part needs)
-lib/bashrc_plan.py          the ~/.bashrc cleanup (same result every run)
-lib/bashrc_restore.py       uninstall: puts the lines the cleanup took out back
-bin/hat, lib/hat.sh         hat: Claude, GitHub and AWS per folder
 lib/layers.sh               what a layer can hold; layers/ (gitignored) holds them
-shell/init.sh               the one file bash and zsh load (common.sh, layers, starship, tools)
-shell/common.sh             personal aliases, PATH, env, dex, nvm (both shells)
-shell/inputrc               bash key settings
-zsh/zshrc                   zsh setup
+shell/init.sh               the one file bash and zsh load (the layers, then tk's hook and completion)
 install.sh / uninstall.sh   set up / remove, per component
 bootstrap.sh                the one-command download (clone or pull, add the tk command)
 tests/                      kept tests (see below)

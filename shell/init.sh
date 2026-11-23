@@ -1,12 +1,11 @@
 # Work shell toolkit: the one file your shell loads. Works in bash and zsh.
 #   bash: ~/.bashrc has one line that sources this (install.sh adds it)
-#   zsh:  ~/.zshrc has the same line (the zsh-hook part); this loads zsh/zshrc
+#   zsh:  ~/.zshrc has the same line (the zsh-hook part)
 #
-# Loads, in order: shared aliases/PATH/env (common.sh), the layers' shell/init.sh,
-# then the tools. Safe to source more than once.
+# Loads, in order: the layers' shell/init.sh (by name, a layer's requires first), then
+# unikit's own (tk's hook, Tab completion). Safe to source more than once.
 
 _work_root="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")/.." && pwd)"
-if [ -n "${ZSH_VERSION:-}" ]; then _work_sh=zsh; else _work_sh=bash; fi
 
 # Layers (lib/layers.sh): extra parts in layers/<name>/, each from its own repo.
 # Listed with ls, not a glob: an empty glob is an error in zsh.
@@ -33,14 +32,6 @@ done
 case ":$PATH:" in *":$_work_root/bin:"*) ;; *) PATH="$_work_root/bin:$PATH" ;; esac
 export PATH
 
-# zsh's own setup (history, keys, Tab menu, suggestions), before anything else as when it
-# loaded this file; skipped when it already ran (an older ~/.zshrc line loads it first).
-# Moves to bluefeels (tasks/14).
-if [ -n "${ZSH_VERSION:-}" ] && [ -z "${_work_zshrc_done:-}" ] && [ -r "$_work_root/zsh/zshrc" ]; then
-  . "$_work_root/zsh/zshrc"
-fi
-
-[ -r "$_work_root/shell/common.sh" ] && . "$_work_root/shell/common.sh"
 # A layer's settings come before the tools, which read them (OKTA_AWSCLI_*, KX_ALIAS_RULES).
 for _l in $(_work_layers); do
   [ -r "$_work_root/$_l/shell/init.sh" ] && . "$_work_root/$_l/shell/init.sh"
@@ -67,7 +58,7 @@ for _f in \
 do
   [ -r "$_work_root/$_f" ] && . "$_work_root/$_f"
 done
-unset _f _d _l _work_root _work_sh _work_zshrc_done; unset -f _work_layers _work_layer_add
+unset _f _d _l _work_root; unset -f _work_layers _work_layer_add
 
 # One name per tool (no okp / kctx); old shells may still have them, so drop them.
 unalias okp kctx 2>/dev/null

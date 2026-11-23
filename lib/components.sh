@@ -17,9 +17,9 @@
 # shellcheck source=layers.sh
 . "$repo/lib/layers.sh"
 
-COMPONENTS=(bash zsh-hook keys commands fzf zsh login-shell window-calls alt-tab-desktop hide-docker-tray app-keys rofi claude-skill claude-guidelines)
+COMPONENTS=(bash zsh-hook commands fzf window-calls alt-tab-desktop hide-docker-tray app-keys rofi claude-skill claude-guidelines)
 # Shown in groups in the checklist; the rest are optional extras.
-RECOMMENDED=(bash zsh-hook keys commands fzf)
+RECOMMENDED=(bash zsh-hook commands fzf)
 DESKTOP_PARTS=(window-calls alt-tab-desktop hide-docker-tray app-keys rofi)
 # Components with a settings look: naming one that is installed opens the keep / look / defaults menu
 LOOK_PARTS=(claude-guidelines)   # components with a settings menu; a layer adds its own (LOOK_PARTS+=)
@@ -65,9 +65,8 @@ group_of() {
 # One line on what each group is, on top of its tab in the installer; a layer adds its own
 # groups' (GROUP_ABOUT[AirPR]=...).
 declare -gA GROUP_ABOUT=(
-  [Recommended]="The everyday basics: the toolkit in bash, its commands, completion, the prompt, a newer fzf."
+  [Recommended]="The basics: unikit and its layers in bash and zsh, their commands, a newer fzf."
   ["Desktop (GNOME)"]="GNOME extensions and shortcuts: windows, app keys, the launcher, the dock and top bar."
-  [Optional]="Extras: zsh."
   ["Claude Code"]="Claude Code knows the toolkit, starts each session knowing your profile and cluster, follows the guidelines."
 )
 
@@ -80,8 +79,7 @@ requires_of() {
   # a layer's component names its own needs (requires_<id>)
   if declare -F "$(fn requires "$1")" >/dev/null; then "$(fn requires "$1")"; return; fi
   case "$1" in
-    fzf|login-shell) echo "linux" ;;
-    zsh)    echo "apt" ;;
+    fzf) echo "linux" ;;
     rofi)                   echo "gnome apt" ;;
     window-calls|alt-tab-desktop|hide-docker-tray|app-keys) echo "gnome" ;;
   esac
@@ -97,7 +95,7 @@ component_unsupported() {
 # Parts that need another part set up first (a layer adds its own: NEEDS[id]=...).
 # One whose needs aren't set up yet is "needs" and can still be picked: picking it
 # picks what it needs too (lib/tabs.sh), and the run sets that up first (install.sh).
-declare -A NEEDS=([login-shell]=zsh)
+declare -A NEEDS=()
 # component_state <id>: sets STATE and NOTE (unsupported here, else the component's own
 # check), and NEED: the parts it needs that aren't set up yet (STATE=needs).
 component_state() {
@@ -128,86 +126,44 @@ init_line="[ -f \"$repo/shell/init.sh\" ] && . \"$repo/shell/init.sh\"  # work t
 init_re='^\[ -f "[^"]*/shell/init\.sh" \] && \. "[^"]*/shell/init\.sh".*# work toolkit'
 
 # ---------------------------------------------------------------- bash ---
+# unikit's own: ~/.bashrc loads shell/init.sh (and so every layer) with one line. A look layer
+# may tidy the rest of ~/.bashrc (bluefeels' bashrc-tidy).
 rc="$HOME/.bashrc"
 label_bash() { echo "Bash setup"; }
-title_bash() { echo "Your work aliases and tools in every bash terminal"; }
-detail_bash() { echo "~/.bashrc loads the toolkit with one line; old copies and clashing leftovers removed"; }
-bash_plan() {
-  BASH_PLAN=$(mktemp)
-  python3 -I "$repo/lib/bashrc_plan.py" "$rc" "$init_line" >"$BASH_PLAN"
-}
+title_bash() { echo "unikit and its layers in every bash terminal"; }
+detail_bash() { echo "~/.bashrc loads unikit with one line"; }
+touches_bash() { echo "$rc"; }
 state_bash() {
   NOTE=""
   [[ -f "$rc" ]] || { STATE=missing; NOTE="no ~/.bashrc"; return; }
-  bash_plan
-  if cmp -s "$rc" "$BASH_PLAN"; then STATE=installed
-  elif grep -qE "$init_re" "$rc"; then STATE=partial; NOTE="leftovers to clean up in ~/.bashrc"
+  if grep -qxF "$init_line" "$rc"; then STATE=installed
+  elif grep -qE "$init_re" "$rc"; then STATE=partial; NOTE="its line points at another folder"
   else STATE=missing; fi
-  rm -f "$BASH_PLAN"
 }
 install_bash() {
-  local b missing v
-  [[ -f "$rc" ]] || touch "$rc"
-  bash_plan
-  if cmp -s "$rc" "$BASH_PLAN"; then rm -f "$BASH_PLAN"; ok "already done"; return; fi
-  say "      ${D}$(diff "$rc" "$BASH_PLAN" | grep -c '^<') lines move out of ~/.bashrc (into shell/common.sh and the tools), $(diff "$rc" "$BASH_PLAN" | grep -c '^>') added${R}"
-  logf "--- ~/.bashrc diff ---"
-  diff -u "$rc" "$BASH_PLAN" --label "~/.bashrc" --label "~/.bashrc (new)" >>"$log_file"
-  (( details )) && diff -u "$rc" "$BASH_PLAN" --label "~/.bashrc" --label "~/.bashrc (new)" | sed 's/^/    /'
-  missing=""
-  for v in $(grep -oE '^export OKTA_AWSCLI_[A-Z_]+' "$rc" | sed 's/^export //'); do
-    cat "$repo"/layers/*/shell/init.sh 2>/dev/null | grep -q "^export $v=" || missing+="$v "
-  done
-  [[ -n "$missing" ]] && warn "not in a layer's shell/init.sh yet, so they'd be lost: $missing"
-  grep -qE '^[[:space:]]*alias okcli=' "$rc" && warn "an active 'alias okcli=' stays in ~/.bashrc; it would shadow okcli"
-  if ask "Update ~/.bashrc?"; then
-    b=$(backup "$rc")
-    cat "$BASH_PLAN" >"$rc"
-    if bash -n "$rc"; then ok "done (backup: ${b/#$HOME/\~})"
-    else cp -p "$b" "$rc"; fail "syntax error in the result, so the original was put back"; fi
-  else skip "--details shows the diff"; fi
-  rm -f "$BASH_PLAN"
-}
-# Undo: the lines the toolkit took out of your original ~/.bashrc go back where
-# they were (lib/bashrc_restore.py), and anything you edited since is kept.
-uninstall_bash() {
-  local b orig base merged n
-  grep -qE "$init_re" "$rc" 2>/dev/null || { ok "not loaded from ~/.bashrc"; return; }
-  orig=$(original_of "$rc")
-  merged=$(mktemp); base=$(mktemp)
-  if [[ -n "$orig" ]] && ! grep -qE "$init_re" "$orig" &&
-     python3 -I "$repo/lib/bashrc_plan.py" "$orig" "$init_line" | grep -vE "$init_re" >"$base" &&
-     python3 -I "$repo/lib/bashrc_restore.py" <(grep -vE "$init_re" "$rc") "$orig" "$base" >"$merged"; then
-    n=$(diff "$rc" "$merged" | grep -c '^>')
-    logf "--- ~/.bashrc restore diff ---"; diff -u "$rc" "$merged" --label "~/.bashrc" --label "~/.bashrc (restored)" >>"$log_file"
-    if (( n )) && ask "Put back the $n line(s) the toolkit took out of ~/.bashrc? (your edits since are kept; no = only remove the toolkit line)"; then
-      b=$(backup "$rc"); cat "$merged" >"$rc"
-      if bash -n "$rc"; then ok "removed the toolkit line and put back your $n line(s) (backup: ${b/#$HOME/\~})"
-      else cp -p "$b" "$rc"; fail "syntax error after putting them back, so ~/.bashrc is unchanged; your original: ${orig/#$HOME/\~}"; fi
-      rm -f "$merged" "$base"; return
-    fi
-  elif [[ -n "$orig" ]]; then
-    warn "couldn't work out what to put back; your pre-toolkit ~/.bashrc: ${orig/#$HOME/\~}"
+  local b tmp
+  [[ -f "$rc" ]] && grep -qxF "$init_line" "$rc" && { ok "already there"; return; }
+  if grep -qE "$init_re" "$rc" 2>/dev/null; then
+    ask "Point ~/.bashrc's unikit line at this folder?" || { skip; return; }
+    dry && return
+    b=$(backup "$rc"); tmp=$(mktemp)
+    awk -v re="$init_re" -v l="$init_line" '$0 ~ re { if (!done) print l; done = 1; next } { print }' "$rc" >"$tmp"
+    cat "$tmp" >"$rc"; rm -f "$tmp"; ok "done (backup: ${b/#$HOME/\~})"
+  else
+    ask "Add unikit's line to ~/.bashrc?" || { skip; return; }
+    dry && return
+    [[ -f "$rc" ]] && b=$(backup "$rc")
+    printf '\n%s\n' "$init_line" >>"$rc"; ok "done${b:+ (backup: ${b/#$HOME/\~})}"
   fi
-  rm -f "$merged" "$base"
-  b=$(backup "$rc")
-  local tmp; tmp=$(mktemp)
-  grep -vE "$init_re" "$rc" | cat -s >"$tmp"; cat "$tmp" >"$rc"; rm -f "$tmp"
-  ok "removed the toolkit line (backup: ${b/#$HOME/\~})"
-  warn "bash no longer gets the toolkit's aliases, Okta settings, nvm, direnv or starship."
 }
-
-# ---------------------------------------------------------------- keys ---
-inputrc_src="$repo/shell/inputrc"
-label_keys() { echo "Tab & history keys"; }
-config_keys() { echo "file|readline|bash|$HOME/.inputrc|$inputrc_src|link|inputrc|keys at the bash prompt (~/.inputrc)"; }
-title_keys() { echo "Smarter Tab completion; ↑/↓ searches history by what you typed"; }
-detail_keys() { echo "~/.inputrc for bash (case-insensitive Tab, Up/Down search by what's typed)"; }
-state_keys() { NOTE=""; if linked "$HOME/.inputrc" "$inputrc_src"; then STATE=installed; else STATE=missing; fi; }
-install_keys() { linked "$HOME/.inputrc" "$inputrc_src" && { ok "already linked"; return; }
-  ask "Link ~/.inputrc to shell/inputrc?" && link_file "$HOME/.inputrc" "$inputrc_src" || skip; }
-uninstall_keys() { unlink_file "$HOME/.inputrc" "$inputrc_src"; }
-touches_keys() { echo "$HOME/.inputrc"; }
+uninstall_bash() {
+  local b tmp
+  grep -qE "$init_re" "$rc" 2>/dev/null || { ok "not loaded from ~/.bashrc"; return; }
+  b=$(backup "$rc"); tmp=$(mktemp)
+  grep -vE "$init_re" "$rc" | cat -s >"$tmp"; cat "$tmp" >"$rc"; rm -f "$tmp"
+  ok "removed unikit's line (backup: ${b/#$HOME/\~})"
+  warn "bash no longer loads unikit and its layers."
+}
 
 # ------------------------------------------------------------ commands ---
 cmd_bins=(bin/uk bin/tk bin/fk)
@@ -324,7 +280,7 @@ uninstall_fzf() {
 # ------------------------------------------------------------ zsh-hook ---
 # unikit's own: ~/.zshrc loads shell/init.sh (and so every layer), like bash's line.
 zsh_hook_body="[ -f \"$repo/shell/init.sh\" ] && . \"$repo/shell/init.sh\""
-# what the zsh part used to put there; it still works (zsh/zshrc loads init.sh), update replaces it
+# what the zsh part used to put there (unikit's zsh/zshrc, now gone): set up again to replace it
 zsh_hook_old="[ -f \"$repo/zsh/zshrc\" ] && . \"$repo/zsh/zshrc\""
 # GNOME starts the session through the login shell; zsh doesn't read ~/.profile
 # on its own, so flatpak apps and ~/.local/bin would go missing without this.
@@ -355,74 +311,6 @@ install_zsh_hook() {
 uninstall_zsh_hook() {
   drop_block "$HOME/.zshrc"; drop_block "$HOME/.zprofile"
   ok "removed unikit from ~/.zshrc and ~/.zprofile"
-}
-
-# ----------------------------------------------------------------- zsh ---
-zsh_pkgs=(zsh zsh-autosuggestions)
-# Debian's /etc/zsh/zshrc runs compinit too; zsh/zshrc does it once, cached.
-zshenv_body="skip_global_compinit=1"
-label_zsh() { echo "Zsh"; }
-title_zsh() { echo "Install zsh with suggestions as you type"; }
-detail_zsh() { echo "zsh + faded suggestions; history, keys and the Tab menu (zsh/zshrc)"; }
-touches_zsh() { echo "$HOME/.zshenv"; }
-state_zsh() {
-  local n=0 missing
-  missing=$(missing_pkgs "${zsh_pkgs[@]}")
-  [[ -z "$missing" ]] && (( n++ ))
-  has_block "$HOME/.zshenv" "$zshenv_body" && (( n++ ))
-  NOTE=""
-  if (( n == 2 )); then STATE=installed
-  elif (( n )); then STATE=partial; NOTE="${missing:+packages missing: $missing}"
-  else STATE=missing; fi
-}
-install_zsh() {
-  local missing; missing=$(missing_pkgs "${zsh_pkgs[@]}")
-  if [[ -n "$missing" ]]; then
-    if ask "Install $missing(apt, needs sudo)?"; then
-      apt_install "${zsh_pkgs[@]}" && ok "installed" || { fail "apt failed (see $log_file)"; return 1; }
-    else skip; return 0; fi
-  fi
-  if has_block "$HOME/.zshenv" "$zshenv_body"; then ok "zsh config already set up"
-  elif ask "Set up ~/.zshenv (one managed block)?"; then
-    set_block "$HOME/.zshenv" "$zshenv_body"
-    ok "done. Try it now with: ${C}zsh${R}"
-  else skip; return 0; fi
-  has_block "$HOME/.zshrc" "$zsh_hook_body" || warn "zsh loads unikit once zsh-hook is set up too: tk install zsh-hook"
-}
-uninstall_zsh() {
-  if [[ "$(login_shell)" == */zsh ]]; then
-    warn "zsh is your login shell; switching back to bash first"
-    uninstall_login_shell || return 1
-  fi
-  drop_block "$HOME/.zshenv"
-  ok "removed the toolkit from ~/.zshenv"
-  local have=""; pkg_installed zsh && have=1
-  if [[ -n "$have" ]] && ask "Also remove the zsh packages (apt, needs sudo)?" n; then
-    as_root apt-get remove -y "${zsh_pkgs[@]}" >>"$log_file" 2>&1 && ok "packages removed" || fail "apt failed (see $log_file)"
-  fi
-}
-
-# --------------------------------------------------------- login-shell ---
-login_shell() { getent passwd "$USER" | cut -d: -f7; }
-label_login_shell() { echo "Zsh as default"; }
-title_login_shell() { echo "Open new terminals in zsh (log out once afterwards)"; }
-detail_login_shell() { echo "make zsh your default shell (new terminals; log out once for GNOME)"; }
-state_login_shell() { NOTE=""
-  type -P zsh >/dev/null || { STATE=n/a; NOTE="needs zsh first"; return; }
-  if [[ "$(login_shell)" == */zsh ]]; then STATE=installed; else STATE=missing; NOTE="now: $(login_shell)"; fi; }
-install_login_shell() {
-  local z; z=$(type -P zsh) || { skip "zsh isn't installed"; return; }
-  [[ "$(login_shell)" == "$z" ]] && { ok "already zsh"; return; }
-  if ask "Make zsh your login shell (chsh asks for your password)?"; then
-    remember_setting login-shell "$(login_shell)"
-    chsh -s "$z" && ok "done. Log out and back in so GNOME and kitty pick it up" || fail "chsh failed"
-  else skip; fi
-}
-uninstall_login_shell() {   # back to the shell you had before (bash if unknown)
-  local prev; prev=$(recall_setting login-shell)
-  [[ -n "$prev" && "$prev" != */zsh && -x "$prev" ]] || prev=/bin/bash
-  [[ "$(login_shell)" == "$prev" ]] && { ok "already $prev"; forget_setting login-shell; return 0; }
-  chsh -s "$prev" && { forget_setting login-shell; ok "login shell is ${prev##*/} again (log out and back in)"; } || { fail "chsh failed"; return 1; }
 }
 
 # ------------------------------------------------------------- looks ---
@@ -915,7 +803,7 @@ apt_drop() {
 }
 
 # -------------------------------------------------------------- claude ---
-# Claude Code reads its config from $CLAUDE_CONFIG_DIR (shell/common.sh sets it, hat per
+# Claude Code reads its config from $CLAUDE_CONFIG_DIR (a layer's shell/init.sh may set it, hat per
 # folder), else ~/.claude. claude-skill links the layers' skills; a layer's Claude parts (bluetools'
 # start hook and PROD guard) use claude_each and claude_state too. They go in every profile:
 # ~/.claude, each hat profile (~/.claude-profiles/<name>) and $CLAUDE_CONFIG_DIR.
