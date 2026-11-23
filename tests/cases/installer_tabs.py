@@ -83,19 +83,19 @@ def run(sb, repo, *args):
 def test_feelkit_stays_out_of_the_main_install(sb):
     repo = copy(sb)
     _, out = run(sb, repo, "install.sh", "ls")
-    assert "kitty-bg" not in out and "dash2dock" not in out and "kitty-config" in out, out
+    assert "kitty-bg" not in out and "dash2dock" not in out and "fzf" in out, out
     code, out = run(sb, repo, "install.sh", "kitty-bg")
     assert code == 2 and "fk install kitty-bg" in out, out
     code, out = run(sb, repo, "uninstall.sh", "kitty-bg")
     assert code == 2 and "fk uninstall kitty-bg" in out, out
     _, out = run(sb, repo, "install.sh", "--layer=bluefeels", "ls")
     rows = set(re.findall(r"^  (\S+) ", out, re.M))
-    assert "kitty-bg" in rows and "kitty-config" not in rows, out
+    assert "kitty-bg" in rows and "fzf" not in rows, out
 
 
 def test_both_bars_ask_and_no_goes_back(sb):
     _, t = start(sb, "--layer=bluefeels")
-    t.key("right")                                        # GNOME looks: dash2dock, dash-to-panel first
+    t.key("right", "right")                               # past Kitty looks to GNOME looks: dash2dock, dash-to-panel first
     t.wait(lambda t: "dash2dock" in t.cursor_line(), what="the cursor on dash2dock")
     t.key("tab", "down", "tab")
     t.wait_for("Summary · 2 to set up")
@@ -114,7 +114,7 @@ def test_both_bars_ask_and_no_goes_back(sb):
 
 def test_both_bars_yes_sets_up(sb):
     _, t = start(sb, "--plain", "--layer=bluefeels")
-    t.key("right")                                        # GNOME looks: dash2dock, dash-to-panel first
+    t.key("right", "right")                               # past Kitty looks to GNOME looks: dash2dock, dash-to-panel first
     t.wait(lambda t: "dash2dock" in t.cursor_line(), what="the cursor on dash2dock")
     t.key("tab", "down", "tab")
     t.wait_for("Summary · 2 to set up")

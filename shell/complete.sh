@@ -10,7 +10,7 @@
 _work_complete() {
   local cmd="${COMP_WORDS[0]##*/}" cur="${COMP_WORDS[COMP_CWORD]}" words="" fn w
   [ "$COMP_CWORD" -eq 1 ] &&
-    words=$(command "$cmd" help 2>/dev/null </dev/null | sed -n "s/^ *$cmd \([a-z][a-z-]*\).*/\1/p")
+    words=$(command "$cmd" help 2>/dev/null </dev/null | sed -n "s/^ *$cmd \([a-z][a-z0-9-]*\).*/\1/p")
   fn="_work_complete_$(printf '%s' "$cmd" | tr - _)"
   if type "$fn" >/dev/null 2>&1; then words="$words
 $("$fn" 2>/dev/null)"; fi
@@ -35,7 +35,7 @@ _work_complete_uk() {
 if [ -n "${ZSH_VERSION:-}" ]; then
   autoload -U +X bashcompinit 2>/dev/null && bashcompinit
 fi
-for _c in k-config uk fk dex $(sed -n 's/^\([a-z][a-z0-9-]*\)|.*/\1/p' "$_work_root"/layers/*/tools 2>/dev/null); do
+for _c in uk fk dex $(sed -n 's/^\([a-z][a-z0-9-]*\)|.*/\1/p' "$_work_root"/layers/*/tools 2>/dev/null); do
   if [ -n "${ZSH_VERSION:-}" ]; then
     (( ${+_comps[$_c]} )) && continue
   else

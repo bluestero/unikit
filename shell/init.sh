@@ -27,7 +27,7 @@ _work_layers() {
   _work_seen=" "
   for _n in $(command ls -1 "$_work_root/layers" 2>/dev/null); do _work_layer_add "$_n"; done
 }
-for _d in $(_work_layers) kitty; do
+for _d in $(_work_layers); do
   case ":$PATH:" in *":$_work_root/$_d/bin:"*) ;; *) [ -d "$_work_root/$_d/bin" ] && PATH="$_work_root/$_d/bin:$PATH" ;; esac
 done
 case ":$PATH:" in *":$_work_root/bin:"*) ;; *) PATH="$_work_root/bin:$PATH" ;; esac
@@ -86,7 +86,6 @@ else
 fi
 
 for _f in \
-  kitty/shell/k-config.sh \
   shell/tk.sh \
   shell/complete.sh
 do

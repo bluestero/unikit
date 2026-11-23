@@ -338,7 +338,7 @@ check() {  # check <what> <ok|bad> <text> [fix]
 }
 
 declare -A OWNER=()   # command name -> who brings it (unikit, or the first layer)
-unikit_owns() { local f; for f in "$ROOT"/bin/* "$ROOT"/kitty/bin/*; do [[ -x $f ]] && OWNER[${f##*/}]=unikit; done; }
+unikit_owns() { local f; for f in "$ROOT"/bin/*; do [[ -x $f ]] && OWNER[${f##*/}]=unikit; done; }
 
 # check_layer <dir> [name]: is it well formed; does it clash with what OWNER already has
 check_layer() {

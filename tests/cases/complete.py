@@ -9,7 +9,7 @@ def words(sb, *typed):
     """What Tab offers after the typed words (the last one is the word being completed)."""
     script = f'''
 _work_root={REPO}
-PATH="{REPO}/bin:{REPO}/kitty/bin:$PATH"
+PATH="{REPO}/bin:$PATH"
 . "{REPO}/shell/complete.sh"
 COMP_WORDS=("$@"); COMP_CWORD=$(( $# - 1 )); COMPREPLY=()
 $(complete -p "$1" | sed -n 's/.*-F \\([^ ]*\\).*/\\1/p')
@@ -19,7 +19,7 @@ printf '%s\\n' "${{COMPREPLY[@]}}"'''
 
 
 def test_first_word_comes_from_the_help_page(sb):
-    assert words(sb, "k-config", "h") == ["help"]
+    assert words(sb, "fk", "h") == ["help"]
 
 
 def test_a_layer_command_adds_its_own_words_with_spaces_escaped(sb):

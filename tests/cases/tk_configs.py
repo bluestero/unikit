@@ -104,14 +104,15 @@ def test_esc_goes_back_then_closes(sb):
 
 
 KITTY = "~/.config/kitty/kitty.conf"
+KITTY_PRESET = os.path.join(REPO, "layers/bluefeels/kitty/kitty.conf")
 PATCH = "~/.config/work-toolkit/patches/kitty.conf"
 
 
 def start_kitty(sb):
-    """kitty on the toolkit's preset (a link into the repo, which the test never writes)."""
+    """kitty on bluefeels' preset (a link into the layer, which the test never writes): fk configs."""
     os.makedirs(sb.path("~/.config/kitty"))
-    os.symlink(os.path.join(REPO, "kitty/kitty.conf"), sb.path(KITTY))
-    t = Term([TK, "configs"], sb.env)
+    os.symlink(KITTY_PRESET, sb.path(KITTY))
+    t = Term([os.path.join(REPO, "bin/fk"), "configs"], sb.env)
     t.wait_for("kitty")
     t.settle()
     t.key("kitty")
@@ -133,7 +134,7 @@ def test_edit_my_patch_starts_from_the_preset(sb):
     assert text.startswith("# Your patch for kitty"), text[:200]
     assert "# globinclude theme.conf" in text, "the preset is in it, as comments"
     assert text.rstrip().endswith("font_size 15"), "what the editor wrote stays"
-    assert os.path.realpath(sb.path(KITTY)) == os.path.join(REPO, "kitty/kitty.conf"), "the preset stays linked"
+    assert os.path.realpath(sb.path(KITTY)) == KITTY_PRESET, "the preset stays linked"
 
 
 def test_drop_my_patch_keeps_a_copy(sb):

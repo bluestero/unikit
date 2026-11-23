@@ -55,7 +55,7 @@ def test_a_look_file_is_copied_out_of_the_repo(sb):
 def test_kitty_accents_need_a_background_conf(sb):
     repo = copy(sb)
     sb.fake("kitty", "exit 0")
-    install(sb, repo, "kitty-config")
+    install(sb, repo, "--kit=fk", "kitty-config")
     out = sh(sb, repo, 'component_state kitty-accents; echo "$STATE"; uninstall_kitty_accents')
     assert out.splitlines()[0] == "missing", out          # k-bg reads a missing file as accents on
     assert not os.path.exists(sb.path("~/.config/kitty/background.conf")), "the uninstall must not make one"

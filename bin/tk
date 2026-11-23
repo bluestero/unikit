@@ -11,11 +11,6 @@ ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 UI_EVAL_FILE="${TK_EVAL_FILE:-}"
 KIT=tk
 KIT_WHAT="what you work with"
-# unikit's own tools until they move to the bluefeels layer (tasks/14 step 5):
-# name | group | what it does | program it needs | kit | layer
-KIT_TOOLS=(
-  "k-config|Kitty|edit kitty.conf|kitty|tk|unikit"
-)
 # shellcheck source=../lib/kit.sh
 . "$ROOT/lib/kit.sh"
 

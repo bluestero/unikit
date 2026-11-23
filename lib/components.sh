@@ -17,10 +17,9 @@
 # shellcheck source=layers.sh
 . "$repo/lib/layers.sh"
 
-COMPONENTS=(bash zsh-hook keys commands starship fzf kitty kitty-config kitty-nautilus zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi claude-skill claude-guidelines)
+COMPONENTS=(bash zsh-hook keys commands starship fzf zsh login-shell btop yazi yazi-keys window-calls alt-tab-desktop hide-docker-tray app-keys rofi claude-skill claude-guidelines)
 # Shown in groups in the checklist; the rest are optional extras.
 RECOMMENDED=(bash zsh-hook keys commands starship fzf)
-KITTY_PARTS=(kitty kitty-config kitty-nautilus)
 DESKTOP_PARTS=(window-calls alt-tab-desktop hide-docker-tray app-keys rofi)
 # Components with a settings look: naming one that is installed opens the keep / look / defaults menu
 LOOK_PARTS=(claude-guidelines)   # components with a settings menu; a layer adds its own (LOOK_PARTS+=)
@@ -59,7 +58,6 @@ group_of() {
   # a layer's component names its own group (group_<id>)
   if declare -F "$(fn group "$1")" >/dev/null; then "$(fn group "$1")"
   elif [[ " ${RECOMMENDED[*]} " == *" $1 "* ]]; then echo Recommended
-  elif [[ " ${KITTY_PARTS[*]} " == *" $1 "* ]]; then echo Kitty
   elif [[ " ${DESKTOP_PARTS[*]} " == *" $1 "* ]]; then echo "Desktop (GNOME)"
   elif [[ " ${CLAUDE_PARTS[*]} " == *" $1 "* ]]; then echo "Claude Code"
   else echo Optional; fi
@@ -68,7 +66,6 @@ group_of() {
 # groups' (GROUP_ABOUT[AirPR]=...).
 declare -gA GROUP_ABOUT=(
   [Recommended]="The everyday basics: the toolkit in bash, its commands, completion, the prompt, a newer fzf."
-  [Kitty]="The kitty terminal, its settings, and how it looks."
   ["Desktop (GNOME)"]="GNOME extensions and shortcuts: windows, app keys, the launcher, the dock and top bar."
   [Optional]="Extras: zsh, btop, the yazi file manager."
   ["Claude Code"]="Claude Code knows the toolkit, starts each session knowing your profile and cluster, follows the guidelines."
@@ -83,9 +80,9 @@ requires_of() {
   # a layer's component names its own needs (requires_<id>)
   if declare -F "$(fn requires "$1")" >/dev/null; then "$(fn requires "$1")"; return; fi
   case "$1" in
-    fzf|kitty|login-shell|yazi|yazi-keys) echo "linux" ;;
+    fzf|login-shell|yazi|yazi-keys) echo "linux" ;;
     zsh|btop)    echo "apt" ;;
-    kitty-nautilus|rofi)                   echo "gnome apt" ;;
+    rofi)                   echo "gnome apt" ;;
     window-calls|alt-tab-desktop|hide-docker-tray|app-keys) echo "gnome" ;;
   esac
 }
@@ -354,142 +351,6 @@ uninstall_fzf() {
   else ok "removed (no other fzf: pickers fall back to plain lists)"; fi
 }
 
-# --------------------------------------------------------------- kitty ---
-# The official kitty build in ~/.local/kitty.app (no sudo). Ubuntu's apt kitty
-# stays installed as a fallback; uninstalling this goes back to it.
-kapp="$HOME/.local/kitty.app"
-kapp_bin="$kapp/bin/kitty"
-kitty_desktop="$HOME/.local/share/applications/kitty.desktop"
-kapp_ver() { [[ -x "$kapp_bin" ]] && "$kapp_bin" --version 2>/dev/null | awk '{print $2}'; }
-kapp_arch() { case "$(uname -m)" in x86_64|amd64) echo x86_64 ;; aarch64|arm64) echo arm64 ;; esac; }
-# Newest release from GitHub: sets KL_VER KL_URL KL_SHA (empty when offline). Asked once per run.
-kitty_latest_info() {
-  [[ -n "${KL_DONE:-}" ]] && return
-  KL_DONE=1 KL_VER="" KL_URL="" KL_SHA=""
-  local out
-  out=$(curl -fsS -m 6 https://api.github.com/repos/kovidgoyal/kitty/releases/latest 2>/dev/null |
-    python3 -Ic '
-import json, sys
-r = json.load(sys.stdin); arch = sys.argv[1]; ver = r["tag_name"].lstrip("v")
-for a in r["assets"]:
-    if a["name"] == f"kitty-{ver}-{arch}.txz" and a.get("digest", "").startswith("sha256:"):
-        print(ver, a["browser_download_url"], a["digest"][7:])
-' "$(kapp_arch)" 2>/dev/null) || return 0
-  read -r KL_VER KL_URL KL_SHA <<<"$out"
-}
-kapp_desktop_ok() { grep -q "^Exec=$kapp_bin" "$kitty_desktop" 2>/dev/null; }
-term_alt() { update-alternatives --query x-terminal-emulator 2>/dev/null | sed -n 's/^Value: //p'; }
-
-label_kitty() { echo "Kitty (latest)"; }
-title_kitty() { echo "The kitty terminal itself, latest release (Ubuntu's is years old)"; }
-detail_kitty() { echo "official build in ~/.local/kitty.app, kitty/kitten in ~/.local/bin, app menu entry; apt kitty kept as a fallback"; }
-state_kitty() {
-  NOTE=""
-  [[ -n "$(kapp_arch)" ]] || { STATE=unsupported; NOTE="no kitty build for $(uname -m)"; return; }
-  local v; v=$(kapp_ver)
-  if [[ -z "$v" ]]; then
-    STATE=missing
-    type -P kitty >/dev/null && NOTE="now: $(kitty --version 2>/dev/null | awk '{print $2}') (apt)"
-    return
-  fi
-  kitty_latest_info
-  if ! linked "$HOME/.local/bin/kitty" "$kapp_bin" || ! kapp_desktop_ok; then STATE=partial; NOTE="$v, not hooked up everywhere"
-  elif [[ -n "$KL_VER" ]] && ver_lt "$v" "$KL_VER"; then STATE=partial; NOTE="update: $v → $KL_VER"
-  else STATE=installed; NOTE="$v"; fi
-}
-install_kitty() {
-  local v tmp sum
-  v=$(kapp_ver); kitty_latest_info
-  if [[ -z "$v" ]] || { [[ -n "$KL_VER" ]] && ver_lt "$v" "$KL_VER"; }; then
-    [[ -n "$KL_VER" ]] || { fail "couldn't reach GitHub to find the latest kitty (offline?)"; return 1; }
-    if ask "Download kitty $KL_VER${v:+ (you have $v)} into ~/.local/kitty.app? (about 40 MB, no sudo)"; then
-      tmp=$(mktemp -d)
-      if ! curl -fsSL --retry 2 -o "$tmp/kitty.txz" "$KL_URL" 2>>"$log_file"; then
-        rm -rf "$tmp"; fail "download failed (see the log)"; return 1
-      fi
-      sum=$(sha256sum "$tmp/kitty.txz" | cut -d' ' -f1)
-      [[ "$sum" == "$KL_SHA" ]] || { rm -rf "$tmp"; fail "download didn't match GitHub's checksum, so nothing was installed"; return 1; }
-      mkdir -p "$tmp/app" && tar xJf "$tmp/kitty.txz" -C "$tmp/app" 2>>"$log_file" &&
-        "$tmp/app/bin/kitty" --version >/dev/null 2>&1 || { rm -rf "$tmp"; fail "the download doesn't run on this machine"; return 1; }
-      rm -rf "$kapp.old"; [[ -d "$kapp" ]] && mv "$kapp" "$kapp.old"
-      mkdir -p "$(dirname "$kapp")" && mv "$tmp/app" "$kapp" && rm -rf "$kapp.old" "$tmp"
-      logf "  kitty $KL_VER from $KL_URL (sha256 $KL_SHA)"
-      ok "kitty $KL_VER installed (checksum verified)"
-    else skip; return 0; fi
-  else ok "kitty $v is the latest"; fi
-
-  if ! linked "$HOME/.local/bin/kitty" "$kapp_bin" || ! linked "$HOME/.local/bin/kitten" "$kapp/bin/kitten"; then
-    if ask "Use it for the ${B}kitty${R} and ${B}kitten${R} commands? (links in ~/.local/bin)"; then
-      link_file "$HOME/.local/bin/kitty" "$kapp_bin"
-      link_file "$HOME/.local/bin/kitten" "$kapp/bin/kitten"
-    else skip; fi
-  fi
-
-  # The app menu / dock entry. A user copy may already exist (kitty-icons keeps the
-  # icon you picked there); only its Exec lines change.
-  if ! kapp_desktop_ok && ask "Open the new kitty from the app menu and dock?"; then
-    mkdir -p "$(dirname "$kitty_desktop")"
-    if [[ ! -f "$kitty_desktop" ]]; then
-      cp "$kapp/share/applications/kitty.desktop" "$kitty_desktop"
-      sed -i "s|^Icon=kitty$|Icon=$kapp/share/icons/hicolor/256x256/apps/kitty.png|" "$kitty_desktop"
-    fi
-    sed -i -E "s#^(Try)?Exec=kitty( |$)#\1Exec=$kapp_bin\2#" "$kitty_desktop"
-    type -P update-desktop-database >/dev/null && update-desktop-database "$(dirname "$kitty_desktop")" 2>/dev/null
-    kapp_desktop_ok && ok "done" || fail "couldn't update $kitty_desktop"
-  fi
-
-  # Ctrl+Alt+T and Files' "Open in Terminal" (set up by kitty-nautilus) use this.
-  if [[ "$(term_alt)" == /usr/bin/kitty ]] &&
-     ask "Make Ctrl+Alt+T and \"Open in Terminal\" use the new kitty too? (needs sudo)"; then
-    as_root update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator "$kapp_bin" 30 >>"$log_file" 2>&1 &&
-      as_root update-alternatives --set x-terminal-emulator "$kapp_bin" >>"$log_file" 2>&1 && ok "done" || fail "update-alternatives failed (see the log)"
-  fi
-  warn "quit kitty fully (every window) and reopen it to start the new version"
-}
-uninstall_kitty() {
-  [[ -d "$kapp" ]] || { ok "not installed"; return 0; }
-  if [[ "$(term_alt)" == "$kapp_bin" ]]; then
-    if [[ -x /usr/bin/kitty ]]; then as_root update-alternatives --set x-terminal-emulator /usr/bin/kitty >>"$log_file" 2>&1
-    else as_root update-alternatives --auto x-terminal-emulator >>"$log_file" 2>&1; fi
-  fi
-  as_root update-alternatives --remove x-terminal-emulator "$kapp_bin" >>"$log_file" 2>&1 || true
-  if [[ -f "$kitty_desktop" ]]; then
-    sed -i -E "s#^(Try)?Exec=$kapp_bin#\1Exec=kitty#" "$kitty_desktop"
-    type -P update-desktop-database >/dev/null && update-desktop-database "$(dirname "$kitty_desktop")" 2>/dev/null
-  fi
-  unlink_file "$HOME/.local/bin/kitty" "$kapp_bin"
-  unlink_file "$HOME/.local/bin/kitten" "$kapp/bin/kitten"
-  rm -rf "$kapp"
-  if [[ -x /usr/bin/kitty ]]; then ok "removed; back to apt's kitty $(/usr/bin/kitty --version | awk '{print $2}') (quit and reopen kitty)"
-  else warn "removed, and there's no apt kitty: install one with: sudo apt install kitty"; fi
-}
-
-# -------------------------------------------------------- kitty-config ---
-kc="$HOME/.config/kitty/kitty.conf"; kc_src="$repo/kitty/kitty.conf"
-label_kitty_config() { echo "Kitty settings"; }
-config_kitty_config() { echo "file|kitty|kitty|$kc|$kc_src|link|kitty.conf|terminal settings"; }
-config_after_kitty_config() { echo "  (kitty: ctrl+shift+f5 reloads it)"; }
-config_saved_kitty_config() { echo "✓ kitty: your patch saved (ctrl+shift+f5 reloads kitty)"; }
-title_kitty_config() { echo "Use the toolkit's kitty terminal settings"; }
-detail_kitty_config() { echo "~/.config/kitty/kitty.conf from kitty/kitty.conf"; }
-state_kitty_config() { NOTE=""
-  type -P kitty >/dev/null || { STATE=n/a; NOTE="kitty isn't installed"; return; }
-  if linked "$kc" "$kc_src"; then STATE=installed; else STATE=missing; fi; }
-install_kitty_config() { linked "$kc" "$kc_src" && { ok "already linked"; return; }
-  if [[ -f "$kc" && ! -L "$kc" ]] && ! cmp -s "$kc" "$kc_src"; then
-    warn "your current kitty.conf differs from kitty/kitty.conf (it's kept as a backup)"
-    (( details )) && diff -u "$kc" "$kc_src" | sed 's/^/    /'
-  fi
-  ask "Link kitty.conf to the repo copy?" && link_file "$kc" "$kc_src" || skip; }
-touches_kitty_config() { echo "$kc"; }
-uninstall_kitty_config() {
-  points_at "$kc" "$kc_src" || return 0
-  rm -f "$kc"
-  local b; b=$(latest_backup "$kc")
-  if [[ -n "$b" ]]; then mv "$b" "$kc"; ok "unlinked, put back ${b/#$HOME/\~}"
-  else cp "$kc_src" "$kc"; ok "unlinked (left a plain copy so kitty keeps its settings)"; fi
-}
-
 # ---------------------------------------------------------------- btop ---
 # btop with the toolkit's settings (no black panel, rounded boxes). Its colours are
 # generated from the kitty theme in use (k-theme writes ~/.config/btop/themes/kitty.theme).
@@ -716,23 +577,6 @@ uninstall_login_shell() {   # back to the shell you had before (bash if unknown)
   [[ "$(login_shell)" == "$prev" ]] && { ok "already $prev"; forget_setting login-shell; return 0; }
   chsh -s "$prev" && { forget_setting login-shell; ok "login shell is ${prev##*/} again (log out and back in)"; } || { fail "chsh failed"; return 1; }
 }
-
-# ------------------------------------------------------ kitty-nautilus ---
-nat_ext="$HOME/.local/share/nautilus-python/extensions/nautilus_open_any_terminal.py"
-nat_schema="com.github.stunkymonkey.nautilus-open-any-terminal"
-label_kitty_nautilus() { echo "Kitty in Files"; }
-title_kitty_nautilus() { echo "Make kitty the default terminal and add \"Open in Terminal\" to Files"; }
-detail_kitty_nautilus() { echo "kitty as default terminal, 'Open in Terminal' in Files"; }
-state_kitty_nautilus() { NOTE=""
-  type -P nautilus >/dev/null || { STATE=unsupported; NOTE="needs Nautilus (GNOME Files)"; return; }
-  type -P kitty >/dev/null || { STATE=n/a; NOTE="kitty isn't installed"; return; }
-  local n=0
-  [[ -f "$nat_ext" ]] && (( n++ ))
-  [[ "$(gsettings get "$nat_schema" terminal 2>/dev/null)" == "'kitty'" ]] && (( n++ ))
-  [[ "$(term_alt)" == /usr/bin/kitty || "$(term_alt)" == "$kapp_bin" ]] && (( n++ ))
-  if (( n == 3 )); then STATE=installed; elif (( n )); then STATE=partial; else STATE=missing; fi; }
-install_kitty_nautilus() { ask "Run kitty/install-kitty-gnome.sh (may need sudo)?" && bash "$repo/kitty/install-kitty-gnome.sh" || skip; }
-uninstall_kitty_nautilus() { bash "$repo/kitty/uninstall-kitty-gnome.sh"; }
 
 # ------------------------------------------------------------- looks ---
 # A "look" is a preset of an extension's settings (gnome/<name>/settings.dconf, a dconf dump).
