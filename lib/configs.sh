@@ -8,7 +8,10 @@
 #     own default (no config from the toolkit), what you had before the toolkit, back one step
 #     (undo). How it's put in place: link (the file is a link to the preset), block (a marked
 #     block in your own file), merge (a file of its own: the preset with your patch laid over it,
-#     btop's). A preset is a link into the repo, so editing the config edits the repo's copy: the
+#     for a program that rewrites its own config, like btop; the part brings merge_build_<id>
+#     (write it), merge_ours_<id> (true: it's what we wrote), merge_made_<id> (prints the file that
+#     keeps our checksum) and merge_keep_<id> (prints the program's own changes, for the patch)).
+#     A preset is a link into the repo, so editing the config edits the repo's copy: the
 #     list calls that "edited preset". Every change first keeps what was there, so undo (one step)
 #     brings it back, your edits included; leaving an edited preset puts the repo's copy back as
 #     committed, so uk update and git stay clean.
@@ -19,9 +22,8 @@
 #
 # Your own changes go in a patch: your file in ~/.config/work-toolkit/patches, which the preset
 # pulls in last (kitty globinclude, rofi @import, readline $include, dconf loaded after), so it
-# wins. starship and btop can't include a file: starship gets the two merged into a file of its
-# own (shell/init.sh, lib/toml_patch.py), btop a settings file of its own (bt_build in
-# components.sh). The toolkit never writes to a patch once it is made; anyone can copy someone's.
+# wins. A program that can't include a file gets the two merged by its part (bluefeels: starship
+# into a file of its own at shell start, btop with the merge kind). The toolkit never writes to a patch once it is made; anyone can copy someone's.
 #
 # A part can also have config_after_<id> (what has to notice a change; prints a note) and
 # config_saved_<id> (after you edit its patch: prints the result line).
@@ -38,7 +40,7 @@ mode=ask details=0
 snap_dir="$orig_dir/configs"   # <id>.last (what was there before the last change) and <id>.kind
 patch_dir="$HOME/.config/work-toolkit/patches"   # the presets name this folder; keep them in step
 
-# __refresh needs no kit (shell/init.sh, at shell start); everything else is <kit> configs
+# __refresh <id> needs no kit (a layer's shell/init.sh, at shell start); everything else is <kit> configs
 if [[ ${1:-} != __refresh ]]; then KIT=${1:-tk}; shift; fi
 
 # the kit's presets, one per line: id|kind|the rest of its config_<id> line
@@ -100,10 +102,10 @@ cfg_state() {
     if linked "$live" "$src"; then if cfg_dirty; then CS=edited; else CS=preset; fi
     elif [[ -e $live || -L $live ]]; then CS=own
     else CS=default; fi
-  elif [[ $kind == merge ]]; then   # btop: its own file; a link is from older installs
+  elif [[ $kind == merge ]]; then   # its own file; a link is from older installs
     if linked "$live" "$src"; then if cfg_dirty; then CS=edited; else CS=preset; fi
-    elif bt_ours; then CS=preset
-    elif [[ -f $live && -f $bt_made ]]; then CS=edited   # changed in btop's menu since the toolkit wrote it
+    elif "$(fn merge_ours "$id")"; then CS=preset
+    elif [[ -f $live && -f $("$(fn merge_made "$id")") ]]; then CS=edited   # changed by the program since the toolkit wrote it
     elif [[ -e $live ]]; then CS=own
     else CS=default; fi
   else
@@ -189,7 +191,7 @@ cfg_do() {
     "$CH_PRE") cfg_snap; cfg_clean
       case $kind in
         link)  mkdir -p "${live%/*}"; rm -f "$live"; ln -s "$src" "$live" ;;
-        merge) bt_build ;;
+        merge) "$(fn merge_build "$id")" ;;
         block) mkdir -p "${live%/*}"; set_block "$live" "$(<"$src")" ;;
       esac
       echo "✓ $nice: toolkit preset" ;;
@@ -200,7 +202,7 @@ cfg_do() {
       rm -f "$live"; mkdir -p "${live%/*}"; cp -p "$o" "$live"
       echo "✓ $nice: what you had before the toolkit" ;;
     "$CH_UND") cfg_undo ;;
-    "$CH_DRP") cfg_snap; mv "$patch" "$patch.dropped"; [[ $kind == merge ]] && bt_build
+    "$CH_DRP") cfg_snap; mv "$patch" "$patch.dropped"; [[ $kind == merge ]] && "$(fn merge_build "$id")"
       echo "✓ $nice: patch dropped (kept as ${patch/#$HOME/\~}.dropped)" ;;
     "$CH_KPT") cfg_keep; echo "✓ $nice: its changes are your patch now (${patch/#$HOME/\~})" ;;
     *) echo "✗ nothing changed"; return 0 ;;
@@ -221,13 +223,13 @@ cfg_undo() {
   rm -f "$t"
   echo "✓ $nice: back to before the last change"
 }
-# btop's settings that differ from the preset (and patch), added to the patch; then its file again
+# a merge preset's settings the program changed (merge_keep_<id>), added to the patch; then its file again
 cfg_keep() {
-  local now t; now=$(bt_kv "$live"); cfg_snap; cfg_clean; t=$(mktemp)
+  local t; cfg_snap; cfg_clean; t=$(mktemp)
   [[ -f $patch ]] || cfg_new_patch
-  comm -23 <(printf '%s\n' "$now") <(bt_merge | bt_kv) >"$t"
-  [[ -s $t ]] && { printf '\n# kept from btop (%s)\n' "$(date +%F)"; cat "$t"; } >>"$patch"
-  rm -f "$t"; bt_build
+  "$(fn merge_keep "$id")" >"$t"
+  [[ -s $t ]] && { printf '\n# kept from %s (%s)\n' "$app" "$(date +%F)"; cat "$t"; } >>"$patch"
+  rm -f "$t"; "$(fn merge_build "$id")"
 }
 
 # ------------------------------------------------------------------ list ---
@@ -342,8 +344,11 @@ case "${1:-}" in
     [[ -z ${NO_COLOR:-} ]] && ui_color; cfg_row "${2:-}" || exit 0
     f=$(fn config_saved "$id")
     if declare -F "$f" >/dev/null; then cfg_to_list "$("$f")"; else cfg_to_list "✓ $nice: your patch saved"; fi ;;
-  __refresh)  # shell start, after the preset or the patch changed: btop's file again, unless btop changed it
-    [[ -f $bt_made && -f $bt && ! -L $bt ]] &&
-      [[ $(sha256sum "$bt" | cut -d' ' -f1) == "$(<"$bt_made")" ]] && bt_build ;;
+  __refresh)  # __refresh <id>, at shell start after the preset or the patch changed: a merge preset's
+    # file again, unless the program changed it since the toolkit wrote it
+    KIT=$(kit_of "${2:-}"); cfg_row "${2:-}" 2>/dev/null || exit 0
+    made=$("$(fn merge_made "$id")")
+    [[ -f $made && -f $live && ! -L $live ]] &&
+      [[ $(sha256sum "$live" | cut -d' ' -f1) == "$(<"$made")" ]] && "$(fn merge_build "$id")" ;;
   *)     ui_unknown "$KIT configs" "$1" ;;
 esac

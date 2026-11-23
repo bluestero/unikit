@@ -196,10 +196,10 @@ def test_layer_check_a_folder_before_pushing_it(sb):
         f.write("#!/bin/sh\n")
     os.chmod(d + "/bin/tk", 0o755)
     with open(d + "/components.sh", "w") as f:
-        f.write("COMPONENTS+=(starship mine-part)\n")
+        f.write("COMPONENTS+=(fzf mine-part)\n")
     code, out = run(sb, repo, "uk", "layer", "check", d)
     assert code == 1, out
-    for fault in ("bin/tk never runs: unikit's tk comes first", "its part names are taken: starship (unikit)"):
+    for fault in ("bin/tk never runs: unikit's tk comes first", "its part names are taken: fzf (unikit)"):
         assert fault in out, (fault, out)
     os.remove(d + "/bin/tk")
     with open(d + "/components.sh", "w") as f:

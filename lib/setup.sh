@@ -165,38 +165,9 @@ fetch_fzf() {
   unset _UI_FZF_VER
 }
 
-# --------------------------------------------------------------- yazi ---
-# Terminal file manager. The release below goes in ~/.local/bin (no sudo). The
-# release has no checksums file, so the sha256 of each build is pinned here
-# (GitHub's own digest of the asset); bump both together.
-YAZI_VERSION=26.9.1
-YAZI_SHA_x86_64=9b9c39decccf8cb0ff53a7d637d38f8a79d93bbd0099f4ea9c619ef6bb392f5d
-YAZI_SHA_aarch64=dd569daecaae914185f295634109295ccd25c1b42b02eb89a74f651970024f2e
-fetch_yazi() {
-  local arch f url tmp sum want
-  case "$(uname -m)" in
-    x86_64|amd64)  arch=x86_64;  want=$YAZI_SHA_x86_64 ;;
-    aarch64|arm64) arch=aarch64; want=$YAZI_SHA_aarch64 ;;
-    *) warn "no yazi download for $(uname -m)"; return 1 ;;
-  esac
-  type -P unzip >/dev/null || { warn "unzip is needed to unpack yazi"; return 1; }
-  f="yazi-${arch}-unknown-linux-musl.zip"
-  url="https://github.com/sxyazi/yazi/releases/download/v$YAZI_VERSION/$f"
-  tmp=$(mktemp -d)
-  curl -fsSL --retry 2 -o "$tmp/$f" "$url" 2>>"$log_file" || { warn "couldn't download yazi (offline?)"; rm -rf "$tmp"; return 1; }
-  sum=$(sha256sum "$tmp/$f" | cut -d' ' -f1)
-  [[ "$sum" == "$want" ]] || { warn "yazi download didn't match its checksum, so it wasn't installed"; rm -rf "$tmp"; return 1; }
-  unzip -qo -j "$tmp/$f" '*/yazi' '*/ya' -d "$tmp/out" 2>>"$log_file" || { warn "no yazi in the download"; rm -rf "$tmp"; return 1; }
-  mkdir -p "$HOME/.local/bin"
-  install -m 755 "$tmp/out/yazi" "$HOME/.local/bin/yazi"
-  install -m 755 "$tmp/out/ya" "$HOME/.local/bin/ya"
-  rm -rf "$tmp"
-  logf "yazi $YAZI_VERSION installed to ~/.local/bin"
-}
-
 # ------------------------------------------------- latest downloads ---
-# The tools okcli, kx and the prompt run on (okta-aws-cli, kubectl, direnv,
-# starship) come as the newest release for this CPU, into ~/.local/bin (no sudo).
+# The programs layers' tools run on (okta-aws-cli, kubectl, direnv, starship, ...) come as
+# the newest release for this CPU, into ~/.local/bin (no sudo).
 # dl_arch: amd64 | arm64 (nothing on other CPUs)
 dl_arch() { case "$(uname -m)" in x86_64|amd64) echo amd64 ;; aarch64|arm64) echo arm64 ;; esac; }
 # gh_latest <owner/repo> <asset name, {v} = version>: sets GH_VER GH_URL GH_SHA

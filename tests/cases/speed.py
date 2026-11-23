@@ -15,6 +15,8 @@ def test_fk_configs(sb):
     sb.write(sb.fix + "/enabled-extensions", f"['{vitals}']\n")
     t, secs = opened(sb, lambda sb: ([FK, "configs"], "Vitals", None))
     rows = [("fk configs · open", record("fk configs · open", secs, OPEN), OPEN)]
+    t.key("Vitals")                                      # bluefeels' other presets come first
+    t.settle()
     enter = [t.timed_key("enter", lambda t: "Keep my settings" in t.text())]
     rows.append(("fk configs · enter → choices", record("fk configs · enter → choices", enter, CALLBACK), CALLBACK))
     t.close()

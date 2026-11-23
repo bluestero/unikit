@@ -95,7 +95,11 @@ def test_feelkit_stays_out_of_the_main_install(sb):
 
 def test_both_bars_ask_and_no_goes_back(sb):
     _, t = start(sb, "--layer=bluefeels")
-    t.key("right", "right")                               # past Kitty looks to GNOME looks: dash2dock, dash-to-panel first
+    for _ in range(8):                                    # to GNOME looks: dash2dock, dash-to-panel first
+        if "dash2dock" in (t.cursor_line() or ""):
+            break
+        t.key("right")
+        t.settle(quiet=0.2)
     t.wait(lambda t: "dash2dock" in t.cursor_line(), what="the cursor on dash2dock")
     t.key("tab", "down", "tab")
     t.wait_for("Summary · 2 to set up")
@@ -114,7 +118,11 @@ def test_both_bars_ask_and_no_goes_back(sb):
 
 def test_both_bars_yes_sets_up(sb):
     _, t = start(sb, "--plain", "--layer=bluefeels")
-    t.key("right", "right")                               # past Kitty looks to GNOME looks: dash2dock, dash-to-panel first
+    for _ in range(8):                                    # to GNOME looks: dash2dock, dash-to-panel first
+        if "dash2dock" in (t.cursor_line() or ""):
+            break
+        t.key("right")
+        t.settle(quiet=0.2)
     t.wait(lambda t: "dash2dock" in t.cursor_line(), what="the cursor on dash2dock")
     t.key("tab", "down", "tab")
     t.wait_for("Summary · 2 to set up")

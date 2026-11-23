@@ -217,13 +217,9 @@ bluefeels' parts (kitty backgrounds, themes, accents, icons and the GNOME looks)
 | Component | What it sets up |
 |---|---|
 | `bash` | `~/.bashrc` keeps the Ubuntu defaults plus one line loading `shell/init.sh`; PATH, nvm, direnv/starship hooks and exact copies of the toolkit's aliases move into the repo, clashing leftovers (ble.sh, old okcli hooks, duplicate nvm) are removed. Your own aliases stay. Uninstall puts the removed lines back |
-| `btop` | installs btop (apt) if missing, links `~/.config/btop/btop.conf` → `btop/btop.conf`, and has k-theme write btop's colours from your kitty theme (re-done on every theme change). Uninstall puts your own btop config back |
-| `yazi` | yazi 26.9.1 (terminal file manager) from GitHub in `~/.local/bin`, checked against a pinned sha256; also `ya`. The `y` command (`yazi/shell/y.sh`, loaded by `shell/init.sh`) opens it and leaves your shell in the folder you quit in (`q`; `Q` quits without cd). Colours follow the kitty theme through the terminal palette. Uninstall removes the binaries; `~/.config/yazi` stays |
-| `yazi-keys` | Two keys for yazi: `>` picks a folder inside the current one with fzf (up to 6 levels, no hidden folders), and ctrl+backspace deletes a word in yazi's text fields. Written as one marked block (`# >>> work toolkit >>>`) in `~/.config/yazi/keymap.toml`, from `yazi/keymap.toml`: added to your file if you have one (the rest stays yours), the file is made if not; if yours already has `prepend_keymap = [ ... ]` lines it says so and leaves it alone. Uninstall removes only the block |
 | `direnv` | latest direnv from GitHub (sha256-checked) in `~/.local/bin`, for `okcli pin`; the shell setup hooks it in. Skipped if you already have one; uninstall only removes the toolkit's |
 | `keys` | `~/.inputrc` → `shell/inputrc` (case-insensitive Tab, Up/Down search by what's typed) |
 | `commands` | `uk`, `tk`, `fk` (for now also `ws`) and every layer's `bin/` commands in `~/.local/bin`; a name another program has is left alone |
-| `starship` | `~/.config/starship.toml` → `starship/starship.toml`, and starship itself (latest from GitHub, sha256-checked) in `~/.local/bin` if it isn't installed |
 | `fzf` | fzf 0.74.5 from GitHub (checksum-checked) in `~/.local/bin`, ahead of Ubuntu's 0.44. Every picker then shows where you are (`12/426`, `3/17 of 426` while searching), and k-theme gets its tabs. Uninstall goes back to apt's |
 | `zsh-hook` | `~/.zshrc` gets one managed block loading `shell/init.sh` (like bash's line); `~/.zprofile` one reading `~/.profile` |
 | `zsh` | apt `zsh zsh-autosuggestions`; `~/.zshenv` gets one managed block |
@@ -318,7 +314,6 @@ lib/bashrc_plan.py          the ~/.bashrc cleanup (same result every run)
 lib/bashrc_restore.py       uninstall: puts the lines the cleanup took out back
 bin/hat, lib/hat.sh         hat: Claude, GitHub and AWS per folder
 lib/layers.sh               what a layer can hold; layers/ (gitignored) holds them
-starship/starship.toml      prompt
 shell/init.sh               the one file bash and zsh load (common.sh, layers, starship, tools)
 shell/common.sh             personal aliases, PATH, env, dex, nvm (both shells)
 shell/inputrc               bash key settings

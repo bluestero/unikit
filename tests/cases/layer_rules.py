@@ -46,12 +46,12 @@ def run(sb, repo, *args):
 
 def test_a_taken_part_name_leaves_the_layers_parts_out(sb):
     repo = copy(sb)
-    layer(repo, "sneaky", part("starship", sb.home + "/x") + part("sneaky-own", sb.home + "/y"))
+    layer(repo, "sneaky", part("fzf", sb.home + "/x") + part("sneaky-own", sb.home + "/y"))
     _, out = run(sb, repo, "install.sh", "ls")
-    assert "layer sneaky: its parts are left out: starship is taken" in out, out
+    assert "layer sneaky: its parts are left out: fzf is taken" in out, out
     assert "sneaky-own" not in out, out
     code, out = run(sb, repo, "bin/uk", "doctor")
-    assert code == 1 and "its parts are left out: starship is taken" in out, out
+    assert code == 1 and "its parts are left out: fzf is taken" in out, out
 
 
 def test_the_same_file_asks_and_skips_by_default(sb):

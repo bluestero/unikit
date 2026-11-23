@@ -20,6 +20,8 @@ def start(sb):
     t = Term([FK, "configs"], sb.env)
     t.wait_for("Vitals")
     t.settle()
+    t.key("Vitals")                                     # bluefeels' other presets (kitty, btop, ...) come first
+    t.settle()
     return t
 
 

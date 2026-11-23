@@ -3,7 +3,7 @@
 #   zsh:  ~/.zshrc has the same line (the zsh-hook part); this loads zsh/zshrc
 #
 # Loads, in order: shared aliases/PATH/env (common.sh), the layers' shell/init.sh,
-# the starship hook, then the tools. Safe to source more than once.
+# then the tools. Safe to source more than once.
 
 _work_root="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")/.." && pwd)"
 if [ -n "${ZSH_VERSION:-}" ]; then _work_sh=zsh; else _work_sh=bash; fi
@@ -41,35 +41,11 @@ if [ -n "${ZSH_VERSION:-}" ] && [ -z "${_work_zshrc_done:-}" ] && [ -r "$_work_r
 fi
 
 [ -r "$_work_root/shell/common.sh" ] && . "$_work_root/shell/common.sh"
-# Your starship patch (tk configs: edit my patch) laid over the preset: starship can't read
-# two files, so they're merged into one, made again when either changes. Before the
-# layers: a look layer's k-bg colours this file when it's there.
-_ss_out="$HOME/.local/state/work-toolkit/starship.toml"
-_ss_patch="$HOME/.config/work-toolkit/patches/starship.toml"
-if [ -f "$_ss_patch" ] && [ -f "$HOME/.config/starship.toml" ] && command -v python3 >/dev/null 2>&1; then
-  if [ ! -f "$_ss_out" ] || [ "$_ss_patch" -nt "$_ss_out" ] || [ "$HOME/.config/starship.toml" -nt "$_ss_out" ]; then
-    python3 -I "$_work_root/lib/toml_patch.py" "$HOME/.config/starship.toml" "$_ss_patch" "$_ss_out" 2>/dev/null ||
-      echo "starship: your patch has an error (tk configs shows it); the prompt keeps the last one that worked" >&2
-  fi
-  [ -f "$_ss_out" ] && export STARSHIP_CONFIG="$_ss_out"
-else
-  rm -f "$_ss_out"
-fi
-unset _ss_out _ss_patch
-# btop's own settings file (the preset with your patch): made again after either changes,
-# unless btop has changed it since (tk configs then offers to keep that as your patch).
-_bt="$HOME/.config/btop/btop.conf"
-if [ -f "$HOME/.local/state/work-toolkit/originals/configs/btop.made" ] && [ -f "$_bt" ] && [ ! -L "$_bt" ] &&
-   { [ "$_work_root/btop/btop.conf" -nt "$_bt" ] || [ "$HOME/.config/work-toolkit/patches/btop.conf" -nt "$_bt" ]; }; then
-  bash "$_work_root/lib/configs.sh" __refresh >/dev/null 2>&1
-fi
-unset _bt
 # A layer's settings come before the tools, which read them (OKTA_AWSCLI_*, KX_ALIAS_RULES).
 for _l in $(_work_layers); do
   [ -r "$_work_root/$_l/shell/init.sh" ] && . "$_work_root/$_l/shell/init.sh"
 done
 
-command -v starship >/dev/null 2>&1 && eval "$(starship init $_work_sh)"
 
 # A blank line before each prompt, except the first one (and the first after
 # 'clear'): a new terminal starts on the top line, not one down.
