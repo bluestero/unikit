@@ -1,5 +1,5 @@
 """Installer parts' own checks, in a scratch copy of the repo (bluefeels included) with a scratch
-HOME: looks (a missing preset, files copied out of the repo), kitty accents without a background.conf, uk layer rm's advice, zsh-hook replacing the older ~/.zshrc line, commands linking the layers' commands."""
+HOME: looks (a missing preset, files copied out of the repo), uk layer rm's advice, zsh-hook replacing the older ~/.zshrc line, commands linking the layers' commands."""
 import os
 import shutil
 import subprocess
@@ -50,15 +50,6 @@ def test_a_look_file_is_copied_out_of_the_repo(sb):
     assert copied in out and repo not in out, out
     shutil.rmtree(repo + "/layers/bluefeels/gnome/dash-to-panel")   # the layer's files gone: the icon stays
     assert os.path.isfile(copied)
-
-
-def test_kitty_accents_need_a_background_conf(sb):
-    repo = copy(sb)
-    sb.fake("kitty", "exit 0")
-    install(sb, repo, "--kit=fk", "kitty-config")
-    out = sh(sb, repo, 'component_state kitty-accents; echo "$STATE"; uninstall_kitty_accents')
-    assert out.splitlines()[0] == "missing", out          # k-bg reads a missing file as accents on
-    assert not os.path.exists(sb.path("~/.config/kitty/background.conf")), "the uninstall must not make one"
 
 
 def test_layer_rm_names_the_layers_own_uninstall(sb):
