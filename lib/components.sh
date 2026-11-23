@@ -17,12 +17,12 @@
 # shellcheck source=layers.sh
 . "$repo/lib/layers.sh"
 
-COMPONENTS=(bash zsh-hook commands fzf claude-skill claude-guidelines)
+COMPONENTS=(bash zsh-hook commands fzf claude-skill)
 # Shown in groups in the checklist; the rest are optional extras.
 RECOMMENDED=(bash zsh-hook commands fzf)
 # Components with a settings look: naming one that is installed opens the keep / look / defaults menu
-LOOK_PARTS=(claude-guidelines)   # components with a settings menu; a layer adds its own (LOOK_PARTS+=)
-CLAUDE_PARTS=(claude-skill claude-guidelines)
+LOOK_PARTS=()   # components with a settings menu; a layer adds its own (LOOK_PARTS+=)
+CLAUDE_PARTS=(claude-skill)
 # Which repo a component comes from: the toolkit, or the layer that adds it (bluefeels, ...).
 repo_of() { echo "${LAYER_OF[$1]:-toolkit}"; }
 # the layer a part comes from, for the installers' LAYER column (unikit: the base's own)
@@ -64,7 +64,7 @@ group_of() {
 # groups' (GROUP_ABOUT[AirPR]=...).
 declare -gA GROUP_ABOUT=(
   [Recommended]="The basics: unikit and its layers in bash and zsh, their commands, a newer fzf."
-  ["Claude Code"]="Claude Code knows the toolkit, starts each session knowing your profile and cluster, follows the guidelines."
+  ["Claude Code"]="Claude Code: your layers' skills, hooks and guidelines, in every Claude profile."
 )
 
 # What a component needs from the machine itself (see lib/platform.sh). Anything
@@ -619,124 +619,6 @@ install_claude_skill() {
 }
 cs_uninstall() { local l t; while IFS=$'\t' read -r l t; do unlink_file "$l" "$t"; done < <(cs_pairs); }
 uninstall_claude_skill() { claude_each cs_uninstall; }
-
-# Coding guidelines and skills for Claude Code, as Claude Code plugins: each comes from its
-# authors' GitHub repo (a plugin marketplace), and `claude plugin update` keeps them current.
-# Picked in a list once, then installed in every profile; --yes installs only the Karpathy guidelines.
-# plugin@marketplace|GitHub repo|name|what it gives
-CP_CATALOG=(
-  "andrej-karpathy-skills@karpathy-skills|multica-ai/andrej-karpathy-skills|Karpathy guidelines|think before coding, keep it simple, small diffs, verify the goal"
-  "superpowers@superpowers-dev|obra/superpowers|Superpowers|brainstorm, write and run plans, TDD, systematic debugging, code review"
-  "document-skills@anthropic-agent-skills|anthropics/skills|Anthropic documents|read and write Word, Excel, PowerPoint and PDF files"
-  "example-skills@anthropic-agent-skills|anthropics/skills|Anthropic examples|skill creator, frontend design, web app testing, MCP builder"
-  "differential-review@trailofbits|trailofbits/skills|ToB diff review|security review of a change: git history, blast radius"
-  "insecure-defaults@trailofbits|trailofbits/skills|ToB insecure defaults|hardcoded credentials, fallback secrets, weak auth defaults"
-  "sharp-edges@trailofbits|trailofbits/skills|ToB sharp edges|error-prone APIs, dangerous configs, footgun designs"
-  "static-analysis@trailofbits|trailofbits/skills|ToB static analysis|CodeQL, Semgrep and SARIF to find vulnerabilities"
-  "property-based-testing@trailofbits|trailofbits/skills|ToB property tests|write and triage property-based tests (Hypothesis, fast-check, proptest)"
-  "supply-chain-risk-auditor@trailofbits|trailofbits/skills|ToB supply chain|audit npm, PyPI and Go dependencies for supply-chain risk"
-  "modern-python@trailofbits|trailofbits/skills|ToB modern Python|modern Python practice for new projects and migrations"
-)
-cp_has() { grep -qF "\"$1\":" "$claude_dir/plugins/installed_plugins.json" 2>/dev/null; }      # plugin@marketplace
-cp_mkt() { grep -qF "\"$1\":" "$claude_dir/plugins/known_marketplaces.json" 2>/dev/null; }      # marketplace added
-cp_in() { local claude_dir n=0; while IFS= read -r claude_dir; do cp_has "$1" && (( n++ )); done < <(claude_dirs); echo "$n"; }   # in how many profiles
-cp_mkt_any() { local claude_dir; while IFS= read -r claude_dir; do cp_mkt "$1" && return 0; done < <(claude_dirs); return 1; }
-cp_rows() {   # the picker's table: title row, then one row per plugin (plugin@marketplace hidden after a TAB)
-  local l id repo name what st n all; all=$(claude_dirs | grep -c .)
-  printf '%s\x1f%s\x1f%s\x1f%s\t\n' "${B}PLUGIN$R" "${B}STATE$R" "${B}WHAT YOU GET$R" "${B}FROM$R"
-  for l in "${CP_CATALOG[@]}"; do
-    IFS='|' read -r id repo name what <<<"$l"
-    n=$(cp_in "$id")
-    if (( n && n == all )); then st="$G✓ installed$R"; elif (( n )); then st="$Y◐ in $n of $all profiles$R"; else st="${D}not installed$R"; fi
-    printf '%s\x1f%s\x1f%s\x1f%s\t%s\n' "$name" "$st" "$D$what$R" "${D}github.com/$repo$R" "$id"
-  done
-}
-# The toolkit used to put the Karpathy guidelines in CLAUDE.md as a marked block; the plugin replaces it.
-cg_file="$claude_dir/CLAUDE.md"
-cg_present() { [[ -f "$cg_file" ]] && grep -q 'tk:karpathy-guidelines:start' "$cg_file"; }
-cg_remove() {   # drops that block; the rest of the file stays
-  local tmp b; tmp=$(mktemp)
-  python3 -I - "$cg_file" >"$tmp" <<'PY' || { rm -f "$tmp"; fail "couldn't update ${cg_file/#$HOME/\~}"; return 1; }
-import re, sys
-text = open(sys.argv[1]).read()
-rest = re.sub(r"<!-- tk:karpathy-guidelines:start -->.*?<!-- tk:karpathy-guidelines:end -->", "", text, flags=re.S).strip("\n")
-sys.stdout.write(rest + "\n" if rest else "")
-PY
-  b=$(backup "$cg_file")
-  if [[ -s "$tmp" ]]; then cat "$tmp" >"$cg_file"; else rm -f "$cg_file"; fi
-  rm -f "$tmp"
-  logf "  removed the old guidelines block from $cg_file${b:+ (backup: $b)}"
-  ok "old copy removed from ${cg_file/#$HOME/\~}${b:+ (backup: ${b/#$HOME/\~})}"
-}
-cg_absent() { ! cg_present; }
-cg_ok() { local l; cg_present && return 1; for l in "${CP_CATALOG[@]}"; do cp_has "${l%%|*}" && return 0; done; return 1; }
-label_claude_guidelines() { echo "Claude guidelines & skills"; }
-title_claude_guidelines() { echo "Pick coding guidelines and skills for Claude Code (Karpathy, Superpowers, Anthropic, Trail of Bits)"; }
-detail_claude_guidelines() { echo "Claude Code plugins from their authors' GitHub repos, in each Claude profile; claude plugin update keeps them current"; }
-state_claude_guidelines() { local l names=""
-  claude_state cg_ok
-  if [[ $STATE == missing ]] && ! claude_each cg_absent; then   # an old copy in some profile
-    STATE=partial NOTE="an old copy in CLAUDE.md; the Karpathy plugin replaces it"
-  fi
-  [[ $STATE == installed ]] || return 0
-  for l in "${CP_CATALOG[@]}"; do (( $(cp_in "${l%%|*}") )) && names+="${names:+, }$(cut -d'|' -f3 <<<"$l")"; done
-  NOTE=$names; }
-cp_install() {   # cp_install <plugin@marketplace per line>: those into this profile
-  local id repo name what karpathy=${CP_CATALOG[0]%%|*}
-  while IFS= read -r id; do
-    [[ -n $id ]] || continue
-    IFS='|' read -r _ repo name what <<<"$(printf '%s\n' "${CP_CATALOG[@]}" | grep -m1 -F "$id|")"
-    cp_has "$id" && continue
-    ask "Install $name in ${claude_dir/#$HOME/\~}? (Claude Code plugin from github.com/$repo)" || { skip; continue; }
-    dry && continue
-    if ! cp_mkt "${id#*@}"; then   # added by us: the uninstall removes it again
-      CLAUDE_CONFIG_DIR=$claude_dir claude plugin marketplace add "$repo" >>"$log_file" 2>&1 ||
-        { fail "couldn't add github.com/$repo to Claude Code (see the log)"; continue; }
-      remember_setting "claude-marketplace-${id#*@}" added
-    fi
-    if CLAUDE_CONFIG_DIR=$claude_dir claude plugin install "$id" >>"$log_file" 2>&1; then ok "$name installed"
-    else fail "$name not installed (see the log)"; fi
-  done <<<"$1"
-  cg_present || return 0
-  if cp_has "$karpathy"; then
-    ask "Remove the old copy of the Karpathy guidelines from ${cg_file/#$HOME/\~}? (the plugin replaces it)" && { dry || cg_remove; } || skip
-  elif ! dry; then warn "an old copy of the Karpathy guidelines stays in ${cg_file/#$HOME/\~}; pick Karpathy guidelines to move it to the plugin"; fi
-}
-install_claude_guidelines() {
-  local picked="" karpathy=${CP_CATALOG[0]%%|*}
-  type -P claude >/dev/null || { skip "the claude command isn't on PATH"; return; }
-  case "$mode" in
-    dry) say "  ${C}?${R} Pick the guidelines and skills to install ${D}(dry run: not asked)${R}" ;;
-    yes) picked=$karpathy ;;
-    *)
-      if ! type -P fzf >/dev/null || [[ ! -t 0 ]]; then skip "picking needs fzf and a terminal"; return; fi
-      picked=$(cp_rows | ui_fzf "Claude guidelines & skills" --multi --header-lines=1 --delimiter=$'\t' --with-nth=1 \
-        --header='tab: tick/untick · enter: install the ticked ones in every profile · esc: cancel' | cut -f2) || { skip; return; } ;;
-  esac
-  claude_each cp_install "$picked"
-}
-cp_uninstall() { local l id
-  for l in "${CP_CATALOG[@]}"; do
-    id=${l%%|*}; cp_has "$id" || continue
-    if CLAUDE_CONFIG_DIR=$claude_dir claude plugin uninstall "$id" >>"$log_file" 2>&1; then ok "removed $(cut -d'|' -f3 <<<"$l") from ${claude_dir/#$HOME/\~}"
-    else fail "couldn't remove $(cut -d'|' -f3 <<<"$l") from ${claude_dir/#$HOME/\~} (see the log)"; fi
-  done
-  cg_present && cg_remove
-  # the plugin sources the toolkit added, once no plugin from them is left here
-  for l in $(printf '%s\n' "${CP_CATALOG[@]}" | cut -d'|' -f1 | sed 's/.*@//' | sort -u); do
-    [[ $(recall_setting "claude-marketplace-$l") == added ]] && cp_mkt "$l" || continue
-    grep -qF "@$l\":" "$claude_dir/plugins/installed_plugins.json" 2>/dev/null && continue
-    if CLAUDE_CONFIG_DIR=$claude_dir claude plugin marketplace remove "$l" >>"$log_file" 2>&1; then ok "removed the $l plugin source from ${claude_dir/#$HOME/\~}"
-    else fail "couldn't remove the $l plugin source (see the log)"; fi
-  done
-  return 0
-}
-uninstall_claude_guidelines() { local l
-  claude_each cp_uninstall
-  for l in $(printf '%s\n' "${CP_CATALOG[@]}" | cut -d'|' -f1 | sed 's/.*@//' | sort -u); do   # gone from every profile: forget it
-    [[ $(recall_setting "claude-marketplace-$l") == added ]] && ! cp_mkt_any "$l" && forget_setting "claude-marketplace-$l"
-  done
-  return 0; }
 
 # -------------------------------------------------------------- layers ---
 # Each layer's own components (lib/layers.sh), after the toolkit's.
