@@ -161,7 +161,7 @@ uninstall_bash() {
 }
 
 # ------------------------------------------------------------ commands ---
-cmd_bins=(bin/uk bin/tk bin/fk)
+cmd_bins=(bin/uk bin/tk bin/fk bin/skills)
 # the long names: links to the short ones, made only where no other program has the name
 declare -A cmd_long=([unikit]=bin/uk [toolkit]=bin/tk [feelkit]=bin/fk)
 # cmd_taken <name>: the other program that has that name (not ours or a layer's), or 1
@@ -183,8 +183,8 @@ cmd_layer_bins() {
   done
 }
 label_commands() { echo "Toolkit commands"; }
-title_commands() { echo "uk, tk, fk and the layers' commands, usable from anywhere"; }
-detail_commands() { echo "uk, tk, fk and every layer's bin/ commands (not tk-/fk- subcommands) in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too; a name another program has is left alone"; }
+title_commands() { echo "uk, tk, fk, skills and the layers' commands, usable from anywhere"; }
+detail_commands() { echo "uk, tk, fk, skills and every layer's bin/ commands (not tk-/fk- subcommands) in ~/.local/bin (for scripts and other programs); unikit, toolkit, feelkit too; a name another program has is left alone"; }
 state_commands() {
   local b n=0 total=${#cmd_bins[@]} l
   for b in "${cmd_bins[@]}"; do linked "$HOME/.local/bin/${b##*/}" "$repo/$b" && (( n++ )); done

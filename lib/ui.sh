@@ -457,7 +457,9 @@ ui_keys() {   # ui_keys <header text> [max divider width]
   # The divider runs the whole row, ending where fzf's prompt line above it ends (it starts
   # 2 columns further in); beside a pane it stops at the pane.
   w=$room
-  (( ${FZF_PREVIEW_COLUMNS:-0} > 0 && ${FZF_PREVIEW_LEFT:-0} > 4 )) || w=$(( room + 2 ))
+  if (( ${FZF_PREVIEW_COLUMNS:-0} > 0 )); then   # a pane below: fzf keeps one column back
+    (( ${FZF_PREVIEW_LEFT:-0} > 4 )) || w=$(( room + 1 ))
+  else w=$(( room + 2 )); fi
   # Inside fzf (a callback), the room already stops at the pane when it shows.
   [[ -n "$max" && -z "${FZF_COLUMNS:-}" ]] && (( w > max )) && w=$max
   (( w > 0 )) || w=20

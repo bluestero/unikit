@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# skills - the Claude skills each Claude profile has. Every skill comes from unikit or a
+# layer (claude/skills/<name>/); a profile has it when its skills/<name> links there.
+# The same picker as tk install claude-skill (lib/skills.sh), on its own.
+set -uo pipefail
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+repo="$(cd "$(dirname "$SELF")/.." && pwd)"
+mode=ask details=0 ok_pad=""
+# shellcheck source=../lib/setup.sh
+. "$repo/lib/setup.sh"
+# shellcheck source=../lib/components.sh
+. "$repo/lib/components.sh"
+
+# skills ls: a line per skill, its layer and the profiles that have it
+sk_ls() {
+  local d n l p have
+  for d in "$repo"/claude/skills/*/ "$repo"/layers/*/claude/skills/*/; do
+    [[ -d $d ]] || continue
+    d=${d%/}; n=${d##*/}
+    l=unikit; [[ $d == "$repo"/layers/* ]] && { l=${d#"$repo"/layers/}; l=${l%%/*}; }
+    have=""
+    while IFS= read -r p; do
+      linked "$p/skills/$n" "$d" || continue
+      if [[ $p == "$HOME/.claude" ]]; then have+="${have:+, }default"; else have+="${have:+, }$(basename "$p")"; fi
+    done < <(claude_dirs)
+    printf '%s\t%s\t%s\n' "$n" "$l" "${have:-none}"
+  done | column -t -s $'\t'
+}
+
+case "${1:-}" in
+  "")
+    if [[ -t 0 && -t 1 ]] && type -P fzf >/dev/null && ui_fzf_at_least 0.63; then
+      # shellcheck source=../lib/skills.sh
+      . "$repo/lib/skills.sh"; sk_pick
+    else sk_ls; fi ;;
+  ls) sk_ls ;;
+  help|-h|--help)
+    cat <<EOF
+skills - the Claude skills each Claude profile has
+
+  skills      pick which profiles get which skills (a list; tab ticks, ctrl-p the details pane)
+  skills ls   a line per skill: its layer and the profiles that have it
+EOF
+    ;;
+  *) printf "skills: no such command: %s (skills help)\n" "$1" >&2; exit 2 ;;
+esac

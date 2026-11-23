@@ -98,13 +98,19 @@ class Sandbox:
 
     def _real_path(self):
         """The real PATH, but a folder that has commands linked into a unikit checkout (the
-        user's ~/.local/bin after tk install commands) is a copy here without those: a test
-        sees only the unikit it runs."""
+        user's ~/.local/bin after tk install commands: unikit's and its layers') is a copy here
+        without those: a test sees only the unikit it runs."""
+        def in_unikit(link):
+            d = os.path.dirname(os.path.realpath(link))
+            while d != "/":
+                if os.path.exists(os.path.join(d, "lib", "layers.sh")):
+                    return True
+                d = os.path.dirname(d)
+            return False
         out = []
         for d in os.environ.get("PATH", "/usr/bin:/bin").split(":"):
             names = os.listdir(d) if os.path.isdir(d) else []
-            ours = [n for n in names if n in ("uk", "tk", "fk", "unikit", "toolkit", "feelkit")
-                    and os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(os.path.join(d, n)))), "lib", "layers.sh"))]
+            ours = [n for n in names if os.path.islink(os.path.join(d, n)) and in_unikit(os.path.join(d, n))]
             if not ours:
                 out.append(d)
                 continue

@@ -5,6 +5,7 @@ profile/skill pairs; removing something asks in the list first, default No."""
 import os
 import re
 import shutil
+import subprocess
 
 from fixture import REPO
 from term import Term
@@ -81,7 +82,8 @@ def test_two_profiles_partial_starts_unticked_then_the_profiles(sb):
     row = next(l for l in t.text().splitlines() if "alpha" in l and "team" in l)   # its row, not the preview's title
     assert "◐" in row and "work" in row and "[✓]" not in row, t.text()
     to(t, "alpha")
-    t.wait_for("✓ work")                                          # the preview: per profile
+    t.key("ctrl-p")                                               # the pane, closed at first
+    t.wait_for("✓ work")                                          # the pane: per profile
     t.key("tab", "enter")
     t.wait(lambda t: (t.line_with(".claude-profiles/work") or "").find("[✓]") >= 0,
            what="the profiles: work has alpha, so it's ticked")
@@ -90,6 +92,22 @@ def test_two_profiles_partial_starts_unticked_then_the_profiles(sb):
     t.key("tab", "enter")
     done(t)
     assert has(sb, "default", "alpha") and has(sb, "work", "alpha") and not has(sb, "default", "beta")
+
+
+def test_ctrl_p_opens_the_pane_right_then_below_then_closes_it(sb):
+    repo = setup(sb, ["default", "work"])
+    t = start(sb, repo)
+    assert "the alpha skill" not in t.text(), t.text()              # closed at first
+    t.key("ctrl-p")
+    beside = lambda t: re.search(r"│ [–✓] (default|work)", t.cursor_line() or "")   # a pane line on the cursor's row
+    t.wait(beside, what="the pane on the right, beside the rows")
+    t.key("ctrl-p")
+    t.wait(lambda t: not beside(t) and t.text().find("– default") > t.text().find("beta"),
+           what="the pane below the rows")
+    t.key("ctrl-p")
+    t.wait_gone("the alpha skill")
+    t.key("esc")
+    done(t)
 
 
 def test_two_profiles_nothing_installed_ticks_no_profile(sb):
@@ -147,3 +165,12 @@ def test_seven_profiles_count_and_exact_pairs(sb):
     assert not has(sb, "profile1", "alpha") and has(sb, "profile1", "beta")
     assert has(sb, "profile2", "alpha") and has(sb, "profile3", "alpha")
     assert not has(sb, "default", "alpha") and not has(sb, "profile4", "beta")
+
+
+def test_skills_ls_names_each_skills_layer_and_profiles(sb):
+    repo = setup(sb, ["default", "work"])
+    link(sb, repo, "work", "alpha")
+    p = subprocess.run([repo + "/bin/skills", "ls"], env=sb.env, cwd=sb.home, capture_output=True, text=True,
+                       timeout=30, stdin=subprocess.DEVNULL)
+    lines = [l.split() for l in p.stdout.splitlines()]
+    assert ["alpha", "team", "work"] in lines and ["beta", "team", "none"] in lines, p.stdout + p.stderr

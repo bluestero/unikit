@@ -6,7 +6,8 @@
 #                          enter: then which profiles (ticked: those that have the picked skills)
 #   by profile (alt-g)     a row per profile and skill: ticks pick exact pairs; enter applies them
 # Unticking something that is set up removes it, asked first in the list's header (default No).
-# The preview shows the skill under the cursor in each profile (✓ / –).
+# The pane shows the skill under the cursor in each profile (✓ / –): ctrl-p opens it on the
+# right, again below, again closes it (it starts closed).
 # install.sh sources it for sk_pick; fzf's callbacks run it as a script (bash lib/skills.sh
 # <what> <state dir> ...), which loads only lib/ui.sh and lib/inplace.sh.
 #
@@ -16,6 +17,7 @@
 #   on.skill / on.pair / on.prof   what's ticked in each view (on.pair: "name TAB profile")
 #   view     skill | pair | prof                        rows    the open view, laid out
 #   add, rm  the plan ("name TAB profile")              go      made when enter applies it
+#   pane     where the pane is: right | down (none: closed)
 
 # sk_pick: the picker, then the plan carried out. Needs the installer's repo, claude_dirs,
 # link_file, unlink_file. 1 = nothing applied (esc).
@@ -40,7 +42,8 @@ sk_pick() {
   bash "$repo/lib/skills.sh" layout "$T"
   ui_fzf 'Claude skills' --no-input --delimiter=$'\t' --with-nth=1 <"$T/rows" \
       --footer=' ' --with-shell='bash -c' \
-      --preview="$cb preview '$T' {2}" --preview-window='right,40%,wrap' \
+      --preview="$cb preview '$T' {2}" --preview-window='right,40%,hidden,wrap' \
+      --bind="ctrl-p:transform:$cb pane '$T'" \
       --bind="start:unbind(y,n)+transform:$cb header '$T'" \
       --bind="tab:transform:$cb tick '$T' {2} {n}" \
       --bind="alt-g:transform:$cb group '$T'" \
@@ -112,10 +115,10 @@ s_layout() {
 }
 s_keys() {
   case $(s_view) in
-    skill) if (( $(s_np) > 1 )); then echo "tab: tick · alt-g: by profile · enter: then which profiles · esc: cancel"
-           else echo "tab: tick · alt-g: by profile · enter: apply · esc: cancel"; fi ;;
-    pair)  echo "tab: tick · alt-g: by skill · enter: apply these · esc: cancel" ;;
-    prof)  echo "tab: tick · enter: apply · esc: back to the skills" ;;
+    skill) if (( $(s_np) > 1 )); then echo "tab: tick · alt-g: by profile · enter: then which profiles · ctrl-p: details pane · esc: cancel"
+           else echo "tab: tick · alt-g: by profile · enter: apply · ctrl-p: details pane · esc: cancel"; fi ;;
+    pair)  echo "tab: tick · alt-g: by skill · enter: apply these · ctrl-p: details pane · esc: cancel" ;;
+    prof)  echo "tab: tick · enter: apply · ctrl-p: details pane · esc: back to the skills" ;;
   esac
 }
 s_about() {
@@ -209,6 +212,23 @@ s_key() {
   esac
 }
 
+# ctrl-p: the pane closed -> right -> below -> closed; the hints re-wrap for the room it leaves
+s_pane() {
+  local next
+  case $(cat "$T/pane" 2>/dev/null) in
+    right) next=down ;;
+    down) next="" ;;
+    *) next=right ;;
+  esac
+  printf '%s' "$next" >"$T/pane"
+  case $next in
+    right) printf '%s' 'change-preview-window(right,40%,nohidden)' ;;
+    down) printf '%s' 'change-preview-window(down,50%,nohidden)' ;;
+    *) printf '%s' 'change-preview-window(hidden)' ;;
+  esac
+  printf '+transform:bash %q header %q\n' "$repo/lib/skills.sh" "$T"
+}
+
 # the preview: the skill under the cursor in each profile; on a profile, the picked skills there
 s_preview() {
   local id=${1:-} n p d
@@ -244,5 +264,6 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     group)    s_group ;;
     key)      s_key "$3" ;;
     preview)  s_preview "${3:-}" ;;
+    pane)     s_pane ;;
   esac
 fi
