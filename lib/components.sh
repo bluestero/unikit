@@ -501,6 +501,41 @@ kb_del() {
   gsettings set $kb_root custom-keybindings "$cur"; dconf reset -f "$path"
 }
 
+# ----------------------------------------------------------- workspaces ---
+# The workspace list (lib/workspaces.sh): your own (~/.config/ws/workspaces) plus the layers'
+# shared lists; its variables (AIRPR=...) name folders layers' parts and commands use.
+# shellcheck source=workspaces.sh
+. "$repo/lib/workspaces.sh"
+# ask_ws_folder NAME "<what goes there>": when the folder a workspace variable
+# names ($ACME, ...) doesn't exist yet, show where it would go and let you keep
+# that or type another (~/..., /..., or a path inside your home folder), then
+# create it and save it in your list. 0 = the folder is there now.
+ask_ws_folder() {
+  local name=$1 what=$2 cur dir
+  cur=$(ws_var "$name")
+  [[ -n $cur && -d $cur ]] && return 0
+  [[ -n $cur ]] && cur=${cur/#$HOME/\~} || cur="~/$name"
+  while :; do
+    ask_text "Folder for $what (\$$name)? Enter keeps it; type another to change it" "$cur" || { skip; return 1; }
+    dir=$ANSWER
+    [[ $dir == "~" || $dir == "~/"* ]] && dir="$HOME${dir:1}"
+    [[ $dir == /* ]] || dir="$HOME/$dir"
+    dir=$(realpath -m -- "$dir")
+    if [[ -z $ANSWER || $ANSWER == *$'\t'* ]]; then warn "that isn't a folder path"
+    elif [[ $dir == / || $dir == "$HOME" ]]; then warn "pick a folder of its own, not ${dir/#$HOME/\~}"
+    elif [[ -e $dir && ! -d $dir ]]; then warn "${dir/#$HOME/\~} is a file, not a folder"
+    elif dry; then say "      ${D}would create ${dir/#$HOME/\~} and save $name there in your list${R}"; return 0
+    elif ! mkdir -p -- "$dir" 2>/dev/null; then warn "can't create ${dir/#$HOME/\~} (no permission?)"
+    else
+      ws_set_var "$name" "$dir"
+      ok "$name → ${dir/#$HOME/\~} ${D}(saved in $(ws_list_file | sed "s|^$HOME|~|"); ws edit changes it)${R}"
+      return 0
+    fi
+    [[ $mode == yes ]] && return 1   # --yes can't ask again
+    cur=$ANSWER
+  done
+}
+
 # ----------------------------------------------- what the tools run on ---
 # Programs from their releases (the layers' tools: starship, okcli's, kx's): the newest release for
 # this CPU, in ~/.local (no sudo). One that's already installed some other way (apt, brew,
