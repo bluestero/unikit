@@ -145,7 +145,11 @@ def test_update_shows_where_things_stand(sb):
     t = pick(sb, repo)
     assert "demo" in t.text() and "1 new commit" in t.text() and "update and" not in t.text(), t.text()
     assert re.search(r"demo\s+1 new commit\s+! 6 file\(s\) changed", t.text()), t.text()
-    assert "[✓]" not in t.line_with("demo"), "its code changed: unticked"
+    assert "[ ]" in t.line_with("demo") and "[✓]" not in t.line_with("demo"), "its code changed: unticked"
+    t.key("tab")
+    t.wait(lambda t: "[✓]" in t.line_with("demo"), what="demo ticked")
+    t.key("tab")
+    t.wait(lambda t: "[ ]" in t.line_with("demo"), what="demo unticked again")
     t.key("tab", "enter")                                        # trust it: pull
     t.wait_for("Summary", timeout=60)
     t.settle()
@@ -220,9 +224,8 @@ def test_esc_on_the_repo_list_pulls_nothing(sb):
 
 def test_install_twice_gives_the_same_result(sb):
     repo = world(sb)
-    sb.fake("yazi", "exit 0")
     sb.write("~/.bashrc", "export FOO=1\n")
-    parts = ["bash", "keys", "commands", "yazi-keys", "claude-hook", "claude-guard", "demo-tool"]
+    parts = ["bash", "zsh-hook", "commands", "claude-skill", "demo-tool"]   # unikit's own parts and the demo layer's
     os.makedirs(sb.path("~/.claude"))
     sb.env["CLAUDE_CONFIG_DIR"] = sb.path("~/.claude")
     code, out = run(sb, repo + "/install.sh", "--yes", *parts)

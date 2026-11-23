@@ -510,7 +510,7 @@ parts_now() {
 cmd_update() {
   own_repo "$ROOT" ||
     die "the unikit folder (${ROOT/#$HOME/\~}) isn't a git repo, so there's nothing to update from"
-  local d u name n a p to code up how=ask rc=0 rows="" layers=0 i=0 nsel load="select-all"
+  local d u name n a p to code up how=ask rc=0 rows="" layers=0 i
   local -a dirs=() names=() picked=()
   declare -A gated=()
   for a in "$@"; do case $a in -y|--yes) how=yes ;; -n|--dry-run) how=dry ;; esac; done   # the last one wins, as in install.sh
@@ -539,10 +539,10 @@ cmd_update() {
       [[ -n $up ]] && ok "$name: already up to date"
       continue
     fi
-    dirs+=("$d") names+=("$name") i=$((i + 1)); [[ $name == unikit ]] || layers=1
+    dirs+=("$d") names+=("$name"); [[ $name == unikit ]] || layers=1
     git -C "$d" log --no-merges --format='• %s' "${p:-HEAD}..$to" | head -n 12 >"$u/log.$name"
     if [[ -n $code ]]; then
-      gated[$name]=1 load+="+pos($i)+deselect"
+      gated[$name]=1
       printf '%s\n' "${C_YELLOW}runs code:${C_RESET} $(paste -sd' ' <<<"$code")" >>"$u/log.$name"
       # shellcheck disable=SC2086
       git -C "$d" diff --color=always "$p" "$to" -- $code >"$u/diff.$name"
@@ -568,16 +568,33 @@ cmd_update() {
         note="# layers may need the newer unikit: keep it ticked when you pull a layer"$'\n'
       (( ${#gated[@]} )) && note+="# ! a layer whose code changed starts unticked: read it (alt-i), tick it to trust it"$'\n'
       ui_fzf_at_least 0.63 && foot=(--footer=' ' --bind="focus:transform-footer(cat $u/log.{2})")
-      nsel="$u/nsel"
-      a=$(printf '%s%s' "REPO${S}NEW${S}CODE${S}VERSION"$'\t\n' "$rows" |
-        ui_fzf 'uk update · pull which?' --multi --header-lines=1 --delimiter=$'\t' --with-nth=1 \
+      # [ ] / [✓] in the rows, as the installer's lists: what's ticked is in $u/on, one name a
+      # line; each row is laid out once, ticked and not ($u/row.on.<name>, $u/row.off.<name>)
+      : >"$u/on"
+      for name in "${names[@]}"; do [[ -v gated[$name] ]] || echo "$name" >>"$u/on"; done
+      printf '%s\n' "${names[@]}" >"$u/names"
+      { printf '%s\n' "${S}${C_CYAN}${C_BOLD}REPO${C_RESET}${S}${C_CYAN}${C_BOLD}NEW${C_RESET}${S}${C_CYAN}${C_BOLD}CODE${C_RESET}${S}${C_CYAN}${C_BOLD}VERSION${C_RESET}"$'\t'
+        while IFS= read -r a; do [[ -n $a ]] && printf '%s\n' "[✓]$S$a"; done <<<"$rows"
+      } | UI_TABLE_FIELD=1 print_table 3 "$(ui_pick_width)" >"$u/table"
+      head -1 "$u/table" >"$u/title"
+      while IFS= read -r a; do
+        name=${a##*$'\t'}
+        printf '%s\n' "${a/\[✓\]/$C_GREEN[✓]$C_RESET}" >"$u/row.on.$name"; printf '%s\n' "${a/\[✓\]/[ ]}" >"$u/row.off.$name"
+      done < <(tail -n +2 "$u/table")
+      printf '%s\n' 'cat "$1/title"; while IFS= read -r n; do if grep -qxF "$n" "$1/on"; then cat "$1/row.on.$n"; else cat "$1/row.off.$n"; fi; done <"$1/names"' >"$u/rows.sh"
+      printf '%s\n' 'case $2 in' \
+        'all) if [ "$(grep -c . "$1/on")" = "$(grep -c . "$1/names")" ]; then : >"$1/on"; else cp "$1/names" "$1/on"; fi ;;' \
+        '*) if grep -qxF "$2" "$1/on"; then grep -vxF "$2" "$1/on" >"$1/on.x"; mv "$1/on.x" "$1/on"; else echo "$2" >>"$1/on"; fi ;;' \
+        'esac; printf "reload-sync(bash %s/rows.sh %s)+pos(%s)" "$1" "$1" "$3"' >"$u/tick.sh"
+      bash "$u/rows.sh" "$u" |
+        ui_fzf 'uk update · pull which?' --header-lines=1 --delimiter=$'\t' --with-nth=1 --with-shell='bash -c' \
           --header="${note}tab: tick/untick · ctrl-a: all/none · alt-i: the code's diff · enter: pull the ticked · esc: pull nothing" \
-          --bind="load:$load+first,ctrl-a:toggle-all,alt-i:toggle-preview" "${foot[@]}" \
+          --bind="tab:transform:bash $u/tick.sh $u {2} \$((FZF_POS))" \
+          --bind="ctrl-a:transform:bash $u/tick.sh $u all \$((FZF_POS))" \
+          --bind="alt-i:toggle-preview" "${foot[@]}" \
           --preview="cat $u/diff.{2} 2>/dev/null || echo 'No code changed: only docs and lists.'" --preview-window='right,60%,hidden' \
-          --bind="enter:execute-silent(echo \$FZF_SELECT_COUNT >$nsel)+accept" | cut -f2) ||
-        { rm -rf "$u"; info "Cancelled. Nothing pulled."; return 0; }
-      mapfile -t picked <<<"$a"
-      [[ $(cat "$nsel" 2>/dev/null) == 0 ]] && picked=()   # nothing ticked: fzf hands back the cursor's row
+          >/dev/null || { rm -rf "$u"; info "Cancelled. Nothing pulled."; return 0; }
+      mapfile -t picked <"$u/on"
     else   # no terminal to pick in, or --dry-run: say what's there, pull nothing
       printf '%s' "$rows" | cut -f1 | { printf '%s\n' "REPO${S}NEW${S}CODE${S}VERSION"; cat; } |
         ui_table "uk update" "${#names[@]} with updates" >&2
