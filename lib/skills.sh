@@ -1,7 +1,8 @@
-# The Claude skills picker (uk skills, and tk install claude-skill in a terminal; fzf 0.63+). Every skill
-# comes from unikit or a layer (claude/skills/<name>/); each Claude profile gets a link per
-# skill. One list, open throughout:
-#   by skill (the start)   a row per skill: its layer, the profiles that have it (names while
+# The Claude skills and plugins picker (uk skills, and tk install claude-skill in a terminal; fzf
+# 0.63+). Each comes from unikit or a layer: a skill is a folder (claude/skills/<name>/) that each
+# Claude profile links; a plugin is a line in claude/plugins, installed in each profile with
+# claude plugin install. One list, open throughout:
+#   by skill (the start)   a row per skill or plugin: its layer, the profiles that have it (names while
 #                          they fit, else 3/7). Ticked: in every profile; ◐ (some) starts unticked.
 #                          enter: then which profiles (ticked: those that have the picked skills)
 #   by profile (alt-g)     a row per profile and skill: ticks pick exact pairs; enter applies them
@@ -12,35 +13,31 @@
 # <what> <state dir> ...), which loads only lib/ui.sh and lib/inplace.sh.
 #
 # The state dir ($T, also lib/inplace.sh's $IP):
-#   prof     the profile folders, one per line         skills  "name TAB layer TAB folder"
+#   prof     the profile folders, one per line         skills  lib/components.sh's sk_items
 #   have     "name TAB profile": linked now             full    the skills linked in every profile
 #   on.skill / on.pair / on.prof   what's ticked in each view (on.pair: "name TAB profile")
 #   view     skill | pair | prof                        rows    the open view, laid out
 #   add, rm  the plan ("name TAB profile")              go      made when enter applies it
 #   pane     where the pane is: right | down (none: closed)
 
-# sk_pick: the picker, then the plan carried out. Needs the installer's repo, claude_dirs,
-# link_file, unlink_file. 1 = nothing applied (esc).
+# sk_pick: the picker, then the plan carried out. Needs the installer's repo, claude_dirs, sk_items,
+# sk_has, cp_add, cp_rm, link_file, unlink_file. 1 = nothing applied (esc).
 sk_pick() {
-  local T d n src p l cb rc=0
+  local T n k src p l cb rc=0
   T=$(mktemp -d) || return 1
   claude_dirs >"$T/prof"
   : >"$T/skills"; : >"$T/have"; : >"$T/on.prof"; echo skill >"$T/view"
-  for d in "$repo"/claude/skills/*/ "$repo"/layers/*/claude/skills/*/; do
-    [[ -d $d ]] || continue
-    d=${d%/}; n=${d##*/}
-    grep -q "^$n"$'\t' "$T/skills" && continue   # a name twice: the first one (uk doctor names it)
-    l=unikit; [[ $d == "$repo"/layers/* ]] && { l=${d#"$repo"/layers/}; l=${l%%/*}; }
-    printf '%s\t%s\t%s\n' "$n" "$l" "$d" >>"$T/skills"
-    while IFS= read -r p; do linked "$p/skills/$n" "$d" && printf '%s\t%s\n' "$n" "$p" >>"$T/have"; done <"$T/prof"
-  done
+  sk_items >"$T/skills"
+  while IFS=$'\t' read -r n l k src _; do
+    while IFS= read -r p; do sk_has "$p" "$k" "$n" "$src" && printf '%s\t%s\n' "$n" "$p" >>"$T/have"; done <"$T/prof"
+  done <"$T/skills"
   [[ -s $T/skills ]] || { ok "no skills: unikit and its layers bring none"; rm -rf "$T"; return 0; }
   n=$(grep -c '' "$T/prof")
   cut -f1 "$T/have" | sort | uniq -c | awk -v n="$n" '$1 == n { print $2 }' >"$T/full"
   cp "$T/full" "$T/on.skill"; cp "$T/have" "$T/on.pair"
   cb="bash '$repo/lib/skills.sh'"
   bash "$repo/lib/skills.sh" layout "$T"
-  ui_fzf 'Claude skills' --no-input --delimiter=$'\t' --with-nth=1 <"$T/rows" \
+  ui_fzf 'Claude skills and plugins' --no-input --delimiter=$'\t' --with-nth=1 <"$T/rows" \
       --footer=' ' --with-shell='bash -c' \
       --preview="$cb preview '$T' {2}" --preview-window='right,40%,hidden,wrap-word' \
       --bind="ctrl-p:transform:$cb pane '$T'" \
@@ -53,13 +50,24 @@ sk_pick() {
       --bind="esc:transform:$cb key '$T' esc" >/dev/null || rc=$?
   if [[ ! -e $T/go ]]; then rm -rf "$T"; skip "nothing changed"; return 0; fi
   [[ -s $T/add || -s $T/rm ]] || ok "nothing to change"
+  if cut -f1 "$T/add" "$T/rm" | grep -qxFf <(awk -F'\t' '$3 == "plugin" { print $1 }' "$T/skills") && ! type -P claude >/dev/null; then
+    warn "the claude command isn't on PATH: plugins left as they are"
+  fi
   while IFS=$'\t' read -r n p; do
-    src=$(awk -F'\t' -v n="$n" '$1 == n { print $3 }' "$T/skills"); l=$p/skills/$n
+    IFS=$'\t' read -r k src < <(awk -F'\t' -v n="$n" '$1 == n { print $3 "\t" $4 }' "$T/skills"); l=$p/skills/$n
+    if [[ $k == plugin ]]; then
+      type -P claude >/dev/null && cp_add "$p" "${src%%|*}" "${src#*|}" && ok "$n in ${p/#$HOME/\~}"
+      continue
+    fi
     [[ -e $l && ! -L $l ]] && { warn "${l/#$HOME/\~} exists and isn't a link; left alone"; continue; }
     link_file "$l" "$src" && ok "$n in ${p/#$HOME/\~}"
   done <"$T/add"
   while IFS=$'\t' read -r n p; do
-    src=$(awk -F'\t' -v n="$n" '$1 == n { print $3 }' "$T/skills")
+    IFS=$'\t' read -r k src < <(awk -F'\t' -v n="$n" '$1 == n { print $3 "\t" $4 }' "$T/skills")
+    if [[ $k == plugin ]]; then
+      type -P claude >/dev/null && cp_rm "$p" "${src%%|*}" && ok "$n removed from ${p/#$HOME/\~}"
+      continue
+    fi
     say "  $n from ${p/#$HOME/\~}:"; unlink_file "$p/skills/$n" "$src"
   done <"$T/rm"
   rm -rf "$T"
@@ -86,18 +94,18 @@ s_mark() { if s_on "$1" "$2"; then printf '%s' "$C_GREEN[✓]$C_RESET"; else pri
 
 # the open view's rows (title row first), the id after a TAB
 s_rows() {
-  local n l d p S=$'\x1f'
+  local n l k p S=$'\x1f'
   case $(s_view) in
     skill)
-      printf '%s\t\n' "${S}SKILL${S}LAYER${S}PROFILES"
-      while IFS=$'\t' read -r n l d; do
-        printf '%s\t%s\n' "$(s_mark skill "$n")$S$n$S$C_DIM$l$C_RESET$S$(s_cell "$n")" "$n"
+      printf '%s\t\n' "${S}NAME${S}TYPE${S}LAYER${S}PROFILES"
+      while IFS=$'\t' read -r n l k _; do
+        printf '%s\t%s\n' "$(s_mark skill "$n")$S$n$S$k$S$C_DIM$l$C_RESET$S$(s_cell "$n")" "$n"
       done <"$T/skills" ;;
     pair)
-      printf '%s\t\n' "${S}PROFILE${S}SKILL${S}LAYER${S}NOW"
+      printf '%s\t\n' "${S}PROFILE${S}NAME${S}TYPE${S}LAYER${S}NOW"
       while IFS= read -r p; do
-        while IFS=$'\t' read -r n l d; do
-          printf '%s\t%s\n' "$(s_mark pair "$n"$'\t'"$p")$S$(s_pname "$p")$S$n$S$C_DIM$l$C_RESET$S$(s_have "$n" "$p" && echo "$C_GREEN✓$C_RESET" || echo "$C_DIM–$C_RESET")" "$n|$p"
+        while IFS=$'\t' read -r n l k _; do
+          printf '%s\t%s\n' "$(s_mark pair "$n"$'\t'"$p")$S$(s_pname "$p")$S$n$S$k$S$C_DIM$l$C_RESET$S$(s_have "$n" "$p" && echo "$C_GREEN✓$C_RESET" || echo "$C_DIM–$C_RESET")" "$n|$p"
         done <"$T/skills"
       done <"$T/prof" ;;
     prof)
@@ -124,8 +132,8 @@ s_keys() {
 s_about() {
   case $(s_view) in
     skill) echo "# Ticked: in every profile. ◐: in some (unticked: left as it is). Unticking a ✓ one removes it." ;;
-    pair)  echo "# A row per profile and skill: ticked ones are linked, the rest removed." ;;
-    prof)  echo "# The profiles that get the picked skills. Unticking one that has them removes them there." ;;
+    pair)  echo "# A row per profile and skill or plugin: ticked ones are set up, the rest removed." ;;
+    prof)  echo "# The profiles that get the picked ones. Unticking one that has them removes them there." ;;
   esac
 }
 s_header() { ui_sort_keys "$(s_about)"$'\n'"$(s_keys)"; printf '\n%s' "$(cat "$T/title")"; }
@@ -183,7 +191,7 @@ s_finish() {
   if [[ -s $T/rm ]]; then
     local list n p
     list=$(while IFS=$'\t' read -r n p; do printf '%s (%s), ' "$n" "$(s_pname "$p")"; done <"$T/rm" | sed 's/, $//')
-    ip_confirm "Remove $(grep -c '' "$T/rm") skill link(s)? $list" rm n; return
+    ip_confirm "Remove $list?" rm n; return
   fi
   touch "$T/go"; echo accept
 }
@@ -241,9 +249,11 @@ s_preview() {
     return
   fi
   n=${id%%|*}
-  d=$(awk -F'\t' -v n="$n" '$1 == n { print $3 }' "$T/skills")
-  printf '%s\n' "$C_BOLD$n$C_RESET"
-  [[ -r $d/SKILL.md ]] && sed -n 's/^description: *//p' "$d/SKILL.md" | head -1 | cut -c1-300
+  local k src what
+  IFS=$'\t' read -r k src what < <(awk -F'\t' -v n="$n" '$1 == n { print $3 "\t" $4 "\t" $5 }' "$T/skills")
+  printf '%s\n' "$C_BOLD$n$C_RESET  $C_DIM$k$C_RESET"
+  printf '%s\n' "${what:0:300}"
+  [[ $k == plugin ]] && printf '%s\n' "${C_DIM}github.com/${src#*|}$C_RESET"
   printf '\n'
   while IFS= read -r p; do
     if s_have "$n" "$p"; then printf '%s %s\n' "$C_GREEN✓$C_RESET" "$(s_pname "$p")"

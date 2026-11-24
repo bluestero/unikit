@@ -633,9 +633,65 @@ cs_pairs() {   # <link><TAB><skill folder>: unikit's skills (none of its own now
   done
 }
 cs_has() { local l t; while IFS=$'\t' read -r l t; do linked "$l" "$t" || return 1; done < <(cs_pairs); }
+# sk_items: every skill and plugin unikit and its layers bring, "name TAB layer TAB kind TAB
+# source TAB what it's for". A skill's source is its folder; a plugin's is plugin@marketplace|
+# owner/repo, from a claude/plugins file (a line each: plugin@marketplace|owner/repo|what it gives;
+# # comments). A name twice: the first one.
+sk_items() {
+  local d f n l id src what seen=" "
+  for d in "$repo"/claude/skills/*/ "$repo"/layers/*/claude/skills/*/; do
+    [[ -d $d ]] || continue
+    d=${d%/}; n=${d##*/}
+    [[ $seen == *" $n "* ]] && continue; seen+="$n "
+    l=unikit; [[ $d == "$repo"/layers/* ]] && { l=${d#"$repo"/layers/}; l=${l%%/*}; }
+    printf '%s\t%s\tskill\t%s\t%s\n' "$n" "$l" "$d" "$(sed -n 's/^description: *//p' "$d/SKILL.md" 2>/dev/null | head -1)"
+  done
+  for f in "$repo"/claude/plugins "$repo"/layers/*/claude/plugins; do
+    [[ -r $f ]] || continue
+    l=unikit; [[ $f == "$repo"/layers/* ]] && { l=${f#"$repo"/layers/}; l=${l%%/*}; }
+    while IFS='|' read -r id src what; do
+      [[ $id != \#* && $id == *@* && -n $src ]] || continue   # comments, blank lines
+      n=${id%@*}
+      [[ $seen == *" $n "* ]] && continue; seen+="$n "
+      printf '%s\t%s\tplugin\t%s|%s\t%s\n' "$n" "$l" "$id" "$src" "$what"
+    done <"$f"
+  done
+}
+# sk_has <profile> <kind> <name> <source>: that profile has it
+sk_has() {
+  case $2 in
+    skill) linked "$1/skills/$3" "$4" ;;
+    plugin) grep -qF "\"${4%%|*}\":" "$1/plugins/installed_plugins.json" 2>/dev/null ;;
+  esac
+}
+# Plugins come from their authors' GitHub repos, each a plugin marketplace; claude plugin update
+# keeps them current. cp_add <profile> <plugin@marketplace> <owner/repo>
+cp_add() {
+  local m=${2#*@}
+  if ! grep -qF "\"$m\":" "$1/plugins/known_marketplaces.json" 2>/dev/null; then
+    CLAUDE_CONFIG_DIR=$1 claude plugin marketplace add "$3" >>"$log_file" 2>&1 ||
+      { fail "couldn't add github.com/$3 to Claude Code in ${1/#$HOME/\~} (see $log_file)"; return 1; }
+    remember_setting "claude-marketplace-$m" added   # ours: it goes again with its last plugin
+  fi
+  CLAUDE_CONFIG_DIR=$1 claude plugin install "$2" >>"$log_file" 2>&1 ||
+    { fail "${2%@*} not installed in ${1/#$HOME/\~} (see $log_file)"; return 1; }
+}
+# cp_rm <profile> <plugin@marketplace>: and its marketplace, when unikit added it and no plugin
+# there needs it any more
+cp_rm() {
+  local m=${2#*@} p
+  CLAUDE_CONFIG_DIR=$1 claude plugin uninstall "$2" >>"$log_file" 2>&1 ||
+    { fail "couldn't remove ${2%@*} from ${1/#$HOME/\~} (see $log_file)"; return 1; }
+  [[ $(recall_setting "claude-marketplace-$m") == added ]] || return 0
+  grep -qF "@$m\":" "$1/plugins/installed_plugins.json" 2>/dev/null && return 0
+  CLAUDE_CONFIG_DIR=$1 claude plugin marketplace remove "$m" >>"$log_file" 2>&1 ||
+    { fail "couldn't remove the $m plugin source from ${1/#$HOME/\~} (see $log_file)"; return 1; }
+  while IFS= read -r p; do grep -qF "\"$m\":" "$p/plugins/known_marketplaces.json" 2>/dev/null && return 0; done < <(claude_dirs)
+  forget_setting "claude-marketplace-$m"
+}
 label_claude_skill() { echo "Claude skill"; }
-title_claude_skill() { echo "Claude Code knows your layers' commands (their skills), in every repo"; }
-detail_claude_skill() { echo "skills/<name> in each Claude profile links to claude/skills/<name> (and each layer's)"; }
+title_claude_skill() { echo "Claude Code knows your layers' commands (their skills) and gets the plugins they list, in every repo"; }
+detail_claude_skill() { echo "skills/<name> in each Claude profile links to claude/skills/<name> (and each layer's); a layer's claude/plugins are installed with claude plugin install, picked in the list"; }
 state_claude_skill() { claude_state cs_has; }
 cs_install() { local l t
   while IFS=$'\t' read -r l t; do
@@ -652,7 +708,13 @@ install_claude_skill() {
   fi
   claude_each cs_install
 }
-cs_uninstall() { local l t; while IFS=$'\t' read -r l t; do unlink_file "$l" "$t"; done < <(cs_pairs); }
+cs_uninstall() { local l t n k s
+  while IFS=$'\t' read -r l t; do unlink_file "$l" "$t"; done < <(cs_pairs)
+  while IFS=$'\t' read -r n _ k s _; do   # the layers' plugins this profile has
+    [[ $k == plugin ]] && sk_has "$claude_dir" plugin "$n" "$s" || continue
+    dry || { cp_rm "$claude_dir" "${s%%|*}" && ok "$n removed from ${claude_dir/#$HOME/\~}"; }
+  done < <(sk_items)
+  return 0; }
 uninstall_claude_skill() { claude_each cs_uninstall; }
 
 # -------------------------------------------------------------- layers ---
@@ -714,7 +776,7 @@ _regroup; unset -f _regroup
 layer_parts() {
   local id
   for id in "${COMPONENTS[@]}"; do [[ ${LAYER_OF[$id]:-} == "$1" ]] && echo "$id"; done
-  local d; d=$(layer_path "$repo" "$1") && compgen -G "$d/claude/skills/*/" >/dev/null && echo claude-skill
+  local d; d=$(layer_path "$repo" "$1") && { compgen -G "$d/claude/skills/*/" >/dev/null || [[ -r $d/claude/plugins ]]; } && echo claude-skill
   return 0
 }
 # kit_parts <kit>: the components that kit sets up, from the toolkit and every layer

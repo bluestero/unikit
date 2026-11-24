@@ -1,7 +1,8 @@
-"""The Claude skills picker (install.sh claude-skill), in a scratch copy of the repo whose one
-layer brings two skills (alpha, beta), with 1, 2 or 7 fake Claude profiles:
-ticks start on what's in every profile, ◐ for some; then the profiles; alt-g picks exact
-profile/skill pairs; removing something asks in the list first, default No."""
+"""The Claude skills and plugins picker (install.sh claude-skill), in a scratch copy of the repo
+whose one layer brings two skills (alpha, beta) and a plugin (gamma, through a fake claude), with
+1, 2 or 7 fake Claude profiles: ticks start on what's in every profile, ◐ for some; then the
+profiles; alt-g picks exact profile/skill pairs; removing something asks in the list first,
+default No."""
 import os
 import re
 import shutil
@@ -19,6 +20,16 @@ def setup(sb, profiles):
         os.makedirs(f"{repo}/layers/team/claude/skills/{s}")
         with open(f"{repo}/layers/team/claude/skills/{s}/SKILL.md", "w") as f:
             f.write(f"---\nname: {s}\ndescription: the {s} skill\n---\n")
+    with open(f"{repo}/layers/team/claude/plugins", "w") as f:
+        f.write("# plugin@marketplace|GitHub repo|what it gives\ngamma@gmkt|owner/gamma|the gamma plugin\n")
+    # claude plugin ...: keeps the two files Claude Code keeps, in the profile it runs for
+    sb.fake("claude", '''d="$CLAUDE_CONFIG_DIR/plugins"; mkdir -p "$d"
+case "$*" in
+  "plugin marketplace add "*) echo '{"gmkt": {}}' >"$d/known_marketplaces.json" ;;
+  "plugin marketplace remove "*) echo '{}' >"$d/known_marketplaces.json" ;;
+  "plugin install "*) echo "{\\"$3\\": []}" >"$d/installed_plugins.json" ;;
+  "plugin uninstall "*) echo '{}' >"$d/installed_plugins.json" ;;
+esac''')
     for p in profiles:
         os.makedirs(prof(sb, p), exist_ok=True)
     return repo
@@ -37,9 +48,13 @@ def has(sb, p, skill):
     return os.path.islink(f"{prof(sb, p)}/skills/{skill}")
 
 
+def has_plugin(sb, p):
+    return "gamma@gmkt" in (sb.read(prof(sb, p) + "/plugins/installed_plugins.json") or "")
+
+
 def start(sb, repo):
     t = Term([repo + "/install.sh", "--plain", "claude-skill"], sb.env, cols=150, rows=34, cwd=sb.home)
-    t.wait_for("SKILL", timeout=20)
+    t.wait_for("PROFILES", timeout=20)
     t.settle()
     return t
 
@@ -131,12 +146,12 @@ def test_unticking_an_installed_skill_asks_default_no(sb):
     assert "[✓]" in t.line_with("beta"), t.text()                  # in every profile: ticked
     to(t, "beta")
     t.key("tab", "enter")
-    t.wait_for("Remove 2 skill link(s)?")
+    t.wait_for("Remove beta (default), beta (work)?")
     t.key("enter")                                                # the default: no, back to the list
     t.wait_for("Nothing removed")
     assert has(sb, "default", "beta") and has(sb, "work", "beta")
     t.key("enter")
-    t.wait_for("Remove 2 skill link(s)?")
+    t.wait_for("Remove beta (default), beta (work)?")
     t.key("y")
     done(t)
     assert not has(sb, "default", "beta") and not has(sb, "work", "beta")
@@ -148,7 +163,7 @@ def test_seven_profiles_count_and_exact_pairs(sb):
     for p in ("profile1", "profile2", "profile3"):
         link(sb, repo, p, "alpha")
     t = start(sb, repo)
-    assert re.search(r"alpha\s+team\s+◐ 3/7", t.text()), t.text()   # too many names: a count
+    assert re.search(r"alpha\s+skill\s+team\s+◐ 3/7", t.text()), t.text()   # too many names: a count
     t.key("alt-g")                                                # a row per profile and skill
     t.wait_for("NOW")
     to(t, "profile1 ", "alpha")
@@ -159,7 +174,7 @@ def test_seven_profiles_count_and_exact_pairs(sb):
     t.settle(quiet=0.15)
     assert "profile1" in row(t) and "beta" in row(t), t.text()
     t.key("tab", "enter")                                         # profile1 gains beta
-    t.wait_for("Remove 1 skill link(s)? alpha (profile1)")
+    t.wait_for("Remove alpha (profile1)?")
     t.key("y")
     done(t)
     assert not has(sb, "profile1", "alpha") and has(sb, "profile1", "beta")
@@ -173,9 +188,48 @@ def test_skills_ls_names_each_skills_layer_and_profiles(sb):
     p = subprocess.run([repo + "/bin/uk", "skills", "ls"], env=sb.env, cwd=sb.home, capture_output=True, text=True,
                        timeout=30, stdin=subprocess.DEVNULL)
     lines = [l.split() for l in p.stdout.splitlines()]
-    assert ["alpha", "team", "◐", "work"] in lines and ["beta", "team", "–", "none"] in lines, p.stdout + p.stderr
+    assert ["alpha", "skill", "team", "◐", "work"] in lines and ["beta", "skill", "team", "–", "none"] in lines, p.stdout + p.stderr
+    assert ["gamma", "plugin", "team", "–", "none"] in lines and not any(l and l[0] == "#" for l in lines), p.stdout
     p = subprocess.run([repo + "/bin/uk", "skills", "alpha"], env=sb.env, cwd=sb.home, capture_output=True, text=True,
                        timeout=30, stdin=subprocess.DEVNULL)
     lines = [l.split() for l in p.stdout.splitlines()]
     assert ["about", "the", "alpha", "skill"] in lines and ["work", "✓", "has", "it"] in lines, p.stdout + p.stderr
-    assert ["default", "–", "not", "linked"] in lines, p.stdout
+    assert ["default", "–", "not", "set", "up"] in lines, p.stdout
+    p = subprocess.run([repo + "/bin/uk", "skills", "gamma"], env=sb.env, cwd=sb.home, capture_output=True, text=True,
+                       timeout=30, stdin=subprocess.DEVNULL)
+    lines = [l.split() for l in p.stdout.splitlines()]
+    assert ["type", "plugin"] in lines and ["from", "github.com/owner/gamma"] in lines, p.stdout + p.stderr
+
+
+def test_a_plugin_installs_in_the_picked_profile_and_goes_with_its_source(sb):
+    repo = setup(sb, ["default"])
+    t = start(sb, repo)
+    row_ = next(l for l in t.text().splitlines() if "gamma" in l)
+    assert "plugin" in row_ and "team" in row_ and "[✓]" not in row_, t.text()
+    to(t, "gamma")
+    t.key("tab", "enter")
+    done(t)
+    assert has_plugin(sb, "default"), sb.calls("claude")
+    assert sb.calls("claude") == ["claude plugin marketplace add owner/gamma", "claude plugin install gamma@gmkt"]
+    t = start(sb, repo)                                           # again: ticked, untick it
+    assert "[✓]" in t.line_with("gamma"), t.text()
+    to(t, "gamma")
+    t.key("tab", "enter")
+    t.wait_for("Remove gamma (default)?")
+    t.key("y")
+    done(t)
+    assert not has_plugin(sb, "default")
+    assert sb.calls("claude")[2:] == ["claude plugin uninstall gamma@gmkt", "claude plugin marketplace remove gmkt"]
+
+
+def test_a_plugin_source_the_user_added_stays(sb):
+    repo = setup(sb, ["default"])
+    sb.write(prof(sb, "default") + "/plugins/known_marketplaces.json", '{"gmkt": {}}')
+    sb.write(prof(sb, "default") + "/plugins/installed_plugins.json", '{"gamma@gmkt": []}')
+    t = start(sb, repo)
+    to(t, "gamma")
+    t.key("tab", "enter")
+    t.wait_for("Remove gamma (default)?")
+    t.key("y")
+    done(t)
+    assert sb.calls("claude") == ["claude plugin uninstall gamma@gmkt"]

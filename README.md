@@ -14,7 +14,7 @@ their place and never changes for one. Anyone can write one, for either kit or b
 
 | Command | What it does |
 |---|---|
-| `uk` | unikit, the base under the two kits (`tk`, `fk`): `uk status` shows the folder, the layers, how much of each kit is set up and the version, `uk layers` lists the [layers](#layers) (enter: set up or remove its parts, remove it; alt-a adds one; alt-i shows what each one is), `uk doctor` checks the whole (the commands are unikit's, each layer is well formed and at the commit you trusted, no two bring the same part or command), `uk layer check <dir>` checks a layer you're making before you push it, `uk update` pulls what's new in unikit and each layer (see Updates), `uk skills` picks which Claude profiles get which skills (ctrl-p: the details pane; `uk skills ls` a table, `uk skills <name>` one skill), `uk version` shows unikit's version and each layer's. The long names `unikit`, `toolkit` and `feelkit` (for `uk`, `tk`, `fk`) are linked by the commands part, only where no other program has the name. |
+| `uk` | unikit, the base under the two kits (`tk`, `fk`): `uk status` shows the folder, the layers, how much of each kit is set up and the version, `uk layers` lists the [layers](#layers) (enter: set up or remove its parts, remove it; alt-a adds one; alt-i shows what each one is), `uk doctor` checks the whole (the commands are unikit's, each layer is well formed and at the commit you trusted, no two bring the same part or command), `uk layer check <dir>` checks a layer you're making before you push it, `uk update` pulls what's new in unikit and each layer (see Updates), `uk skills` picks which Claude profiles get which skills and plugins, with the layer each comes from (ctrl-p: the details pane; `uk skills ls` a table, `uk skills <name>` one of them), `uk version` shows unikit's version and each layer's. The long names `unikit`, `toolkit` and `feelkit` (for `uk`, `tk`, `fk`) are linked by the commands part, only where no other program has the name. |
 | `tk`, `fk` | The two kits, siblings with the same words: `<kit>` picks and runs any of its commands, `<kit> ls` lists them (what each does, its layer, ready or not), `<kit> install` / `<kit> uninstall` set up and remove its parts, `<kit> doctor` checks its commands and parts in one box, `<kit> help` shows it all, and a layer's `<kit>/<name>` is `<kit> <name>`. `<kit> configs` switches each preset its parts bring between the layer's preset, the app's own default, what you had before, or one step back (the app stays installed; "edited preset" means you changed the layer's copy, a link into its repo); "Edit my patch" keeps your own changes in `~/.config/unikit/patches/`, never touched by the toolkit and read after the preset so they win. A kit with no layers says so ("Nothing here yet. Add a layer: uk layers"). |
 
 ## Set it up on your machine
@@ -112,6 +112,7 @@ Copying a folder into `layers/` works too (no updates then). Everything in a lay
 | `requires` | the layers it needs, one name per line. A layer needs only unikit and itself unless it says so here; `uk doctor` and `uk layer add` say when one isn't there |
 | `workspaces` | a shared workspace list (folders, the GitHub repo to clone, `NAME=folder` variables); `@<name>` in your own list brings it in |
 | `claude/skills/<skill>/` | Claude Code skills, linked by the `claude-skill` component |
+| `claude/plugins` | Claude Code plugins, a line each (`plugin@marketplace\|owner/repo\|what it gives`), installed by the same component |
 | `kit` | one line, `tk` or `fk`: the kit this layer's parts go to unless a part says otherwise (`kit_<id>() { echo fk; }`; `tk` without the file). `tk install` sets up the tk parts and `fk install` the fk parts, from the toolkit and every layer, and each leaves the other's out; `uk status` shows both ("6 of 11 parts set up → fk install") |
 
 Writing one? [docs/LAYERS.md](docs/LAYERS.md) is the whole contract (parts, helpers, clashes, trust), and `docs/layer-template/` a working layer to start from (`uk layer check` it before you push). `lib/layers.sh` has the same list in short. A layer's components can also say what
@@ -167,7 +168,7 @@ The first time the installer changes something of yours, it keeps what you had i
 | `~/.bashrc` | only unikit's line is removed |
 | `~/.zshrc`, `~/.zprofile` | only unikit's marked block is removed |
 | `fzf` | apt's again |
-| Claude Code skills | only the links to the layers' skills are removed |
+| Claude Code skills and plugins | the links to the layers' skills, and the plugins the layers list |
 
 Each layer's README says what its own parts put back.
 
@@ -177,7 +178,7 @@ Each layer's README says what its own parts put back.
 | `zsh-hook` | `~/.zshrc` gets one managed block loading `shell/init.sh` (like bash's line); `~/.zprofile` one reading `~/.profile` |
 | `commands` | `uk`, `tk`, `fk` and every layer's `bin/` commands in `~/.local/bin` (for scripts and other programs); the long names `unikit`, `toolkit`, `feelkit` too; a name another program has is left alone |
 | `fzf` | fzf 0.74.5 from GitHub (checksum-checked) in `~/.local/bin`, ahead of Ubuntu's 0.44. Every picker then shows where you are (`12/426`, `3/17 of 426` while searching), and bluefeels' k-theme gets its tabs. Uninstall goes back to apt's |
-| `claude-skill` | Links each layer's skills (`claude/skills/<name>`) into Claude Code's skills (`$CLAUDE_CONFIG_DIR`, else `~/.claude`, and every profile in `~/.claude-profiles`). In a terminal it's a picker: the skills (their layer, which profiles have them; ✓ in every profile, ◐ in some), then which profiles get them; alt-g picks exact profile/skill pairs instead, and unticking one that's there removes it (asked first, default No). `uk skills` opens the same picker any time |
+| `claude-skill` | Links each layer's skills (`claude/skills/<name>`) into Claude Code's skills (`$CLAUDE_CONFIG_DIR`, else `~/.claude`, and every profile in `~/.claude-profiles`), and installs the plugins its `claude/plugins` lists (`claude plugin install`, from their authors' GitHub repos; picked in the list only, `--yes` sets up the skills). In a terminal it's a picker: the skills and plugins (their type, layer, which profiles have them; ✓ in every profile, ◐ in some), then which profiles get them; alt-g picks exact profile/skill pairs instead, and unticking one that's there removes it (asked first, default No). `uk skills` opens the same picker any time |
 
 ## Layout
 

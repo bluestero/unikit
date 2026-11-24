@@ -28,6 +28,7 @@
 #                     when one isn't there). A layer needs only unikit and itself, unless it says so here
 #   workspaces        a shared workspace list (lib/workspaces.sh); "@<name>" in your own list brings it in
 #   claude/skills/*/  Claude Code skills, linked by the claude-skill component
+#   claude/plugins    Claude Code plugins (plugin@marketplace|owner/repo|what), installed by it too
 #
 # Trust: a layer's code runs on your machine (every shell, its commands, the installer).
 # uk layer add shows what it brings and asks first (default No); layers.lock (in the root,

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# uk skills - the Claude skills each Claude profile has (bin/uk runs this file). Every skill comes from unikit or a
-# layer (claude/skills/<name>/); a profile has it when its skills/<name> links there.
+# uk skills - the Claude skills and plugins each Claude profile has (bin/uk runs this file). Each comes from
+# unikit or a layer: a skill from claude/skills/<name>/ (a profile has it when its skills/<name> links
+# there), a plugin from a line in claude/plugins (installed in the profile by claude plugin install).
 # The same picker as tk install claude-skill (lib/skills.sh), on its own.
 set -uo pipefail
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -12,48 +13,37 @@ mode=ask details=0 ok_pad=""
 . "$repo/lib/components.sh"
 [[ -t 1 ]] || ui_no_color
 
-# every skill: "name TAB layer TAB folder" (a name twice: the first one, as the picker)
-sk_all() {
-  local d n l seen=" "
-  for d in "$repo"/claude/skills/*/ "$repo"/layers/*/claude/skills/*/; do
-    [[ -d $d ]] || continue
-    d=${d%/}; n=${d##*/}
-    [[ $seen == *" $n "* ]] && continue; seen+="$n "
-    l=unikit; [[ $d == "$repo"/layers/* ]] && { l=${d#"$repo"/layers/}; l=${l%%/*}; }
-    printf '%s\t%s\t%s\n' "$n" "$l" "$d"
-  done
-}
 sk_pname() { if [[ $1 == "$HOME/.claude" ]]; then echo default; else basename "$1"; fi; }
-sk_about() { sed -n 's/^description: *//p' "$1/SKILL.md" 2>/dev/null | head -1; }
 
-# skills ls: a row per skill: its layer and the profiles that have it (✓ every one, ◐ some)
+# skills ls: a row per skill or plugin: its type, layer and the profiles that have it (✓ every one, ◐ some)
 sk_ls() {
-  local n l d p have c np S=$'\x1f'
+  local n l k s p have c np S=$'\x1f'
   np=$(claude_dirs | grep -c .)
   {
-    printf '%s\n' "${C_BOLD}SKILL$S${C_BOLD}LAYER$S${C_BOLD}PROFILES$C_RESET"
-    while IFS=$'\t' read -r n l d; do
+    printf '%s\n' "${C_BOLD}NAME$S${C_BOLD}TYPE$S${C_BOLD}LAYER$S${C_BOLD}PROFILES$C_RESET"
+    while IFS=$'\t' read -r n l k s _; do
       have="" c=0
       while IFS= read -r p; do
-        linked "$p/skills/$n" "$d" && { have+="${have:+, }$(sk_pname "$p")"; (( c++ )); }
+        sk_has "$p" "$k" "$n" "$s" && { have+="${have:+, }$(sk_pname "$p")"; (( c++ )); }
       done < <(claude_dirs)
       if (( ! c )); then have="$C_DIM– none$C_RESET"
       elif (( c == np )); then have="$C_GREEN✓$C_RESET $have"
       else have="$C_YELLOW◐$C_RESET $have"; fi
-      printf '%s\n' "$n$S$C_DIM$l$C_RESET$S$have"
-    done < <(sk_all)
+      printf '%s\n' "$n$S$k$S$C_DIM$l$C_RESET$S$have"
+    done < <(sk_items)
   } | ui_table "uk skills" "$np profiles" "$(ui_hint uk skills) to change them"
 }
 
 # skills <name>: what it's for, where it comes from, each profile
 sk_show() {
-  local n l d p rows
-  IFS=$'\t' read -r n l d < <(sk_all | awk -F'\t' -v n="$1" '$1 == n')
-  [[ -n ${n:-} ]] || { printf 'uk skills: no skill named %s (uk skills ls lists them)\n' "$1" >&2; exit 2; }
-  rows=$(printf 'about\t%s\nlayer\t%s\nfolder\t%s\n' "$(sk_about "$d")" "$l" "${d/#$HOME/\~}")
+  local n l k s w p rows
+  IFS=$'\t' read -r n l k s w < <(sk_items | awk -F'\t' -v n="$1" '$1 == n')
+  [[ -n ${n:-} ]] || { printf 'uk skills: no skill or plugin named %s (uk skills ls lists them)\n' "$1" >&2; exit 2; }
+  if [[ $k == plugin ]]; then rows=$(printf 'about\t%s\ntype\tplugin\nlayer\t%s\nfrom\tgithub.com/%s\n' "$w" "$l" "${s#*|}")
+  else rows=$(printf 'about\t%s\ntype\tskill\nlayer\t%s\nfolder\t%s\n' "$w" "$l" "${s/#$HOME/\~}"); fi
   while IFS= read -r p; do
-    if linked "$p/skills/$n" "$d"; then rows+=$'\n'"$(sk_pname "$p")"$'\t'"$C_GREEN✓$C_RESET has it"
-    else rows+=$'\n'"$(sk_pname "$p")"$'\t'"$C_DIM– not linked$C_RESET"; fi
+    if sk_has "$p" "$k" "$n" "$s"; then rows+=$'\n'"$(sk_pname "$p")"$'\t'"$C_GREEN✓$C_RESET has it"
+    else rows+=$'\n'"$(sk_pname "$p")"$'\t'"$C_DIM– not set up$C_RESET"; fi
   done < <(claude_dirs)
   printf '%s\n' "$rows" | ui_fields "uk skills · $n"
 }
@@ -66,14 +56,15 @@ case "${1:-}" in
     else sk_ls; fi ;;
   ls|list) sk_ls ;;
   help|-h|--help)
-    ui_help "uk skills" "the Claude skills each Claude profile has" <<'EOF'
+    ui_help "uk skills" "the Claude skills and plugins each Claude profile has" <<'EOF'
 ## Commands
-uk skills	pick which profiles get which skills: tab ticks, alt-g by profile, ctrl-p the details pane
-uk skills ls	a row per skill: its layer and the profiles that have it (✓ every one, ◐ some)
-uk skills <name>	one skill: what it's for, where it comes from, each profile
+uk skills	pick which profiles get which skills and plugins: tab ticks, alt-g by profile, ctrl-p the details pane
+uk skills ls	a row per skill or plugin: its type, layer and the profiles that have it (✓ every one, ◐ some)
+uk skills <name>	one of them: what it's for, where it comes from, each profile
 uk skills help	this page
 
-Skills come from unikit and its layers (claude/skills/<name>); each profile links the ones it has.
+They come from unikit and its layers: skills from claude/skills/<name> (each profile links the
+ones it has), plugins from claude/plugins (installed in each profile by claude plugin install).
 EOF
     ;;
   -*) printf 'uk skills: no such option: %s (uk skills help)\n' "$1" >&2; exit 2 ;;

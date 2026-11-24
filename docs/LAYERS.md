@@ -26,7 +26,8 @@ All optional. A layer with none of these is an error (`uk doctor` says so).
 | `tools` | a line per command for the kit's picker and help: `name\|group\|what it does\|program it needs[\|kit]` |
 | `requires` | other layers it needs, one name per line. A layer should need only unikit; `uk doctor` and `uk layer add` say when one is missing |
 | `workspaces` | a shared workspace list (`lib/workspaces.sh`: bluetools' ws opens them, `ws_var NAME` gives its folders to any layer) (folder and GitHub repo per line); `@<name>` in a person's own list brings it in |
-| `claude/skills/<skill>/SKILL.md` | Claude Code skills, linked by unikit's `claude-skill` part (a picker of skills and profiles). A skill lives with the command it documents |
+| `claude/skills/<skill>/SKILL.md` | Claude Code skills, linked by unikit's `claude-skill` part (a picker of skills and profiles, also `uk skills`). A skill lives with the command it documents |
+| `claude/plugins` | Claude Code plugins from GitHub, a line each: `plugin@marketplace\|owner/repo\|what it gives` (`#` comments). The same picker installs them in the profiles picked (`claude plugin install`) |
 | `README.md` | its first paragraph is the about card in `uk layers` (alt-i) |
 | `VERSION` | optional; shown next to its commit in `uk version` and `uk layers` |
 

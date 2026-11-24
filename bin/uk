@@ -134,6 +134,8 @@ trust_card() {   # dir
     c=""; for f in "$d"/claude/skills/*/; do f=${f%/}; c+="${f##*/}, "; done
     printf '• Claude skills (what Claude is told to do): %s\n' "${c%, }"
   fi
+  [[ -r $d/claude/plugins ]] && printf '• Claude Code plugins from GitHub, picked in uk skills: %s\n' \
+    "$(grep -o '^[^#|]*@' "$d/claude/plugins" | tr -d @ | paste -sd, - | sed 's/,/, /g')"
   [[ -n $(layer_missing "$d") ]] && printf '• it needs layers that aren'"'"'t here: %s\n' "$(layer_missing "$d" | paste -sd' ')"
   return 0
 }
@@ -257,6 +259,7 @@ lay_about() {
     if compgen -G "$d/claude/skills/*/" >/dev/null; then
       printf 'skills\t%s\n' "$(for f in "$d"/claude/skills/*/; do f=${f%/}; printf '%s, ' "${f##*/}"; done | sed 's/, $//')"
     fi
+    [[ -r $d/claude/plugins ]] && printf 'plugins\t%s\n' "$(grep -o '^[^#|]*@' "$d/claude/plugins" | tr -d @ | paste -sd, - | sed 's/,/, /g')"
     [[ -r $d/workspaces ]] && printf 'workspaces\t%s\n' "a shared workspace list (@$name in yours brings it in)"
   } | while IFS=$'\t' read -r k t; do
     if [[ -z $t ]]; then printf '%s\n' "$k"; else printf '%s%-11s%s%s\n' "$C_DIM" "$k" "$C_RESET" "$t"; fi
@@ -345,8 +348,8 @@ unikit_owns() { local f; for f in "$ROOT"/bin/*; do [[ -x $f ]] && OWNER[${f##*/
 check_layer() {
   local d=$1 l=${2:-${1##*/}} k t n g w p c f
   check "$l" ok there
-  if ! [[ -d $d/bin || -d $d/tk || -d $d/fk || -r $d/shell/init.sh || -r $d/components.sh || -r $d/tools || -r $d/workspaces || -d $d/claude/skills ]]; then
-    check "$l" bad "has none of what a layer can hold (bin/, tk/, fk/, shell/init.sh, components.sh, tools, workspaces, claude/skills/)" "lib/layers.sh lists them"
+  if ! [[ -d $d/bin || -d $d/tk || -d $d/fk || -r $d/shell/init.sh || -r $d/components.sh || -r $d/tools || -r $d/workspaces || -d $d/claude/skills || -r $d/claude/plugins ]]; then
+    check "$l" bad "has none of what a layer can hold (bin/, tk/, fk/, shell/init.sh, components.sh, tools, workspaces, claude/skills/, claude/plugins)" "lib/layers.sh lists them"
   fi
   if [[ -f $d/kit ]]; then
     k=$(head -1 "$d/kit")
