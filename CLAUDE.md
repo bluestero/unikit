@@ -46,6 +46,14 @@ every command uses them, unikit's and the layers'.
 
 - Commit or push only when asked. Several sessions may edit at once: commit only
   your own changes.
+- Tests: run only the cases a change touches (`tests/run.sh <name>...`). The full suite takes
+  about 5 minutes: ask before running it.
+- The installer is interactive and your Bash has no terminal: hand it to the user
+  (`! ./install.sh`, `! tk install`). To preview, `--dry-run` alone; never with `--yes`, since
+  the last of the two wins and `--dry-run --yes` really changes the machine (it once removed
+  six of the user's look parts). Pick lists open with nothing ticked.
+- unikit, bluetools and bluefeels are public: no company names, account ids or personal paths.
+  Those go in a private layer (airpr).
 
 ## Coding guidelines
 
