@@ -89,7 +89,10 @@ Rules every part keeps:
 | a command unikit has | never runs from the layer (unikit is first on PATH); `uk doctor` says so |
 | a command another layer has | the first on PATH runs; `uk doctor` says so |
 | a layer it needs isn't there | `uk doctor` and `uk layer add` say so |
-| what `shell/init.sh` sets | not checked: the last layer sourced wins. Prefix with the layer's name |
+| a function in `components.sh` that unikit or another layer has | the one loaded last replaces the other; `uk doctor` names it. Prefix helpers with the layer's name |
+| a function, alias or variable `shell/init.sh` sets that unikit or another layer sets | the last layer sourced wins; `uk doctor` names it (adding to `PATH` or `PROMPT_COMMAND` is fine). Prefix with the layer's name |
+| a Claude skill folder or a `tools` name another layer has | only one skill can be linked, the picker shows the tool twice; `uk doctor` says so |
+| `components.sh` that doesn't load (a syntax error, an unset variable) | the loader leaves the layer's parts out, with one line; a part's `state_` that fails marks that part, never stops the installer |
 
 ## Trust: what people see before your code runs
 
@@ -104,6 +107,8 @@ commands, `components.sh` whenever the installer or `tk` runs, its skills as ins
   `--yes` pulls everything else and holds those back.
 - `uk doctor` says when a layer moved past its pin some other way (a `git pull` by hand, or commits
   made in it): `uk update` shows those and moves the pin.
+- `uk doctor` notes, under each layer, the files that call `sudo` or the network (`sudo:`,
+  `network:` for curl, wget, git, pip, npm): to see, not a problem.
 
 So: small commits that say what they change, and code changes kept apart from doc changes,
 make your layer quick to trust.

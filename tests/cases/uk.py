@@ -276,3 +276,53 @@ def test_uk_status_shows_each_kit(sb):
     assert code == 0 and "folder" in out and re.search(r"\btk\s+\d+ of \d+ parts set up", out), out
     assert "fk " not in out, "a kit with no parts here has no line"
     assert re.search(r"version\s+\S+", out), out
+
+
+def test_doctor_names_what_two_layers_both_define(sb):
+    repo = copy(sb)
+    sb.add_path(repo + "/bin")
+
+    def write(path, text, mode=0o644):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(text)
+        os.chmod(path, mode)
+
+    for name in ("aone", "btwo"):
+        d = f"{repo}/layers/{name}"
+        write(d + "/components.sh", "shared_helper() { :; }\n")
+        write(d + "/shell/init.sh", "alias gs='git status'\nexport SAME_SETTING=1\nPATH=/x:$PATH\n")
+        write(d + "/claude/skills/same/SKILL.md", "---\nname: same\n---\n")
+        write(d + "/tools", "same|Work|does a thing|\n")
+        write(d + "/bin/same", "#!/bin/sh\n", 0o755)
+    write(repo + "/layers/aone/components.sh", "shared_helper() { :; }\nlink_file() { :; }\n")
+    write(repo + "/layers/aone/bin/aone-up", "#!/bin/sh\nsudo true\ncurl -s x\n", 0o755)
+    code, out = run(sb, repo, "uk", "doctor")
+    assert code == 1, out
+    for said in ("link_file (unikit)", "shared_helper (aone)", "alias gs (aone)", "variable SAME_SETTING (aone)",
+                 "skill same: aone has one too", "tools: same (tk) is aone's too",
+                 "sudo: bin/aone-up", "network: bin/aone-up"):
+        assert said in out, (said, out)
+    assert "PATH (aone)" not in out, out
+    code, out = run(sb, repo, "uk", "layer", "check", repo + "/layers/btwo")
+    assert code == 1 and "shared_helper (aone)" in out and "skill same" in out, out
+
+
+def test_doctor_in_a_sized_terminal_flags_no_variable_bash_sets_itself(sb):
+    import fcntl
+    import pty
+    import struct
+    import termios
+    repo = copy(sb)
+    sb.add_path(repo + "/bin")
+    for name in ("aone", "btwo"):
+        d = f"{repo}/layers/{name}/shell"
+        os.makedirs(d)
+        with open(d + "/init.sh", "w") as f:
+            f.write(f"/bin/true\nexport {name.upper()}_SETTING=1\n")
+    m, s = pty.openpty()
+    fcntl.ioctl(s, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
+    p = subprocess.run([repo + "/bin/uk", "doctor"], env=sb.env, cwd=sb.home, stdin=s, stderr=s,
+                       stdout=subprocess.PIPE, text=True, timeout=60)
+    os.close(m), os.close(s)
+    assert p.returncode == 0 and "COLUMNS" not in p.stdout and "LINES" not in p.stdout, p.stdout
