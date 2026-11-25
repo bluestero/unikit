@@ -46,6 +46,8 @@ if [[ ${1:-} != __refresh ]]; then KIT=${1:-tk}; shift; fi
 # the kit's presets, one per line: id|kind|the rest of its config_<id> line
 cfg_table() {   # asked once per run (cfg_row reads it for every row)
   local id f
+  # a callback of the list reads the list's copy ($IP/cfg_table): ~30 ms less per key
+  if [[ -z ${CFG_TABLE+x} && -n ${IP:-} && -f $IP/cfg_table ]]; then IFS= read -rd '' CFG_TABLE <"$IP/cfg_table"; fi
   if [[ -z ${CFG_TABLE+x} ]]; then
     CFG_TABLE=$(for id in $(kit_parts "$KIT"); do
       f=$(fn config "$id"); declare -F "$f" >/dev/null && printf '%s|%s\n' "$id" "$("$f")"
@@ -260,7 +262,7 @@ cfg_list() {
   ui_fzf_at_least 0.63 || { ui_status; die "the list needs fzf 0.63 or newer · tk install fzf"; }
   IP=$(mktemp -d) || return 1; export IP
   trap 'rm -rf "$IP"' EXIT
-  ip_set mode list
+  ip_set mode list; printf '%s' "$CFG_TABLE" >"$IP/cfg_table"
   cfg_rows >"$IP/cells.list"; cfg_lay list
   ui_status
   local cb k; cb="bash $(printf %q "$SELF") $KIT __key"
