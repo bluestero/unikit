@@ -525,15 +525,16 @@ kb_del() {
 # shared lists; its variables (AIRPR=...) name folders layers' parts and commands use.
 # shellcheck source=workspaces.sh
 . "$repo/lib/workspaces.sh"
-# ask_ws_folder NAME "<what goes there>": when the folder a workspace variable
-# names ($ACME, ...) doesn't exist yet, show where it would go and let you keep
-# that or type another (~/..., /..., or a path inside your home folder), then
-# create it and save it in your list. 0 = the folder is there now.
+# ask_ws_folder NAME "<what goes there>" [default]: when the folder a workspace variable
+# names ($ACME, ...) doesn't exist yet, show where it would go (its value, else the
+# default, else ~/NAME) and let you keep that or type another (~/..., /..., or a path
+# inside your home folder), then create it and save it in your list. 0 = the folder is there now.
 ask_ws_folder() {
   local name=$1 what=$2 cur dir
   cur=$(ws_var "$name")
   [[ -n $cur && -d $cur ]] && return 0
-  [[ -n $cur ]] && cur=${cur/#$HOME/\~} || cur="~/$name"
+  [[ -n $cur ]] || cur=${3:-"~/$name"}
+  cur=${cur/#$HOME/\~}
   while :; do
     ask_text "Folder for $what (\$$name)? Enter keeps it; type another to change it" "$cur" || { skip; return 1; }
     dir=$ANSWER
