@@ -96,10 +96,11 @@ class Sandbox:
         os.makedirs(self.env["XDG_RUNTIME_DIR"], mode=0o700)
         os.makedirs(self.env["TMPDIR"])
 
-    def _real_path(self):
-        """The real PATH, but a folder that has commands linked into a unikit checkout (the
-        user's ~/.local/bin after tk install commands: unikit's and its layers') is a copy here
-        without those: a test sees only the unikit it runs."""
+    _SCAN = {}   # PATH -> [(folder, names to link or None)]: the same for the whole run
+
+    @classmethod
+    def _scan(cls, path):
+        """Each folder on PATH (once), with the names to keep when it has unikit links in it."""
         def in_unikit(link):
             d = os.path.dirname(os.path.realpath(link))
             while d != "/":
@@ -107,18 +108,29 @@ class Sandbox:
                     return True
                 d = os.path.dirname(d)
             return False
+        if path not in cls._SCAN:
+            found = []
+            for d in dict.fromkeys(path.split(":")):   # a folder listed twice: the first one is enough
+                names = os.listdir(d) if os.path.isdir(d) else []
+                ours = {n for n in names if os.path.islink(os.path.join(d, n)) and in_unikit(os.path.join(d, n))}
+                found.append((d, [n for n in names if n not in ours] if ours else None))
+            cls._SCAN[path] = found
+        return cls._SCAN[path]
+
+    def _real_path(self):
+        """The real PATH, but a folder that has commands linked into a unikit checkout (the
+        user's ~/.local/bin after tk install commands: unikit's and its layers') is a copy here
+        without those: a test sees only the unikit it runs."""
         out = []
-        for d in os.environ.get("PATH", "/usr/bin:/bin").split(":"):
-            names = os.listdir(d) if os.path.isdir(d) else []
-            ours = [n for n in names if os.path.islink(os.path.join(d, n)) and in_unikit(os.path.join(d, n))]
-            if not ours:
+        path = os.environ.get("TK_TEST_PATH") or os.environ.get("PATH", "/usr/bin:/bin")
+        for d, keep in self._scan(path):
+            if keep is None:
                 out.append(d)
                 continue
             copy = os.path.join(self.root, "realbin", str(len(out)))
             os.makedirs(copy)
-            for n in names:
-                if n not in ours:
-                    os.symlink(os.path.join(d, n), os.path.join(copy, n))
+            for n in keep:
+                os.symlink(os.path.join(d, n), os.path.join(copy, n))
             out.append(copy)
         return ":".join(out)
 

@@ -98,7 +98,9 @@ def test_both_bars_ask_and_no_goes_back(sb):
     for _ in range(8):                                    # to GNOME looks: dash2dock, dash-to-panel first
         if "dash2dock" in (t.cursor_line() or ""):
             break
+        before = t.text()
         t.key("right")
+        t.wait(lambda t: t.text() != before, what="the next tab")   # one tab at a time, even when slow
         t.settle(quiet=0.2)
     t.wait(lambda t: "dash2dock" in t.cursor_line(), what="the cursor on dash2dock")
     t.key("tab", "down", "tab")
@@ -121,7 +123,9 @@ def test_both_bars_yes_sets_up(sb):
     for _ in range(8):                                    # to GNOME looks: dash2dock, dash-to-panel first
         if "dash2dock" in (t.cursor_line() or ""):
             break
+        before = t.text()
         t.key("right")
+        t.wait(lambda t: t.text() != before, what="the next tab")   # one tab at a time, even when slow
         t.settle(quiet=0.2)
     t.wait(lambda t: "dash2dock" in t.cursor_line(), what="the cursor on dash2dock")
     t.key("tab", "down", "tab")

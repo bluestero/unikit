@@ -21,6 +21,10 @@ import time
 
 import pyte
 
+# Tests side by side (tests/run.sh -j) share the CPUs, so screens take longer: the runner sets
+# TK_TEST_SLOW, which stretches each timeout (a limit only) and the quiet gap settle waits for.
+SLOW = float(os.environ.get("TK_TEST_SLOW", "1"))
+
 KEYS = {
     "enter": "\r", "esc": "\x1b", "tab": "\t", "bs": "\x7f", "space": " ",
     "up": "\x1b[A", "down": "\x1b[B", "right": "\x1b[C", "left": "\x1b[D",
@@ -141,6 +145,7 @@ class Term:
     # ------------------------------------------------------------- waiting
     def wait(self, cond, timeout=8.0, what="the screen to change"):
         """Pump until cond(self) is true; returns the seconds it took."""
+        timeout *= SLOW
         start = time.monotonic()
         while True:
             if cond(self):
@@ -161,6 +166,8 @@ class Term:
 
     def settle(self, quiet=0.3, timeout=8.0):
         """Until nothing has been drawn for `quiet` seconds (callbacks and reloads done)."""
+        quiet *= min(SLOW, 2)
+        timeout *= SLOW
         start = time.monotonic()
         last = time.monotonic()
         while time.monotonic() - start < timeout:
@@ -176,6 +183,7 @@ class Term:
     def wait_exit(self, timeout=8.0):
         """Until the program exits; returns its exit code. A background job it left
         (still holding the terminal) doesn't count."""
+        timeout *= SLOW
         start = time.monotonic()
         while self.code is None:
             if time.monotonic() - start > timeout:
