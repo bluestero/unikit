@@ -49,8 +49,8 @@ cfg_table() {   # asked once per run (cfg_row reads it for every row)
   # a callback of the list reads the list's copy ($IP/cfg_table): ~30 ms less per key
   if [[ -z ${CFG_TABLE+x} && -n ${IP:-} && -f $IP/cfg_table ]]; then IFS= read -rd '' CFG_TABLE <"$IP/cfg_table"; fi
   if [[ -z ${CFG_TABLE+x} ]]; then
-    CFG_TABLE=$(for id in $(kit_parts "$KIT"); do
-      f=$(fn config "$id"); declare -F "$f" >/dev/null && printf '%s|%s\n' "$id" "$("$f")"
+    CFG_TABLE=$(for id in $(kit_parts "$KIT"); do   # one subshell for all (each config_ line ends it)
+      f=config_${id//-/_}; declare -F "$f" >/dev/null && { printf '%s|' "$id"; "$f"; }
     done)
   fi
   [[ -n $CFG_TABLE ]] && printf '%s\n' "$CFG_TABLE"
@@ -162,7 +162,7 @@ cfg_look_note() {
   esac
 }
 cfg_choices() {   # what a preset can switch to now: choice<TAB>what it does
-  cfg_state
+  [[ ${CS_FOR:-} == "$id" ]] || cfg_state
   if [[ $ctype == dconf ]]; then
     local c differs=""; [[ $CS == own ]] && differs=1
     look_choices "$name" "$differs" | while IFS= read -r c; do printf '%s\t%s\n' "$c" "$(cfg_look_note "$c")"; done
@@ -302,8 +302,8 @@ cfg_key() {   # key value query (value: the id in the list, the choice in the me
         enter)
           [[ -n $v ]] && cfg_row "$v" || return 0
           ip_set saved_q "$q"; ip_set mode menu; ip_set cur "$id"
+          cfg_state; CS_FOR=$id   # once: the menu's rows and its header both need it (a dconf look: python3)
           cfg_menu_rows >"$IP/cells.menu"; cfg_lay menu
-          cfg_state
           ip_join "$(ip_fz reload-sync "cat $(printf %q "$IP/rows.menu")")" first "$(ip_fz change-query "")" disable-search \
             "$(ip_fz change-header "$(ui_keys "# $nice ($about) now uses: $(strip_ansi "$(cfg_word "$CS")")"$'\n'"enter: switch to it · esc: back")")" \
             "$(ip_fz change-prompt "$nice> ")" "$(ip_fz change-footer " ")" ;;

@@ -338,7 +338,7 @@ uninstall_zsh_hook() {
 look_patch() { printf '%s' "$HOME/.config/unikit/patches/$1.dconf"; }
 # Files a look points at (@HERE@/<file>: an icon) are copied out of the repo, so the setting
 # outlives a moved toolkit or a removed layer; look_copy is where they go.
-look_copy() { printf '%s' "$HOME/.local/state/unikit/looks/$(basename "$(dirname "$1")")"; }
+look_copy() { local d=${1%/*}; printf '%s' "$HOME/.local/state/unikit/looks/${d##*/}"; }   # its folder's name
 look_refs() { grep -o "@HERE@/[^'\"]*" "$1" 2>/dev/null | sed 's#^@HERE@/##' | sort -u; }
 look_copied() { local f; for f in $(look_refs "$1"); do cmp -s "$(dirname "$1")/$f" "$(look_copy "$1")/$f" || return 1; done; }
 look_file() { sed "s#@REPO@#$repo#; s#@HERE@#$(look_copy "$1")#" "$1"; }   # the look, its paths filled in
@@ -821,7 +821,7 @@ layer_parts() {
 # kit_parts <kit>: the components that kit sets up, from the toolkit and every layer
 kit_parts() {
   local id
-  for id in "${COMPONENTS[@]}"; do [[ $(kit_of "$id") == "$1" ]] && echo "$id"; done
+  for id in "${COMPONENTS[@]}"; do [[ ${KIT_OF[$id]:-tk} == "$1" ]] && echo "$id"; done   # kit_of, no subshell
   return 0
 }
 # main_parts: what plain ./install.sh and ./uninstall.sh offer (the tk parts)

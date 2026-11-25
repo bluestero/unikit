@@ -32,7 +32,9 @@ def test_every_component_is_on_a_tab(sb):
     seen = set()
     for _ in TABS:
         seen |= set(re.findall(r"^│ . (?:\[.\]|   )\s+(\S+)\s+[○✓◐⊘–] ", t.text(), re.M))
+        before = t.text()
         t.key("right")
+        t.wait(lambda t: t.text() != before, what="the next tab")   # one tab at a time, even when slow
         t.settle()
     t.key("esc")
     t.wait_exit()

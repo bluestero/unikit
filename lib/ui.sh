@@ -507,7 +507,7 @@ ui_keys_redraw() {
 
 # ui_fzf_at_least <version>: is the fzf on PATH at least that new? (asked once per run)
 ui_fzf_at_least() {
-  [[ -n "${_UI_FZF_VER+x}" ]] || _UI_FZF_VER=$(fzf --version 2>/dev/null | awk '{print $1}')
+  [[ -n "${_UI_FZF_VER+x}" ]] || { _UI_FZF_VER=""; read -r _UI_FZF_VER _ < <(fzf --version 2>/dev/null); }
   [[ -n "$_UI_FZF_VER" ]] || return 1
   local -a want have; local i
   IFS=. read -ra want <<<"$1"; IFS=. read -ra have <<<"${_UI_FZF_VER%%[!0-9.]*}"
@@ -542,10 +542,15 @@ ui_fzf_at_least() {
 # changed. Writes $d/rows, $d/full for the footer, $d/layout_key.
 ui_sort_layout() {
   local d="$UI_SORT_DIR" f="${UI_SORT_FIELD:-0}" n i k t key order=""
-  local -a perm=()
-  key="$(ui_pick_width):$(tr '\n' , <"$d/swaps")"
-  [[ -s "$d/rows" && "$(cat "$d/layout_key" 2>/dev/null)" == "$key" ]] && return 0
-  n=$(head -1 "$d/cells" | awk -F '\t' -v f="$f" '{ t = f ? $f : $0; sub(/\t.*/, "", t); print split(t, c, "\037") }')
+  local -a perm=() sw=(); local was="" sws=""
+  # (in bash: this runs on every resize and sort)
+  [[ -f $d/swaps ]] && mapfile -t sw <"$d/swaps"; (( ${#sw[@]} )) && printf -v sws '%s,' "${sw[@]}"
+  key="$(ui_pick_width):$sws"
+  [[ -f $d/layout_key ]] && IFS= read -rd '' was <"$d/layout_key"
+  [[ -s "$d/rows" && "$was" == "$key" ]] && return 0
+  t=""; IFS= read -r t <"$d/cells"   # the title row: how many cells (field f's, with TAB fields)
+  for (( i = 1; i < f; i++ )); do [[ $t == *$'\t'* ]] && t=${t#*$'\t'} || t=""; done
+  t=${t%%$'\t'*}; k=${t//[!$'\037']/}; n=0; [[ -n $t ]] && n=$(( ${#k} + 1 ))
   for (( i = 1; i <= n; i++ )); do perm+=("$i"); done
   while read -r k; do
     (( k >= 1 && k < n )) || continue
@@ -854,7 +859,10 @@ ui_fzf() {
       ui_split_cols <"$in/raw" >"$in/cells" && mv "$in/cells" "$in/raw"; a=$'\x1f'
     fi
     local fa=$a   # with TAB fields, the table is field N
-    (( tab )) && [[ "$nth" =~ ^[0-9]+$ ]] && fa=$(cut -f"$nth" <<<"$a")
+    if (( tab )) && [[ "$nth" =~ ^[0-9]+$ && $a == *$'\t'* ]]; then   # field nth, as cut -f (no TAB: all of it)
+      local i; for (( i = 1; i < nth; i++ )); do [[ $fa == *$'\t'* ]] && fa=${fa#*$'\t'} || fa=""; done
+      fa=${fa%%$'\t'*}
+    fi
     if (( sortable )) && [[ "$fa" == *$'\x1f'* ]]; then
       mv "$in/raw" "$in/cells"   # laid out by ui_sort_layout, again when the window is resized
     elif [[ "$fa" == *$'\x1f'* ]]; then   # with TAB fields, only that field is laid out
@@ -862,7 +870,8 @@ ui_fzf() {
       UI_TABLE_FIELD=$tf print_table 3 "$(ui_pick_width)" <"$in/raw" >"$in/rows"
     else mv "$in/raw" "$in/rows"; fi
     # a title row laid out before (a command's or a list's own layout) and not coloured yet
-    if [[ -n $UI_TABLE_TITLES && -n $C_CYAN && -f $in/rows ]] && ! head -1 "$in/rows" | grep -q $'\e\['; then
+    local first=""; [[ -f $in/rows ]] && IFS= read -r first <"$in/rows"
+    if [[ -n $UI_TABLE_TITLES && -n $C_CYAN && -f $in/rows && $first != *$'\e['* ]]; then
       local tf=0; (( tab )) && [[ "$nth" =~ ^[0-9]+$ ]] && tf=$nth
       LC_ALL=C awk -F '\t' -v OFS='\t' -v f="$tf" -v on="$C_CYAN$C_BOLD" -v off="$C_RESET" "$_UI_AWK"'
         NR == 1 { if (f) $f = titles($f, on, off); else $0 = titles($0, on, off) } { print }' "$in/rows" >"$in/rows.t" &&

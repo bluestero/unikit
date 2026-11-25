@@ -34,7 +34,7 @@ layer_parts() {
     # shellcheck source=../lib/components.sh
     . "$ROOT/lib/components.sh" >/dev/null
     for id in "${COMPONENTS[@]}"; do
-      [[ -v LAYER_OF[$id] ]] && printf '%s\t%s\t%s\n' "${LAYER_OF[$id]}" "$(kit_of "$id")" "$id"
+      [[ -v LAYER_OF[$id] ]] && printf '%s\t%s\t%s\n' "${LAYER_OF[$id]}" "${KIT_OF[$id]:-tk}" "$id"
     done )
 }
 # the kits a layer feeds: its parts' and its commands'
@@ -237,7 +237,7 @@ lay_about() {
       local -a mine=()
       for id in "${COMPONENTS[@]}"; do [[ ${LAYER_OF[$id]:-} == "$name" ]] && mine+=("$id"); done
       states_all "${mine[@]}" 2>/dev/null   # side by side; no grey line inside the list
-      for id in "${mine[@]}"; do printf '%s %s %s\n' "$(kit_of "$id")" "$id" "${ST[$id]}"; done ) )
+      for id in "${mine[@]}"; do printf '%s %s %s\n' "${KIT_OF[$id]:-tk}" "$id" "${ST[$id]}"; done ) )
     kits=$(cut -d' ' -f1 <<<"$parts" | sort -u)
     for k in $kits; do
       ids=$(awk -v k="$k" '$1 == k { print $2 }' <<<"$parts" | paste -sd' ')
