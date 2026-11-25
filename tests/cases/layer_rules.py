@@ -144,3 +144,56 @@ def test_requires_names_a_missing_layer(sb):
     layer(repo, "base-team", "")
     code, out = run(sb, repo, "bin/uk", "doctor")
     assert "needs the base-team layer" not in out, out
+
+
+def test_a_layer_that_does_not_load_is_left_out(sb):
+    repo = copy(sb)
+    layer(repo, "broken", part("broken-own", sb.home + "/x") + "if then\n")
+    layer(repo, "fine", part("fine-own", sb.home + "/y"))
+    code, out = run(sb, repo, "install.sh", "ls")
+    assert code == 0, out
+    assert "layer broken: its parts are left out: its components.sh doesn't load" in out, out
+    assert "broken-own" not in out and "fine-own" in out, out
+    code, out = run(sb, repo, "bin/uk", "doctor")
+    assert code == 1 and "its components.sh doesn't load" in out, out
+
+
+def test_a_status_check_that_fails_never_stops_the_installer(sb):
+    repo = copy(sb)
+    layer(repo, "shaky", 'COMPONENTS+=(shaky-own)\ngroup_shaky_own() { echo Demo; }; label_shaky_own() { echo shaky; }\n'
+          'title_shaky_own() { echo shaky; }; detail_shaky_own() { echo shaky; }\n'
+          'state_shaky_own() { NOTE=$nope; no-such-command || return; STATE=installed; }\n'
+          'install_shaky_own() { :; }; uninstall_shaky_own() { :; }\n')
+    layer(repo, "fine", part("fine-own", sb.home + "/y"))
+    code, out = run(sb, repo, "install.sh", "ls")
+    assert code == 0, out
+    assert "fine-own" in out, out
+    assert "its status check failed" in out, out
+
+
+def test_a_second_run_waits_for_the_first(sb):
+    repo = copy(sb)
+    layer(repo, "one", part("one-conf", sb.home + "/one.conf"))
+    state = sb.home + "/.local/state/unikit"
+    os.makedirs(state, exist_ok=True)
+    holder = subprocess.Popen(["bash", "-c", "sleep 2; :", "install.sh"])
+    with open(state + "/run.lock", "w") as f:
+        f.write(f"{holder.pid}\t./install.sh bash\n")
+    code, out = run(sb, repo, "install.sh", "--yes", "one-conf")
+    holder.wait()
+    assert code == 0, out
+    assert "Waiting for the other unikit run to finish: ./install.sh bash" in out, out
+    assert open(sb.home + "/one.conf").read().strip() == "one-conf", out
+    assert not os.path.exists(state + "/run.lock"), out
+
+
+def test_a_lock_left_by_a_gone_run_is_cleared(sb):
+    repo = copy(sb)
+    layer(repo, "one", part("one-conf", sb.home + "/one.conf"))
+    state = sb.home + "/.local/state/unikit"
+    os.makedirs(state, exist_ok=True)
+    with open(state + "/run.lock", "w") as f:
+        f.write("999999\t./install.sh bash\n")
+    code, out = run(sb, repo, "install.sh", "--yes", "one-conf")
+    assert code == 0 and "Waiting" not in out, out
+    assert open(sb.home + "/one.conf").read().strip() == "one-conf", out

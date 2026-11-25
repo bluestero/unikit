@@ -21,7 +21,10 @@ KIT_TITLE="$KIT · ${KIT_LABEL[$KIT]}"
 TOOLS=("${KIT_TOOLS[@]}")
 while IFS= read -r _t; do TOOLS+=("$_t"); done < <(layer_tools "$ROOT" "$KIT")
 unset _t
-field() { cut -d'|' -f"$2" <<<"$1"; }
+field() {   # line n: its nth |-field (as cut -d'|' -fn, without starting cut)
+  [[ $1 == *'|'* ]] || { printf '%s' "$1"; return 0; }   # no | at all: the whole line, as cut
+  local IFS='|' f; read -ra f <<<"$1"; printf '%s' "${f[$2 - 1]:-}"
+}
 
 # "✓ ready" or why not; 1 when not
 kit_ready() {
@@ -89,10 +92,11 @@ kit_part_checks() {
     . "$ROOT/lib/setup.sh" >/dev/null 2>&1
     # shellcheck source=components.sh
     . "$ROOT/lib/components.sh" >/dev/null 2>&1
-    local id d n=0 total=0 left="" line text
-    for id in $(kit_parts "$KIT"); do
-      "$(fn state "$id")" >/dev/null 2>&1
-      [[ $STATE == n/a || $STATE == unsupported ]] && continue
+    local id d n=0 total=0 left="" line text ids
+    ids=$(kit_parts "$KIT"); states_all $ids   # side by side
+    for id in $ids; do
+      STATE=${ST[$id]}
+      [[ $STATE == n/a || $STATE == unsupported || $STATE == needs ]] && continue
       total=$((total + 1))
       [[ $STATE == installed ]] || { left+="$id "; continue; }
       n=$((n + 1))

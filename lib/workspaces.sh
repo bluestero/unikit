@@ -15,7 +15,7 @@
 #   ws_list_file          your list's path (it may not exist yet)
 #   ws_personal_init      create your list from the template if it's missing; prints its path
 
-_WS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+_WS_ROOT="$(cd "${BASH_SOURCE[0]%/*}/.." && pwd)"
 # shellcheck source=layers.sh
 . "$_WS_ROOT/lib/layers.sh"
 ws_list_file() { printf '%s' "${WS_LIST_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/ws/workspaces}"; }

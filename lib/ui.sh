@@ -54,6 +54,23 @@ ui_unknown() {
 # A fix to run, shown after a problem: "expired → <tool> refresh"
 ui_hint() { printf '%s→ %s%s' "$C_DIM" "$*" "$C_RESET"; }
 
+# What a slow step is doing, in grey on one line that each call rewrites: ui_status "Loading…".
+# ui_status with nothing clears it (and ends the step). On stderr, only in a terminal, and only
+# once the step has taken UI_STATUS_AFTER µs (1 s): a fast step shows nothing.
+UI_STATUS_AFTER=${UI_STATUS_AFTER:-1000000} _ui_st0="" _ui_stpid=""
+ui_status() {
+  [[ -t 2 ]] || return 0
+  [[ -n $_ui_stpid ]] && { kill "$_ui_stpid" 2>/dev/null; _ui_stpid=""; }
+  if [[ -z ${1:-} ]]; then _ui_st0=""; printf '\r\e[K' >&2; return 0; fi
+  local now=${EPOCHREALTIME/./} line="\r\e[K$C_DIM$1$C_RESET" left
+  : "${_ui_st0:=$now}"; left=$(( _ui_st0 + UI_STATUS_AFTER - now ))
+  if (( left <= 0 )); then printf '%b' "$line" >&2; return 0; fi
+  # not yet: a timer shows it when the step is still going then (and this run still is). Not a
+  # job of this shell, so a `wait` here (states_all's wait -n) never waits for it.
+  printf -v left '%d.%06d' $(( left / 1000000 )) $(( left % 1000000 ))
+  _ui_stpid=$( { read -rt "$left" <> <(:); kill -0 $$ 2>/dev/null && printf '%b' "$line" >&2; } >/dev/null & echo $! )
+}
+
 # the pink of gum's installer prompts: frame, title and prompt in bright magenta, the chosen row filled with it
 UI_ASK_COLORS="pointer:16,prompt:13,label:13,border:13,fg+:16:bold,bg+:13"
 
@@ -99,7 +116,8 @@ ui_ask() {
 # Otherwise asks whether to set that part up now (default yes), runs the installer for
 # just that part (it asks per step), and checks again. For a command outside a list;
 # inside one, ask in its header (ip_confirm) instead.
-UI_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+_ui_d=${BASH_SOURCE[0]}; [[ $_ui_d == */* ]] && _ui_d=${_ui_d%/*} || _ui_d=.
+UI_ROOT="$(cd "$_ui_d/.." && pwd)"; unset _ui_d
 ui_need() {
   type -P "$1" >/dev/null && return 0
   confirm "$1 isn't installed ($3). Install it now?" y || return 1
@@ -257,7 +275,8 @@ ui_badge() {
 
 # Terminal width (COLUMNS isn't exported to scripts, and tput reads a piped stdin).
 ui_cols() {
-  local cols=${COLUMNS:-$({ stty size </dev/tty; } 2>/dev/null | cut -d' ' -f2)}
+  local cols=${_UI_COLS:-${COLUMNS:-}} _   # _UI_COLS: ui_fzf's, asked once per list
+  [[ -n $cols ]] || read -r _ cols < <({ stty size </dev/tty; } 2>/dev/null)
   [[ "$cols" =~ ^[0-9]+$ ]] && (( cols > 0 )) || cols=$(tput cols 2>/dev/null || echo 120)
   (( cols > 20 )) || cols=120
   printf '%s' "$cols"
@@ -473,7 +492,8 @@ ui_keys() {   # ui_keys <header text> [max divider width]
   (( w > 0 )) || w=20
   # a list that isn't sortable draws its header again on resize (ui_keys_redraw)
   [[ -n "${UI_KEYS_DIR:-}" ]] && { printf '%s' "$text" >"$UI_KEYS_DIR/keys"; printf '%s' "$max" >"$UI_KEYS_DIR/max"; : >"$UI_KEYS_DIR/above"; }
-  printf '%s\n%s' "$out" "$C_LINE$(printf '─%.0s' $(seq "$w"))$C_RESET"
+  local line; printf -v line '%*s' "$w" ''
+  printf '%s\n%s' "$out" "$C_LINE${line// /─}$C_RESET"
 }
 # After a resize: the header ui_keys drew last (and the lines over it, a question), for
 # the width fzf has now. A sortable list does this itself (ui_sort_rekey).
@@ -488,7 +508,14 @@ ui_keys_redraw() {
 # ui_fzf_at_least <version>: is the fzf on PATH at least that new? (asked once per run)
 ui_fzf_at_least() {
   [[ -n "${_UI_FZF_VER+x}" ]] || _UI_FZF_VER=$(fzf --version 2>/dev/null | awk '{print $1}')
-  [[ -n "$_UI_FZF_VER" && "$(printf '%s\n%s\n' "$1" "$_UI_FZF_VER" | sort -V 2>/dev/null | head -1)" == "$1" ]]
+  [[ -n "$_UI_FZF_VER" ]] || return 1
+  local -a want have; local i
+  IFS=. read -ra want <<<"$1"; IFS=. read -ra have <<<"${_UI_FZF_VER%%[!0-9.]*}"
+  for i in 0 1 2; do   # numbers only: 0.63 needs 0.63.0 or newer
+    (( 10#${have[i]:-0} > 10#${want[i]:-0} )) && return 0
+    (( 10#${have[i]:-0} < 10#${want[i]:-0} )) && return 1
+  done
+  return 0
 }
 
 # ------------------------------------------------------- sortable tables ---
@@ -796,6 +823,7 @@ ui_fzf() {
   local label="$1" a h="" hraw="" in="" max="" phide=0 lines=0 sortable=0 multi=0 tline="" nth="" tab=0 track="" toast=0 footer=0; shift
   local -x UI_LIVE_ROWS="" UI_TOAST_DIR="" UI_TOAST_CLEAR="change-footer( )" UI_KEYS_DIR="" UI_KEYS_LIB
   local -a args=()
+  local _UI_COLS; _UI_COLS=$(ui_cols)   # the helpers below ask it several times (not passed on)
   for a in "$@"; do
     case "$a" in
       --preview=*) max=$(( $(ui_cols) * 45 / 100 - 8 )) ;;
@@ -844,7 +872,7 @@ ui_fzf() {
   # not sortable, with key hints: they are drawn again when the window is resized
   if (( ! sortable )) && [[ " $* " == *' --header='* ]]; then
     UI_KEYS_DIR=$(mktemp -d) || UI_KEYS_DIR=""
-    UI_KEYS_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ui.sh"
+    UI_KEYS_LIB="$UI_ROOT/lib/ui.sh"
   fi
   local keys="alt-s/alt-←→: sort by column"   # alt-shift-←→ moves a column: not shown, the least used
   (( sortable )) && [[ " $* " != *' --header='* ]] && set -- "$@" "--header=$keys"
@@ -880,7 +908,7 @@ ui_fzf() {
   local rc=0
   if (( sortable )); then
     local -x UI_SORT_DIR="$in" UI_SORT_LIB UI_SORT_FIELD=0 UI_SORT_TRACK="$track"
-    UI_SORT_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ui.sh"
+    UI_SORT_LIB="$UI_ROOT/lib/ui.sh"
     (( tab )) && [[ "$nth" =~ ^[0-9]+$ ]] && UI_SORT_FIELD=$nth
     : >"$in/state"; : >"$in/swaps"
     ui_sort_render >"$in/view"

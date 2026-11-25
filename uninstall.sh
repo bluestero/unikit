@@ -69,8 +69,9 @@ done
 
 # Only what's actually there can be removed.
 present=() labels=()
+states_all "${allowed[@]}"
 for id in "${allowed[@]}"; do
-  component_state "$id"
+  STATE=${ST[$id]}
   [[ "$STATE" == installed || "$STATE" == partial ]] || continue
   present+=("$id")
   labels+=("$id"$'\t'"$("$(fn title "$id")")")
@@ -109,6 +110,7 @@ say ""
 say "Removing: ${B}${chosen[*]}${R}"
 ask "Go ahead?" || { say "Nothing changed."; exit 0; }
 
+run_lock "uninstall ${chosen[*]}"
 logf ""; logf "=== uninstall $ts ${chosen[*]}"
 # login-shell before zsh, so the login shell is never left pointing at a removed zsh
 order=()

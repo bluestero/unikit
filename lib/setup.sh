@@ -27,6 +27,36 @@ warn() { say "      ${Y}!${R} $*"; }
 fail() { say "      ${Rd}✗${R} $*"; }
 dry()  { [[ "$mode" == dry ]]; }
 
+# cached <file> <command...>: the command's first line of output, kept until <file> changes
+# (its size or time): a program's --version runs once, not on every tk install / doctor.
+cached() {
+  local f k hit out c="${XDG_CACHE_HOME:-$HOME/.cache}/unikit/cached"
+  f=$(readlink -f "$1") && k=$(stat -c '%s %Y' "$f" 2>/dev/null || stat -f '%z %m' "$f" 2>/dev/null) ||
+    { "${@:2}" | head -1; return; }
+  k="$f $k ${*:2}"
+  if hit=$(grep -m1 -F "$k"$'\t' "$c" 2>/dev/null); then printf '%s\n' "${hit#*$'\t'}"; return; fi
+  out=$("${@:2}" | head -1)
+  mkdir -p "${c%/*}"
+  { awk -v f="$f " 'index($0, f) != 1' "$c" 2>/dev/null; printf '%s\t%s\n' "$k" "$out"; } >"$c.$$" && mv "$c.$$" "$c"
+  printf '%s\n' "$out"
+}
+
+# run_lock "<what this run is>": one install / uninstall at a time (two terminals, several
+# sessions). A second run waits for the first and says which it is. The lock is a file naming
+# the run's pid, not an open file: what a part starts in the background never holds it.
+run_lock() {
+  run_lock_file="$log_dir/run.lock"
+  local pid what said=0
+  until ( set -o noclobber; printf '%s\t%s\n' "$$" "$1" >"$run_lock_file" ) 2>/dev/null; do
+    IFS=$'\t' read -r pid what <"$run_lock_file" 2>/dev/null
+    if [[ -n $pid ]] && ps -o args= -p "$pid" 2>/dev/null | grep -q 'install\.sh'; then
+      (( said++ )) || say "${D}Waiting for the other unikit run to finish: $what (pid $pid) · ctrl-c stops this one${R}"
+      sleep 1
+    else rm -f "$run_lock_file"; fi   # left by a run that's gone
+  done
+  trap 'rm -f "$run_lock_file"' EXIT
+}
+
 # ask "<question>" [default y|n] → 0 = go ahead
 ask() {
   local q="$1" def="${2:-y}" reply hint rc

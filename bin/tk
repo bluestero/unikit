@@ -7,7 +7,7 @@
 
 set -uo pipefail
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
-ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
+ROOT="$(cd "${SELF%/*}/.." && pwd)"
 UI_EVAL_FILE="${TK_EVAL_FILE:-}"
 KIT=tk
 KIT_WHAT="what you work with"

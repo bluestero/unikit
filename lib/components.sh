@@ -55,7 +55,8 @@ touch_clash() {
 }
 group_of() {
   # a layer's component names its own group (group_<id>)
-  if declare -F "$(fn group "$1")" >/dev/null; then "$(fn group "$1")"
+  local f="group_${1//-/_}"   # fn, without a subshell: every load asks it for each part
+  if declare -F "$f" >/dev/null; then "$f"
   elif [[ " ${RECOMMENDED[*]} " == *" $1 "* ]]; then echo Recommended
   elif [[ " ${CLAUDE_PARTS[*]} " == *" $1 "* ]]; then echo "Claude Code"
   else echo Optional; fi
@@ -97,7 +98,11 @@ component_state() {
   local why d st nt need=""
   why=$(component_unsupported "$1")
   if [[ -n $why ]]; then STATE=unsupported NOTE=$why NEED=""; return; fi
+  # a part's check never stops the run: an unset variable reads as empty, as in any shell,
+  # and a check that ends without a STATE marks that part
+  local -; set +u; STATE=""
   "$(fn state "$1")"
+  [[ -n $STATE ]] || STATE=n/a NOTE="its status check failed: $(kit_of "$1") doctor"
   NEED=""
   [[ $STATE == n/a && -n ${NEEDS[$1]:-} ]] || return 0
   st=$STATE nt=$NOTE
@@ -112,6 +117,20 @@ component_state() {
   done
   if [[ -n $need ]]; then STATE=needs NOTE="needs ${need// / and }: picking it picks that too" NEED=$need
   else STATE=$st NOTE=$nt NEED=""; fi
+}
+# states_all <id>...: each one's component_state, side by side (a check only looks), into
+# ST[id], NT[id], ND[id] (state, note, what it needs). The grey line counts them off.
+states_all() {
+  local id d n=0 done=0 max
+  declare -gA ST NT ND
+  d=$(mktemp -d); max=$(( $(nproc 2>/dev/null || echo 4) * 2 ))
+  for id in "$@"; do
+    ( component_state "$id" >/dev/null 2>&1; printf '%s\x1f%s\x1f%s' "${STATE:-}" "${NOTE:-}" "${NEED:-}" >"$d/$id" ) &
+    if (( ++n >= max )); then wait -n; (( n--, ++done )); ui_status "Checking the parts… $done of $#"; fi
+  done
+  while (( n > 0 )); do wait -n; (( n--, ++done )); ui_status "Checking the parts… $done of $#"; done
+  for id in "$@"; do ST[$id]="" NT[$id]="" ND[$id]=""; IFS=$'\x1f' read -r "ST[$id]" "NT[$id]" "ND[$id]" <"$d/$id"; done 2>/dev/null
+  rm -rf "$d"; ui_status
 }
 
 fn() { printf '%s_%s' "$1" "${2//-/_}"; }
@@ -541,7 +560,8 @@ ask_ws_folder() {
 # this CPU, in ~/.local (no sudo). One that's already installed some other way (apt, brew,
 # by hand) counts and is left alone.
 # ver_of <program>: its version number; a part's ver_<program> (- as _) when --version isn't it
-ver_of() {
+ver_of() { cached "$1" _ver_of "$1"; }   # asked again only when the program changes
+_ver_of() {
   local f; f=$(fn ver "${1##*/}")
   if declare -F "$f" >/dev/null; then "$f" "$1"; else "$1" --version; fi 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1
 }
@@ -732,13 +752,24 @@ while IFS= read -r _layer; do
   _n=${#COMPONENTS[@]}
   if [[ -r $_layer/components.sh ]]; then
     # A part name that's taken (unikit's or an earlier layer's) would replace that part's
-    # functions: such a layer's parts are left out. Its names are read first, in a subshell.
-    _dup=""
-    # shellcheck disable=SC1090
-    for _id in $( ( COMPONENTS=(); . "$_layer/components.sh" >/dev/null 2>&1; printf '%s\n' "${COMPONENTS[@]}" ) ); do
+    # functions: such a layer's parts are left out. Its names are read first, in a subshell,
+    # which also shows whether it loads at all (a syntax error, an unset variable). They're
+    # kept until its components.sh changes: the subshell costs ~80 ms, on every start.
+    _dup="" _bad=""
+    _idf="${XDG_CACHE_HOME:-$HOME/.cache}/unikit/layer-parts/${_layer##*/}"
+    if [[ -f $_idf && $_idf -nt $_layer/components.sh ]]; then IFS= read -rd '' _ids <"$_idf"
+    else
+      # shellcheck disable=SC1090
+      _ids=$( ( COMPONENTS=(); . "$_layer/components.sh" >/dev/null 2>&1 || exit 1; printf '%s\n' "${COMPONENTS[@]}" ) ) || _bad=1
+      [[ -n $_bad ]] || { [[ -d ${_idf%/*} ]] || mkdir -p "${_idf%/*}"; printf '%s\n' "$_ids" >"$_idf"; } 2>/dev/null
+    fi
+    for _id in $_ids; do
       [[ " ${COMPONENTS[*]} " == *" $_id "* ]] && _dup+="${_dup:+, }$_id"
     done
-    if [[ -n $_dup ]]; then
+    if [[ -n $_bad ]]; then
+      printf "✗ layer %s: its parts are left out: its components.sh doesn't load (bash -n %s)\n" \
+        "${_layer##*/}" "${_layer/#$HOME/\~}/components.sh" >&2
+    elif [[ -n $_dup ]]; then
       printf '✗ layer %s: its parts are left out: %s %s taken (unikit or another layer has a part of that name)\n' \
         "${_layer##*/}" "$_dup" "$([[ $_dup == *,* ]] && echo are || echo is)" >&2
     else
@@ -746,30 +777,38 @@ while IFS= read -r _layer; do
       . "$_layer/components.sh"
     fi
   fi
-  _lk=tk; [[ -f $_layer/kit ]] && _lk=$(head -1 "$_layer/kit")
+  _lk=tk; [[ -f $_layer/kit ]] && read -r _lk <"$_layer/kit"
   LAYER_KIT[${_layer##*/}]=$_lk
   for _id in "${COMPONENTS[@]:_n}"; do
     LAYER_OF[$_id]=${_layer##*/}
-    _k=$_lk; declare -F "$(fn kit "$_id")" >/dev/null && _k=$("$(fn kit "$_id")")
+    _k=$_lk; _f=kit_${_id//-/_}; declare -F "$_f" >/dev/null && _k=$("$_f")
     [[ -v KIT_LABEL[$_k] ]] || { printf "✗ layer %s: %s names the kit '%s' (tk or fk); using tk\n" "${_layer##*/}" "$_id" "$_k" >&2; _k=tk; }
     KIT_OF[$_id]=$_k
   done
 done < <(layer_dirs "$repo")
-unset _layer _n _id _lk _k _dup
+unset _layer _n _id _lk _k _f _dup _bad _ids _idf
 # kit_of <id>: the kit a part belongs to
 kit_of() { echo "${KIT_OF[$1]:-tk}"; }
 # A layer's components land at the end of COMPONENTS; bring each group together again, groups
 # in the order they first appear and components in their order inside a group.
 _regroup() {
-  local id g; local -a order=() out=(); local -A grp=()
-  for id in "${COMPONENTS[@]}"; do   # each group asked once (a subshell per ask made loading take a second)
-    g=$(group_of "$id"); grp[$id]=$g
-    [[ " ${order[*]} " == *" ${g// /_} "* ]] || order+=("${g// /_}")
+  local id g; local -a order=(); local -A grp=() ids=()
+  # a layer's part names its group with group_<id>: all of them asked in one subshell (one
+  # each cost ~40 ms on every load), each answer on its own line after "<id><TAB>"
+  while IFS=$'\t' read -r id g; do [[ -n $id ]] && grp[$id]=$g; done < <(
+    for id in "${COMPONENTS[@]}"; do
+      declare -F "group_${id//-/_}" >/dev/null && { printf '\n%s\t' "$id"; "group_${id//-/_}"; }
+    done; echo)
+  for id in "${COMPONENTS[@]}"; do   # else group_of's own words, without a subshell
+    if [[ -v grp[$id] ]]; then g=${grp[$id]}
+    elif [[ " ${RECOMMENDED[*]} " == *" $id "* ]]; then g=Recommended
+    elif [[ " ${CLAUDE_PARTS[*]} " == *" $id "* ]]; then g="Claude Code"
+    else g=Optional; fi
+    [[ -v ids[$g] ]] || order+=("$g")
+    ids[$g]+="$id "
   done
-  for g in "${order[@]}"; do
-    for id in "${COMPONENTS[@]}"; do [[ ${grp[$id]} == "${g//_/ }" ]] && out+=("$id"); done
-  done
-  COMPONENTS=("${out[@]}")
+  COMPONENTS=()
+  for g in "${order[@]}"; do COMPONENTS+=(${ids[$g]}); done
 }
 _regroup; unset -f _regroup
 # layer_parts <name>: the components that layer adds, plus claude-skill when it brings skills

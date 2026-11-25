@@ -44,17 +44,22 @@ patch_dir="$HOME/.config/unikit/patches"   # the presets name this folder; keep 
 if [[ ${1:-} != __refresh ]]; then KIT=${1:-tk}; shift; fi
 
 # the kit's presets, one per line: id|kind|the rest of its config_<id> line
-cfg_table() {
+cfg_table() {   # asked once per run (cfg_row reads it for every row)
   local id f
-  for id in $(kit_parts "$KIT"); do
-    f=$(fn config "$id"); declare -F "$f" >/dev/null && printf '%s|%s\n' "$id" "$("$f")"
-  done
+  if [[ -z ${CFG_TABLE+x} ]]; then
+    CFG_TABLE=$(for id in $(kit_parts "$KIT"); do
+      f=$(fn config "$id"); declare -F "$f" >/dev/null && printf '%s|%s\n' "$id" "$("$f")"
+    done)
+  fi
+  [[ -n $CFG_TABLE ]] && printf '%s\n' "$CFG_TABLE"
   return 0
 }
 # cfg_row <id>: sets ctype, nice, about and the kind's own: file: app live src kind patch;
 # dconf: uuid path src name ign
 cfg_row() {
-  local line; line=$(grep -m1 "^$1|" <(cfg_table)) || return 1
+  local line; cfg_table >/dev/null   # (keeps it in CFG_TABLE)
+  line=$'\n'$CFG_TABLE; [[ $line == *$'\n'"$1|"* ]] || return 1
+  line=${line#*$'\n'"$1|"}; line="$1|${line%%$'\n'*}"
   IFS='|' read -r id ctype _ <<<"$line"
   if [[ $ctype == dconf ]]; then IFS='|' read -r id ctype nice uuid path src name about ign <<<"$line"
   else
@@ -248,13 +253,16 @@ CFG_KEYS="# Pick one, then which config it uses
 enter: choose · esc: close"
 
 cfg_list() {
-  [[ -n $(cfg_table) ]] || { info "Nothing here yet: $KIT's parts bring no presets. Add a layer: uk layers"; return 0; }
-  [[ -n $(cfg_ids) ]] || die "none of the apps with a preset here is installed · see: $KIT install"
-  ui_fzf_at_least 0.63 || die "the list needs fzf 0.63 or newer · tk install fzf"
+  ui_status "Loading the presets…"
+  cfg_table >/dev/null   # once, here, for the subshells below
+  [[ -n $(cfg_table) ]] || { ui_status; info "Nothing here yet: $KIT's parts bring no presets. Add a layer: uk layers"; return 0; }
+  [[ -n $(cfg_ids) ]] || { ui_status; die "none of the apps with a preset here is installed · see: $KIT install"; }
+  ui_fzf_at_least 0.63 || { ui_status; die "the list needs fzf 0.63 or newer · tk install fzf"; }
   IP=$(mktemp -d) || return 1; export IP
   trap 'rm -rf "$IP"' EXIT
   ip_set mode list
   cfg_rows >"$IP/cells.list"; cfg_lay list
+  ui_status
   local cb k; cb="bash $(printf %q "$SELF") $KIT __key"
   local -a binds=(--bind "start:unbind(y,n)")
   for k in enter esc y n resize; do binds+=(--bind "$k:transform:$cb $k {2} {q}"); done

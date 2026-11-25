@@ -28,10 +28,12 @@ setup_phase=install   # lets lib/setup.sh keep your originals (see "originals" t
 # downloads go in ~/.local/bin: a part set up in this run is found by the ones that need it
 [[ ":$PATH:" == *":$HOME/.local/bin:"* ]] || PATH="$HOME/.local/bin:$PATH"
 . "$repo/lib/setup.sh"
+ui_status "Loading the layers' parts…"
 . "$repo/lib/components.sh"
 . "$repo/lib/tabs.sh"
 preticked=()
 [[ -n $update ]] && . "$repo/lib/update.sh"
+ui_status
 
 if (( help )); then
   ui_help ./install.sh "set up unikit and its layers" <<'EOF'
@@ -111,8 +113,9 @@ if (( list )); then table+="${B}COMPONENT${R}"$'\x1f'"${B}LAYER${R}"$'\x1f'"${B}
 else table+="${B}COMPONENT${R}"$'\x1f'"${B}STATE${R}"$'\x1f'"${B}NOTE${R}"$'\n'; fi
 skipped=0 shown=()
 declare -A ST=() NT=() ND=()   # each one's state, note and the parts it needs first, for the tabs
+states_all "${wanted[@]}"   # side by side, into ST / NT / ND
 for id in "${wanted[@]}"; do
-  component_state "$id"
+  STATE=${ST[$id]} NOTE=${NT[$id]} NEED=${ND[$id]}
   [[ -z $update ]] || update_status "$id" || continue
   ST[$id]=$STATE NT[$id]=$NOTE ND[$id]=$NEED; shown+=("$id")
   [[ "$STATE" == unsupported ]] && (( skipped++ ))
@@ -169,6 +172,8 @@ if (( tabs )); then
   (( ${#todo[@]} )) || { say "Nothing picked. Nothing changed."; exit 0; }
   logf "picked: ${todo[*]}"
 fi
+
+dry || run_lock "$again ${todo[*]}"
 
 # Use gum when it's there. Only a full setup (no components named) offers to
 # download it; "./install.sh window-calls" and the like just use the plain look.

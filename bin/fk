@@ -4,7 +4,7 @@
 # The same words as tk (lib/kit.sh). `fk help` lists them.
 set -uo pipefail
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
-ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
+ROOT="$(cd "${SELF%/*}/.." && pwd)"
 KIT=fk
 KIT_WHAT="how things look"
 # shellcheck source=../lib/kit.sh
