@@ -134,6 +134,24 @@ states_all() {
 }
 
 fn() { printf '%s_%s' "$1" "${2//-/_}"; }
+# badge <state> [what it needs] [note]: the state as the installer's lists show it
+badge() {
+  case "$1" in
+    installed) printf '%s✓ installed%s' "$G" "$R" ;;
+    partial)   if [[ ${3:-} == "update: "* ]]; then printf '%s↑ %s%s' "$Y" "${3#update: }" "$R"   # what you have → the newest
+               else printf '%s◐ partly%s' "$Y" "$R"; fi ;;
+    missing)   printf '%s○ not installed%s' "$Y" "$R" ;;
+    needs)     printf '%s○ needs %s%s' "$Y" "${2// /, }" "$R" ;;
+    unsupported) printf '%s⊘ not supported here%s' "$D" "$R" ;;
+    fix)       printf '%s◐ needs a fix%s' "$Y" "$R" ;;   # uk update's (lib/update.sh)
+    new)       printf '%s○ new%s' "$Y" "$R" ;;
+    removed)   printf '%s✗ removed upstream%s' "$Y" "$R" ;;
+    gone)      printf '%s– removed upstream%s' "$D" "$R" ;;
+    updated)   printf '%s✓ updated%s' "$G" "$R" ;;
+    current)   printf '%s✓ up to date%s' "$G" "$R" ;;
+    *) if [[ ${3:-} == "needs "* ]]; then printf '%s– %s%s' "$D" "${3%%,*}" "$R"; else printf '%s– n/a%s' "$D" "$R"; fi ;;
+  esac
+}
 ver_lt() { [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" == "$1" ]]; }
 
 init_line="[ -f \"$repo/shell/init.sh\" ] && . \"$repo/shell/init.sh\"  # work toolkit (unikit)"

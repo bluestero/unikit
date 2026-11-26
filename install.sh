@@ -89,24 +89,6 @@ if [[ "$mode" == ask && $list == 0 && ! -t 0 ]]; then
   exit 1
 fi
 
-badge() {   # badge <state> [what it needs] [note]
-  case "$1" in
-    installed) printf '%s✓ installed%s' "$G" "$R" ;;
-    partial)   if [[ ${3:-} == "update: "* ]]; then printf '%s↑ %s%s' "$Y" "${3#update: }" "$R"   # what you have → the newest
-               else printf '%s◐ partly%s' "$Y" "$R"; fi ;;
-    missing)   printf '%s○ not installed%s' "$Y" "$R" ;;
-    needs)     printf '%s○ needs %s%s' "$Y" "${2// /, }" "$R" ;;
-    unsupported) printf '%s⊘ not supported here%s' "$D" "$R" ;;
-    fix)       printf '%s◐ needs a fix%s' "$Y" "$R" ;;   # uk update's (lib/update.sh)
-    new)       printf '%s○ new%s' "$Y" "$R" ;;
-    removed)   printf '%s✗ removed upstream%s' "$Y" "$R" ;;
-    gone)      printf '%s– removed upstream%s' "$D" "$R" ;;
-    updated)   printf '%s✓ updated%s' "$G" "$R" ;;
-    current)   printf '%s✓ up to date%s' "$G" "$R" ;;
-    *) if [[ ${3:-} == "needs "* ]]; then printf '%s– %s%s' "$D" "${3%%,*}" "$R"; else printf '%s– n/a%s' "$D" "$R"; fi ;;
-  esac
-}
-
 logf ""; logf "=== install $ts ($mode) ${wanted[*]}"
 # Overview: every component and its state, grouped, in one box.
 todo=() prev="" table=""

@@ -216,3 +216,50 @@ def test_an_unknown_kit_is_said_and_falls_back_to_tk(sb):
     assert "names the kit 'gk'" in out and "mix-look" in out, out
     code, out = run(sb, repo, "install.sh", "--kit=gk", "ls")
     assert code == 2 and "no kit 'gk'" in out, out
+
+
+def _removable_layer(repo):
+    """Two installed parts (demo-tool needs demo-base) and one that isn't installed."""
+    d = repo + "/layers/demo"
+    os.makedirs(d)
+    with open(d + "/components.sh", "w") as f:
+        f.write('COMPONENTS+=(demo-base demo-tool demo-off)\nNEEDS[demo-tool]=demo-base\n')
+        for p, st in (("base", "installed"), ("tool", "installed"), ("off", "missing")):
+            f.write(f'group_demo_{p}() {{ echo Demo; }}; label_demo_{p}() {{ echo {p}; }}; title_demo_{p}() {{ echo "the {p}"; }}\n'
+                    f'detail_demo_{p}() {{ echo "~/{p}"; }}; state_demo_{p}() {{ STATE={st} NOTE=""; }}\n'
+                    f'install_demo_{p}() {{ :; }}; uninstall_demo_{p}() {{ ok "{p} gone"; }}\n')
+
+
+def start_remove(sb):
+    repo = copy(sb)
+    _removable_layer(repo)
+    t = Term([repo + "/uninstall.sh", "--plain", "--layer=demo"], sb.env, cols=120, rows=34, cwd=sb.home)
+    t.wait_for("enter to the summary", timeout=20)
+    t.settle()
+    return t
+
+
+def test_uninstall_opens_the_tabs(sb):
+    t = start_remove(sb)
+    assert "demo · remove" in t.text() and "Summary · nothing ticked" in t.text(), t.text()
+    assert "demo-off" in t.text(), "a part that isn't installed still shows, not tickable"
+    t.key("esc")
+    assert t.wait_exit() == 0
+    assert "Nothing changed" in t.text()
+
+
+def test_uninstall_ticks_what_needs_it(sb):
+    t = start_remove(sb)
+    t.key("tab")                                          # demo-base: demo-tool needs it, so it goes too
+    t.wait_for("Summary · 2 to remove")
+    t.key("down", "tab")                                  # unticking demo-tool keeps it: and so demo-base
+    t.wait_for("Summary · nothing ticked")
+    t.key("tab")                                          # demo-tool alone
+    t.wait_for("Summary · 1 to remove")
+    t.key("enter")
+    t.wait_for("REMOVES")
+    t.settle()
+    assert "✗ demo-tool " in t.text() and "✗ demo-base " not in t.text(), t.text()
+    t.key("enter")
+    t.wait_for("Go ahead?")                               # one more question before anything goes
+    t.close()

@@ -1,7 +1,9 @@
 # The installer's tab view (./install.sh with no components named, fzf 0.63+): one tab
 # per group, then a summary tab. tab ticks, ←→ change tabs, enter goes to the
 # summary and, there, sets up what's ticked; esc leaves with nothing changed.
-# install.sh sources it for tabs_pick; fzf's key callbacks run it as a script
+# ./uninstall.sh opens the same view to pick what to remove (tabs_remove=1): only what's
+# installed can be ticked, and ticking a part ticks the parts that need it.
+# install.sh and uninstall.sh source it for tabs_pick; fzf's key callbacks run it as a script
 # (bash lib/tabs.sh <what> <state dir> ...), which loads only lib/ui.sh and lib/inplace.sh.
 #
 # The state dir:
@@ -14,19 +16,21 @@
 #   clashes  CLASHES (lib/components.sh) whose parts are both here: "id id|question"
 #   view     the open tab's rows, laid out; title its title row (the header's last line)
 #   go       made when enter on the summary applies
+#   remove   there when it picks what to remove (uninstall.sh)
 # plus lib/inplace.sh's files (the overlap question asks in the list's header).
 
 # tabs_pick: shows wanted (all) with todo tickable; sets todo to the ticked ones.
 # 1 = cancelled. Needs install.sh's wanted, todo, ST/NT/ND (state, note, needs per id), again, undo, layer,
-# and preticked: what starts ticked (only uk update ticks anything).
+# and preticked: what starts ticked (only uk update ticks anything). tabs_remove=1: picks what to remove.
 tabs_pick() {
   local T id g bg rc=0 on
   local -a picked=()
   T=$(mktemp -d) || return 1
   mkdir "$T/dry"; : >"$T/tabs"; : >"$T/about"; : >"$T/info"; : >"$T/on"; : >"$T/needs"; echo 0 >"$T/cur"
   printf '%s\t%s\n' "$again" "$undo" >"$T/cmds"
-  local c a b
-  for c in "${CLASHES[@]}"; do
+  (( ${tabs_remove:-0} )) && : >"$T/remove"
+  local c a b d
+  (( ${tabs_remove:-0} )) || for c in "${CLASHES[@]}"; do
     read -r a b <<<"${c%%|*}"
     [[ " ${wanted[*]} " == *" $a "* && " ${wanted[*]} " == *" $b "* ]] && echo "$c"
   done >"$T/clashes"
@@ -35,7 +39,11 @@ tabs_pick() {
     grep -qxF "$g" "$T/tabs" || { echo "$g" >>"$T/tabs"; printf '%s\x1e%s\n' "$g" "${GROUP_ABOUT[$g]:-}" >>"$T/about"; }
     on=0; [[ " ${todo[*]} " == *" $id "* ]] && on=1   # can be ticked
     [[ " ${preticked[*]} " == *" $id "* ]] && echo "$id" >>"$T/on"
-    [[ ${ST[$id]} == needs ]] && printf '%s\t%s\n' "$id" "${ND[$id]}" >>"$T/needs"   # ticking it ticks these
+    if (( ${tabs_remove:-0} )); then   # removing what it needs ticks it too: only what's there
+      a=""; for d in ${NEEDS[$id]:-}; do [[ " ${todo[*]} " == *" $d "* ]] && a+="${a:+ }$d"; done
+      (( on )) && [[ -n $a ]] && printf '%s\t%s\n' "$id" "$a" >>"$T/needs"
+    elif [[ ${ST[$id]} == needs ]]; then printf '%s\t%s\n' "$id" "${ND[$id]}" >>"$T/needs"   # ticking it ticks these
+    fi
     printf '%s\x1e' "$id" "$g" "$on" "${ST[$id]}" "$(badge "${ST[$id]}" "${ND[$id]}" "${NT[$id]}")" "$("$(fn label "$id")")" \
       "$("$(fn title "$id")")" "$("$(fn detail "$id")")" "$(layer_name "$id")" >>"$T/info"
     printf '%s\n' "${NT[$id]}" >>"$T/info"
@@ -44,19 +52,23 @@ tabs_pick() {
   if [[ -n ${update:-} ]] && (( ${#todo[@]} )); then
     grep -nxF "$(group_of "${todo[0]}")" "$T/tabs" | cut -d: -f1 | awk '{ print $1 - 1 }' >"$T/cur"
   fi
-  # what --dry-run would print for each, for the summary's footer (questions not asked)
-  ( log_file=/dev/null mode=dry
-    for id in "${todo[@]}"; do
-      { [[ -n ${update:-} && ! -v U_GONE[$id] ]] && u_clean "$id"   # uk update: its dead links go first
-        "$(fn install "$id")"; } </dev/null 2>&1 | grep -v -- '– skipped' >"$T/dry/$id.part"; mv "$T/dry/$id.part" "$T/dry/$id"
-    done ) >/dev/null 2>&1 &
-  bg=$!
+  # what --dry-run would print for each, for the summary's footer (questions not asked);
+  # not when removing: the uninstallers have no dry run
+  bg=""
+  if (( ! ${tabs_remove:-0} )); then
+    ( log_file=/dev/null mode=dry
+      for id in "${todo[@]}"; do
+        { [[ -n ${update:-} && ! -v U_GONE[$id] ]] && u_clean "$id"   # uk update: its dead links go first
+          "$(fn install "$id")"; } </dev/null 2>&1 | grep -v -- '– skipped' >"$T/dry/$id.part"; mv "$T/dry/$id.part" "$T/dry/$id"
+      done ) >/dev/null 2>&1 &
+    bg=$!
+  fi
   local cb="bash '$repo/lib/tabs.sh'" k
   local -a binds=()
   for k in right:1 left:-1; do binds+=(--bind="${k%%:*}:transform:$cb go '$T' ${k#*:}"); done
   for k in y n esc; do binds+=(--bind="$k:transform:$cb key '$T' $k {2}"); done
   bash "$repo/lib/tabs.sh" layout "$T"
-  local what="set up"; [[ -n ${update:-} ]] && what=update
+  local what="set up"; [[ -n ${update:-} ]] && what=update; (( ${tabs_remove:-0} )) && what=remove
   ui_fzf "${layer:-unikit} · $what" --no-input --delimiter=$'\t' --with-nth=1 <"$T/view" \
       --footer=' ' --with-shell='bash -c' "${binds[@]}" \
       --bind="start:unbind(y,n)+transform:$cb header '$T'" \
@@ -64,7 +76,7 @@ tabs_pick() {
       --bind="tab:transform:$cb tick '$T' {2} {n}" \
       --bind="enter:transform:$cb key '$T' enter {2}" \
       --bind="resize:transform:$cb go '$T' 0" >/dev/null || rc=$?
-  kill "$bg" 2>/dev/null
+  [[ -n $bg ]] && kill "$bg" 2>/dev/null
   if [[ -e $T/go ]]; then
     for id in "${wanted[@]}"; do grep -qxF "$id" "$T/on" && picked+=("$id"); done
     todo=("${picked[@]}")
@@ -80,26 +92,31 @@ t_info() {
   IFS=$'\x1e' read -r I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_LAYER I_NOTE <<<"$line"
 }
 t_on() { grep -qxF "$1" "$T/on"; }
-t_load() { mapfile -t TABS <"$T/tabs"; read -r CUR <"$T/cur"; NT=${#TABS[@]}; IFS=$'\t' read -r AGAIN UNDO <"$T/cmds"; }   # summary = tab NT
+t_load() {   # summary = tab NT
+  mapfile -t TABS <"$T/tabs"; read -r CUR <"$T/cur"; NT=${#TABS[@]}; IFS=$'\t' read -r AGAIN UNDO <"$T/cmds"
+  REMOVE=0; [[ -e $T/remove ]] && REMOVE=1
+}
 
 # The open tab's rows, laid out: title row first, the id hidden after a TAB.
 # t_layout splits them: the title row goes in the header (a reload never leaves an old one).
 t_layout() { local v; v=$(t_rows); printf '%s\n' "${v%%$'\n'*}" >"$T/title"; tail -n +2 <<<"$v" >"$T/view"; }
 t_rows() {
-  local mark n=0
+  local mark n=0 what="WHAT YOU GET" does="SETS UP"
+  (( REMOVE )) && what="WHAT IT IS" does="REMOVES"
   {
     if (( CUR < NT )); then
-      printf '\x1f%s\x1f%s\x1f%s\x1f%s\t\n' "${C_BOLD}COMPONENT$C_RESET" "${C_BOLD}STATE$C_RESET" "${C_BOLD}LAYER$C_RESET" "${C_BOLD}WHAT YOU GET$C_RESET"
+      printf '\x1f%s\x1f%s\x1f%s\x1f%s\t\n' "${C_BOLD}COMPONENT$C_RESET" "${C_BOLD}STATE$C_RESET" "${C_BOLD}LAYER$C_RESET" "$C_BOLD$what$C_RESET"
       while IFS=$'\x1e' read -r I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_LAYER I_NOTE; do
         [[ $I_GROUP == "${TABS[CUR]}" ]] || continue
         if (( ! I_TICK )); then mark="   "; elif t_on "$I_ID"; then mark="$C_GREEN[✓]$C_RESET"; else mark="[ ]"; fi
         printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\t%s\n' "$mark" "$I_ID" "$I_BADGE" "$C_DIM$I_LAYER$C_RESET" "$C_DIM$I_TITLE$C_RESET" "$I_ID"
       done <"$T/info"
     else
-      printf '%s\x1f%s\t\n' "${C_BOLD}SETS UP$C_RESET" "${C_BOLD}WHAT YOU GET$C_RESET"
+      printf '%s\x1f%s\t\n' "$C_BOLD$does$C_RESET" "$C_BOLD$what$C_RESET"
       while IFS=$'\x1e' read -r I_ID I_GROUP I_TICK I_STATE I_BADGE I_LABEL I_TITLE I_DETAIL I_LAYER I_NOTE; do
         t_on "$I_ID" || continue
-        printf '%s\x1f%s\t%s\n' "$C_GREEN✓$C_RESET $I_ID" "$C_DIM$I_TITLE$C_RESET" "$I_ID"; n=$((n + 1))
+        if (( REMOVE )); then mark="$C_RED✗$C_RESET"; else mark="$C_GREEN✓$C_RESET"; fi
+        printf '%s\x1f%s\t%s\n' "$mark $I_ID" "$C_DIM$I_TITLE$C_RESET" "$I_ID"; n=$((n + 1))
       done <"$T/info"
       if (( ! n )) && ! grep -q $'\x1e1\x1e' "$T/info"; then
         printf '%s\x1f\t\n' "${C_GREEN}✓$C_RESET ${C_DIM}Everything here is set up. esc to leave$C_RESET"
@@ -114,7 +131,7 @@ t_strip() {
   local -a labels=("${TABS[@]}") row=()
   local w=$(( ${FZF_COLUMNS:-$(ui_cols)} - 6 )) used=1 i first=0 l out=""
   local n; n=$(grep -c '' "$T/on")
-  if (( n )); then labels+=("Summary · $n to set up")
+  if (( n )); then labels+=("Summary · $n to $( (( REMOVE )) && echo remove || echo set up)")
   elif grep -q $'\x1e1\x1e' "$T/info"; then labels+=("Summary · nothing ticked")
   else labels+=("Summary · all set"); fi
   for i in "${!labels[@]}"; do
@@ -131,6 +148,9 @@ t_header() {
   if (( CUR < NT )); then
     about=$(grep -m1 "^${TABS[CUR]}"$'\x1e' "$T/about"); about=${about#*$'\x1e'}
     keys="←→: tab · tab: tick · enter: to the summary · esc: cancel"
+  elif (( REMOVE )); then
+    about="What enter removes, after one more question. Your own settings come back; $AGAIN puts any of it back."
+    keys="←→: tab · enter: remove these · esc: cancel"
   else
     about="What enter sets up. Each change still asks first (Enter = yes); $UNDO undoes any of it."
     keys="←→: tab · enter: set these up · esc: cancel"
@@ -150,6 +170,8 @@ t_foot() {
     [[ -n $I_NOTE ]] && out+=$'\n'"$I_NOTE"
     (( I_TICK )) || [[ $I_STATE != installed ]] || out+=$'\n'"already set up: $UNDO $I_ID removes it"
     fold -s -w "$w" <<<"$out"
+  elif (( REMOVE )); then
+    fold -s -w "$w" <<<"removes: $I_DETAIL"$'\n'"$AGAIN $I_ID puts it back"
   elif [[ -e $T/dry/$1 ]]; then
     # one column for every line: the run's indents dropped, a line with no mark gets a -
     if [[ -s $T/dry/$1 ]]; then
@@ -168,15 +190,18 @@ t_go() {
 }
 
 # A part ticks the parts it needs ($T/needs: "<id>\t<needs>"); unticking one unticks what needs it.
+# Removing, the other way round: ticking one ticks what needs it, unticking one unticks what it needs.
+t_needs_of() { awk -F '\t' -v i="$1" '$1 == i { print $2 }' "$T/needs"; }
+t_needed_by() { awk -F '\t' -v d="$1" '{ n = split($2, a, " "); for (k = 1; k <= n; k++) if (a[k] == d) print $1 }' "$T/needs"; }
 t_tick_with_needs() {
   local d
   t_on "$1" || echo "$1" >>"$T/on"
-  for d in $(awk -F '\t' -v i="$1" '$1 == i { print $2 }' "$T/needs"); do t_tick_with_needs "$d"; done
+  for d in $(if (( REMOVE )); then t_needed_by "$1"; else t_needs_of "$1"; fi); do t_tick_with_needs "$d"; done
 }
 t_untick() {
   local i
   grep -vxF "$1" "$T/on" >"$T/on.new"; mv "$T/on.new" "$T/on"
-  for i in $(awk -F '\t' -v d="$1" '{ n = split($2, a, " "); for (k = 1; k <= n; k++) if (a[k] == d) print $1 }' "$T/needs"); do
+  for i in $(if (( REMOVE )); then t_needs_of "$1"; else t_needed_by "$1"; fi); do
     t_on "$i" && t_untick "$i"
   done
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Removes parts of unikit and its layers. Shows a checklist of what's installed;
-# pick with tab, confirm with enter. Safe to run any number of times.
+# Removes parts of unikit and its layers. Opens the installer's tabs, a tab per group,
+# to tick what's installed with tab; enter removes it. Safe to run any number of times.
 # `./uninstall.sh help` lists the commands. Files that were replaced get their
 # backup put back. Repo files are never deleted.
 set -uo pipefail
@@ -24,11 +24,12 @@ done
 
 . "$repo/lib/setup.sh"
 . "$repo/lib/components.sh"
+. "$repo/lib/tabs.sh"
 
 if (( help )); then
   ui_help ./uninstall.sh "remove parts of unikit and its layers" <<'EOF'
 ## Commands
-./uninstall.sh	checklist of what's installed; pick what to remove
+./uninstall.sh	a tab per group: tick what's installed, enter removes it
 ./uninstall.sh <component>...	just those, e.g. ./uninstall.sh zsh
 ./uninstall.sh ls	what's installed, so could be removed
 ./uninstall.sh help	this page
@@ -96,9 +97,15 @@ elif dry || (( list )); then
 elif [[ "$mode" == yes ]]; then
   echo "--yes needs the components named, e.g.: ./uninstall.sh --yes zsh"; exit 2
 else
-  [[ -t 0 ]] || { echo "Run it in a terminal for the checklist, or name the components: ./uninstall.sh zsh"; exit 1; }
-  checklist "Select what to remove:" "${labels[@]}" || { say "Cancelled. Nothing changed."; exit 0; }
-  for i in "${CHECKLIST[@]}"; do chosen+=("${present[i]}"); done
+  [[ -t 0 ]] || { echo "Run it in a terminal to pick from the list, or name the components: ./uninstall.sh zsh"; exit 1; }
+  if [[ -t 1 ]] && ui_fzf_at_least 0.63; then   # the installer's tabs, a tab per group (lib/tabs.sh)
+    wanted=("${allowed[@]}") todo=("${present[@]}") preticked=() undo=${again/install/uninstall} tabs_remove=1
+    tabs_pick || { say "Cancelled. Nothing changed."; exit 0; }
+    chosen=("${todo[@]}")
+  else
+    checklist "Select what to remove:" "${labels[@]}" || { say "Cancelled. Nothing changed."; exit 0; }
+    for i in "${CHECKLIST[@]}"; do chosen+=("${present[i]}"); done
+  fi
 fi
 (( ${#chosen[@]} )) || { say "Nothing selected. Nothing changed."; exit 0; }
 
