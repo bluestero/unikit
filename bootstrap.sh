@@ -42,15 +42,12 @@ fi
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$dir/bin/tk" "$HOME/.local/bin/tk" && echo "✓ tk command in ~/.local/bin"
 
-# layers: bluetools and bluefeels by name (bluefeel and feelkit, bluefeels' old names, too);
-# anything else is a git URL.
-# `uk layer add` offers to set up its parts.
+# layers: bluetools and bluefeels by name (lib/layers.sh), anything else by its git URL.
+# `uk layer add` shows what runs, asks, and offers to set up its parts.
 for l in "${layers[@]}"; do
-  if [[ $l == bluefeels || $l == bluefeel || $l == feelkit ]]; then l=https://github.com/bluestero/bluefeels.git name=bluefeels
-  elif [[ $l == bluetools ]]; then l=https://github.com/bluestero/bluetools.git name=bluetools
-  else name=$(basename "${l%.git}"); name=${name#unix-}; name=${name%-toolkit}; fi
-  if [[ -d $dir/layers/$name ]]; then echo "✓ layer $name already there"
-  else echo; "$dir/bin/uk" layer add "$l" "$name" || echo "✗ couldn't add the layer $l (see above)" >&2; fi
+  n=${l%.git}; n=${n##*/}; n=${n#unix-}; n=${n%-toolkit}; [[ $n == bluefeel || $n == feelkit ]] && n=bluefeels
+  if [[ -d $dir/layers/$n ]]; then echo "✓ layer $n already there"
+  else echo; "$dir/bin/uk" layer add "$l" || echo "✗ couldn't add the layer $l (see above)" >&2; fi
 done
 
 echo

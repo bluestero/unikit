@@ -266,16 +266,18 @@ layer_ls() {
     n=$((n + 1))
     rows+="  $C_CYAN${d##*/}$C_RESET$S$(layer_from "$d")$S$(layer_ver "$d")"$'\n'
   done < <(layer_dirs "$ROOT")
-  (( n )) || { info "No layers yet. Add one: uk layer add <git-url>"; return 0; }
+  (( n )) || { info "No layers yet. Add one: uk layer add bluetools (or bluefeels, or a git URL)"; return 0; }
   printf '%s' "$rows" | ui_table "uk · layers" "$n layer$( (( n > 1 )) && echo s)" "$(ui_hint 'uk layer add <git-url> · uk layer rm <name>')"
 }
 
 layer_add() {
-  local url name dir later yes=0 a new; local -a args=()
-  for a; do case $a in -y|--yes) yes=1 ;; *) args+=("$a") ;; esac; done
+  local url name dir later yes=0 setup=1 a new; local -a args=()
+  for a; do case $a in -y|--yes) yes=1 ;; --no-setup) setup=0 ;; *) args+=("$a") ;; esac; done   # --no-setup: the installer's first run sets it up
   url=${args[0]:-}
-  [[ -n $url ]] || die "which repo? uk layer add <git-url> [name]   e.g. git@github.com:me/acme-toolkit.git"
-  name=${args[1]:-$(url_name "$url")}
+  [[ -n $url ]] || die "which layer? uk layer add <name or git-url> [name]   e.g. bluetools, or git@github.com:me/acme-toolkit.git"
+  [[ $url == bluefeel || $url == feelkit ]] && url=bluefeels   # bluefeels' old names
+  if [[ -v KNOWN_LAYER_URL[$url] ]]; then name=${args[1]:-$url}; url=${KNOWN_LAYER_URL[$url]}
+  else name=${args[1]:-$(url_name "$url")}; fi
   dir="$ROOT/layers/$name" new="$ROOT/layers/.new-$name"
   [[ -e $dir ]] && die "layers/$name is already there (uk layers)"
   mkdir -p "$ROOT/layers"; rm -rf "$new"
@@ -290,6 +292,7 @@ layer_add() {
   ok "layer $name added: ${dir/#$HOME/\~} (pinned at $(git -C "$dir" rev-parse --short HEAD))"
   local t; for t in $(layer_missing "$dir"); do warn "it needs the $t layer, which isn't here: uk layer add <its git URL>"; done
   info "${C_DIM}Its commands and settings load in new terminals.${C_RESET}"
+  (( setup )) || return 0
   later="tk install --layer=$name"
   [[ $(layer_kit "$dir") != tk ]] && later="$(layer_kit "$dir") install"   # its parts are fk's (fk install)
   confirm "Set up its parts now?" y && exec "$ROOT/install.sh" --layer="$name"
@@ -788,7 +791,7 @@ uk help	this page
 
 ## Layers
 uk layers	the layers in a list: add one, set up its parts, remove it
-uk layer add <git-url> [name]	clone one, show what runs, ask before keeping it
+uk layer add <name or git-url> [name]	clone one (bluetools and bluefeels by name), show what runs, ask before keeping it
 uk layer rm <name>	delete one (only when nothing in it is unpushed)
 uk layer check <dir>	one you're making: well formed, no clashes
 

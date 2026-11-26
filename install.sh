@@ -57,6 +57,25 @@ EOF
   exit 0
 fi
 
+# No layers yet (a first run): offer the ones unikit knows, nothing ticked. Skipped, it's offered
+# again next run, until there's a layer. Added ones are set up in this run (it starts again with them).
+if [[ $mode == ask && -t 0 && -t 1 && $list == 0 && -z $layer$kit$update ]] && (( ! ${#wanted[@]} )) &&
+   [[ -z $(layer_dirs "$repo") ]]; then
+  first=()
+  for n in "${KNOWN_LAYERS[@]}"; do first+=("$n"$'\t'"${KNOWN_LAYER_WHAT[$n]}"); done
+  say ""
+  say "unikit is the base: its tools come from ${B}layers${R}, and there are none here yet."
+  say "${D}Add one any time later: uk layer add bluetools (or bluefeels, or a layer's git URL)${R}"
+  add=()
+  if checklist "Add which layers? (none is fine: unikit's own parts still set up)" "${first[@]}"; then
+    for i in "${CHECKLIST[@]}"; do add+=("${KNOWN_LAYERS[i]}"); done
+  fi
+  if (( ${#add[@]} )); then
+    for n in "${add[@]}"; do "$repo/bin/uk" layer add --no-setup "$n" || warn "couldn't add $n"; done
+    [[ -n $(layer_dirs "$repo") ]] && UNIKIT_FIRST_RUN=1 exec "$repo/install.sh" "$@"
+  fi
+fi
+
 # What this run may touch: one layer's parts (--layer), one kit's (--kit), else the tk parts
 if [[ -n $layer ]]; then
   layer_path "$repo" "$layer" >/dev/null || { printf '✗ no layer %s · see: uk layers\n' "'$layer'" >&2; exit 2; }
@@ -266,6 +285,10 @@ if [[ -t 1 ]]; then
   printf '%s' "$summary" | print_table 3 |
     ui_box "done" "open a new terminal to pick it up" 0 "$(ui_hint "undo: $undo")"
   say "${D}log: ${log_file/#$HOME/\~}${R}"
+  # the first run set up the tk parts; a layer like bluefeels brings fk's (how it looks)
+  if [[ -n ${UNIKIT_FIRST_RUN:-} && -z $kit$layer && -n $(kit_parts fk) ]]; then
+    say "Next: ${B}fk install${R} ${D}(how it looks: the parts of the fk layers)${R}"
+  fi
 else
   printf '%s' "$summary" | print_table 3
 fi

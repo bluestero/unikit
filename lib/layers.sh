@@ -38,6 +38,13 @@
 # parts: tk install, fk install. Both are always there.
 declare -gA KIT_LABEL=([tk]=toolkit [fk]=feelkit)
 
+# The layers unikit knows by name: uk layer add <name>, the installer's first run, bootstrap.sh
+KNOWN_LAYERS=(bluetools bluefeels)
+declare -gA KNOWN_LAYER_URL=([bluetools]=https://github.com/bluestero/bluetools.git
+                             [bluefeels]=https://github.com/bluestero/bluefeels.git)
+declare -gA KNOWN_LAYER_WHAT=([bluetools]="work tools: AWS, Kubernetes, Twingate, workspaces, accounts per folder"
+                              [bluefeels]="the look: kitty, the shell, the GNOME desktop")
+
 # layer_dirs <toolkit root>: one layer folder per line, sorted by name
 layer_dirs() {
   local d
