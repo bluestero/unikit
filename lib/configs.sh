@@ -352,6 +352,16 @@ case "${1:-}" in
   "")    cfg_list ;;
   __key) [[ -z ${NO_COLOR:-} ]] && ui_color; cfg_key "${2:-}" "${3:-}" "${4:-}" ;;
   __relist) [[ -z ${NO_COLOR:-} ]] && ui_color; cfg_relist ;;
+  __count)   # <kit> me: "presets toolkit's patched", for the presets that apply here
+    n=0 on=0 mine=0
+    for i in $(cfg_ids); do
+      cfg_row "$i"; cfg_state; n=$((n + 1))
+      [[ $CS == preset || $CS == edited ]] || continue
+      on=$((on + 1))
+      if [[ $ctype == dconf ]]; then [[ -f $(look_patch "$name") ]] && mine=$((mine + 1))
+      else cfg_patched && mine=$((mine + 1)); fi
+    done
+    echo "$n $on $mine" ;;
   __edited)   # after the editor: what the patch feeds, then back to the list with how it went
     [[ -z ${NO_COLOR:-} ]] && ui_color; cfg_row "${2:-}" || exit 0
     f=$(fn config_saved "$id")

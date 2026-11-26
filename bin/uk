@@ -14,13 +14,6 @@ ROOT="$(cd "${SELF%/*}/.." && pwd)"
 S=$'\x1f'
 
 version() { tr -d '[:space:]' <"$ROOT/VERSION" 2>/dev/null || printf 'unknown'; }
-rev_of() { git -C "$1" log -1 --format='%h, %cs' 2>/dev/null; }
-# a layer's version: its VERSION file (if it has one) and its commit
-layer_ver() {
-  local v r; own_repo "$1" && r=$(rev_of "$1")
-  [[ -r $1/VERSION ]] && v=$(tr -d '[:space:]' <"$1/VERSION")
-  if [[ -n ${v:-} ]]; then printf '%s%s' "$v" "${r:+ ($r)}"; else printf '%s' "${r:-–}"; fi
-}
 layer_from() {
   if own_repo "$1"; then git -C "$1" remote get-url origin 2>/dev/null || echo "a git repo with no remote"
   else echo "a copied folder (no updates)"; fi
@@ -787,20 +780,20 @@ cmd_help() {
   ui_help uk "unikit: the base; tk and fk are its kits" <<'EOF'
 ## unikit
 uk	pick one of these and run it
-uk status	the folder, the layers, how much of each kit is set up	also uk st
-uk update	pull what's new in unikit and the layers you tick	changed layer code starts unticked
-uk doctor	check the whole: the commands, each layer, no clashes	each kit: tk doctor, fk doctor
-uk version	unikit's version and each layer's	also -v, --version
+uk status	the folder, the layers, how much of each kit is set up
+uk update	pull what's new in unikit and the layers you tick
+uk doctor	check the whole: the commands, each layer, no clashes
+uk version	unikit's version and each layer's
 uk help	this page
 
 ## Layers
-uk layers	the layers in a list: add one, set up its parts, remove it	alt-i: what each one is
-uk layer add <git-url> [name]	clone one, show what runs, ask before keeping it	pinned in layers.lock
+uk layers	the layers in a list: add one, set up its parts, remove it
+uk layer add <git-url> [name]	clone one, show what runs, ask before keeping it
 uk layer rm <name>	delete one (only when nothing in it is unpushed)
 uk layer check <dir>	one you're making: well formed, no clashes
 
 ## Claude skills
-uk skills	which Claude profiles get which skills, in a list	ctrl-p: the details pane
+uk skills	which Claude profiles get which skills, in a list
 uk skills ls	a row per skill: its layer and the profiles that have it
 uk skills <name>	one skill: what it's for, its layer, each profile
 
@@ -815,7 +808,7 @@ case "${1:-}" in
   layers)         shift; if [[ -z ${1:-} ]]; then cmd_layers; else cmd_layer "$@"; fi ;;
   layer)          shift; cmd_layer "$@" ;;
   doctor)         cmd_doctor ;;
-  st|status)      cmd_status ;;
+  status)         cmd_status ;;
   update)         shift; cmd_update "$@" ;;
   skills)         shift; exec "$ROOT/lib/skills-cmd.sh" "$@" ;;
   version|-v|--version) cmd_version ;;

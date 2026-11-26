@@ -76,6 +76,14 @@ layer_sub() {
 # own_repo <dir>: a git clone of its own (a layer copied in by hand is part of nothing,
 # and git would otherwise answer for the toolkit repo around it)
 own_repo() { [[ "$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" == "$(cd "$1" && pwd -P)" ]]; }
+# rev_of <dir>: its last commit, "abc1234, 2026-11-25"
+rev_of() { git -C "$1" log -1 --format='%h, %cs' 2>/dev/null; }
+# a layer's version: its VERSION file (if it has one) and its commit
+layer_ver() {
+  local v r; own_repo "$1" && r=$(rev_of "$1")
+  [[ -r $1/VERSION ]] && v=$(tr -d '[:space:]' <"$1/VERSION")
+  if [[ -n ${v:-} ]]; then printf '%s%s' "$v" "${r:+ ($r)}"; else printf '%s' "${r:-–}"; fi
+}
 # layer_kit <dir>: the kit its parts go to unless a part says otherwise
 layer_kit() { local k=tk; [[ -f $1/kit ]] && k=$(head -1 "$1/kit"); printf '%s\n' "$k"; }
 # layer_requires <dir>: the layers it needs (its requires file), one per line

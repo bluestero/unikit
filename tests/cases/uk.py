@@ -242,7 +242,7 @@ def test_the_kits_are_siblings(sb):
     code, out = run(sb, repo, "tk", "hello", "there")
     assert code == 0 and out.strip() == "hello there", out
     code, out = run(sb, repo, "tk", "help")
-    assert re.search(r"tk hello\s+says hello\s+acme", out), out
+    assert re.search(r"tk hello\s+says hello$", out, re.M), "no layer column: " + out
     code, out = run(sb, repo, "tk", "ls")
     assert re.search(r"tk hello\s+says hello\s+acme\s+✓ ready", out), out
     code, out = run(sb, repo, "fk", "hello")
@@ -268,6 +268,28 @@ doctor_acme_off() { echo "! never asked: not set up"; }
     assert re.search(r"fk\s+! 1 of 2 parts set up\s+→ fk install acme-off", out), out
     code, out = run(sb, repo, "tk", "doctor")
     assert "acme" not in out, "fk's parts stay out of tk doctor"
+
+
+def test_each_kits_me_is_about_that_kit(sb):
+    repo = copy(sb)
+    d = repo + "/layers/acme"
+    os.makedirs(d)
+    with open(d + "/kit", "w") as f:
+        f.write("fk\n")
+    with open(d + "/tools", "w") as f:
+        f.write("acme-look|Look|the look|no-such-program\n")
+    with open(d + "/components.sh", "w") as f:
+        f.write('''COMPONENTS+=(acme-look acme-off)
+label_acme_look() { echo look; }; state_acme_look() { STATE=installed; }
+label_acme_off() { echo off; }; state_acme_off() { STATE=missing; }
+''')
+    code, out = run(sb, repo, "fk", "me")
+    assert code == 0 and re.search(r"layers\s+acme", out), out
+    assert re.search(r"parts\s+1 of 2 set up · missing: acme-off", out), out
+    assert re.search(r"needs\s+✗ no-such-program · ✓ fzf", out), "what's missing comes first: " + out
+    assert re.search(r"lives in\s+" + re.escape(repo.replace(sb.home, "~", 1)), out), out
+    code, out = run(sb, repo, "tk", "me")
+    assert code == 0 and "acme" not in out and "no-such-program" not in out, "fk's layer stays out of tk me: " + out
 
 
 def test_uk_status_shows_each_kit(sb):

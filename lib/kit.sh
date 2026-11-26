@@ -7,7 +7,7 @@
 #   KIT_TOOLS    (optional) tools lines of the kit's own, name|group|what|needs|kit|layer
 #   kit_help_own (optional) help lines for the kit's own extra commands, with a "## " heading
 #   kit_own      (optional) kit_own <word> [args]: runs one of those; returns 2 when it isn't one
-# Every kit has: <kit> (picker), ls, install, uninstall, configs, doctor, help, and <kit> <name> for a
+# Every kit has: <kit> (picker), ls, install, uninstall, configs, doctor, me, help, and <kit> <name> for a
 # layer's <kit>/<name>.
 
 # shellcheck source=ui.sh
@@ -153,21 +153,102 @@ kit_doctor() {
   (( bad == 0 ))
 }
 
+# -------------------------------------------------------------------- me ---
+# A short page about the kit: a line per thing. A list too long for the window shows what
+# fits, then how many more and where to see them all.
+# me_fit <width> <hint> item...: as many items as fit in width, then "+N → hint"
+me_fit() {
+  local w=$1 hint=$2 out="" add more n=0 plain; shift 2
+  local -a items=("$@")
+  for add in "${items[@]}"; do
+    more=""; (( n + 1 < ${#items[@]} )) && more="  +$(( ${#items[@]} - n - 1 )) → $hint"
+    plain=$(strip_ansi "${out:+$out · }$add$more")
+    (( ${#plain} <= w )) || break
+    out+="${out:+ · }$add"; n=$((n + 1))
+  done
+  (( n == ${#items[@]} )) || out+="${out:+  }$C_DIM+$(( ${#items[@]} - n )) $(ui_hint "$hint")"
+  printf '%s' "$out"
+}
+# the kit's parts: "part TAB id TAB set-up|left" and "layer TAB name" for the layers they come from
+kit_me_parts() {
+  ( repo=$ROOT mode=dry details=0
+    # shellcheck source=setup.sh
+    . "$ROOT/lib/setup.sh" >/dev/null 2>&1
+    # shellcheck source=components.sh
+    . "$ROOT/lib/components.sh" >/dev/null 2>&1
+    local id ids; ids=$(kit_parts "$KIT"); states_all $ids   # side by side
+    for id in $ids; do
+      [[ -v LAYER_OF[$id] ]] && printf 'layer\t%s\n' "${LAYER_OF[$id]}"
+      case ${ST[$id]} in
+        n/a|unsupported|needs) ;;
+        installed) printf 'part\t%s\tset-up\n' "$id" ;;
+        *)         printf 'part\t%s\tleft\n' "$id" ;;
+      esac
+    done )
+}
+kit_me() {
+  [[ -t 1 ]] || ui_no_color
+  local w kind a b t r d n=0 total=0 rows="" need
+  local -a left=() lays=() have=() miss=() needs=(fzf git)
+  w=$(( $(ui_cols) - 17 ))   # the box (6) and the names' column (8 + 3)
+  (( w < 20 )) && w=20
+  local -A seen=()
+  while IFS=$'\t' read -r kind a b; do
+    case $kind in
+      layer) seen[$a]=1 ;;
+      part)  total=$((total + 1)); if [[ $b == set-up ]]; then n=$((n + 1)); else left+=("$a"); fi ;;
+    esac
+  done < <(kit_me_parts)
+  for t in "${TOOLS[@]}"; do
+    seen[$(field "$t" 6)]=1
+    need=$(field "$t" 4); [[ -n $need && " ${needs[*]} " != *" $need "* ]] && needs+=("$need")
+  done
+
+  r=$(rev_of "$ROOT")
+  rows+="version"$'\t'"$(tr -d '[:space:]' <"$ROOT/VERSION" 2>/dev/null || printf unknown)${r:+ $C_DIM($r)$C_RESET}  $(ui_hint 'uk update')"$'\n'
+  while IFS= read -r d; do
+    [[ -n ${seen[${d##*/}]:-} ]] && lays+=("${d##*/} $C_DIM$(layer_ver "$d")$C_RESET")
+  done < <(layer_dirs "$ROOT")
+  if (( ${#lays[@]} )); then rows+="layers"$'\t'"$(me_fit "$w" 'uk version' "${lays[@]}")"$'\n'
+  else rows+="layers"$'\t'"none yet  $(ui_hint 'uk layers')"$'\n'; fi
+  if (( total == 0 )); then rows+="parts"$'\t'"none"$'\n'
+  elif (( ${#left[@]} == 0 )); then rows+="parts"$'\t'"${C_GREEN}all $total set up${C_RESET}"$'\n'
+  else
+    a="${C_YELLOW}$n of $total set up${C_RESET} · missing: "
+    rows+="parts"$'\t'"$a$(me_fit $(( w - ${#n} - ${#total} - 23 )) "$KIT install ls" "${left[@]}")"$'\n'
+  fi
+  read -r t a b < <(bash "$ROOT/lib/configs.sh" "$KIT" __count 2>/dev/null)
+  if (( ${t:-0} == 0 )); then rows+="configs"$'\t'"none here"$'\n'
+  else rows+="configs"$'\t'"$a of $t on the toolkit's preset$( (( b )) && printf ', %s with your patch' "$b")  $(ui_hint "$KIT configs")"$'\n'; fi
+  rows+="lives in"$'\t'"${ROOT/#$HOME/\~}"$'\n'
+  rows+="patches"$'\t'"~/.config/unikit/patches"$'\n'
+
+  for t in "${needs[@]}"; do
+    if ! type -P "$t" >/dev/null; then miss+=("${C_YELLOW}✗ $t${C_RESET}")
+    elif [[ $t == fzf ]] && ! ui_fzf_at_least 0.63; then miss+=("${C_YELLOW}✗ fzf $(fzf --version | awk '{print $1}') (0.63+)${C_RESET}")
+    elif [[ $t == fzf ]]; then have+=("${C_GREEN}✓${C_RESET} fzf $(fzf --version | awk '{print $1}')")
+    else have+=("${C_GREEN}✓${C_RESET} $t"); fi
+  done
+  rows+="needs"$'\t'"$(me_fit "$w" "$KIT ls" "${miss[@]}" "${have[@]}")"
+  printf '%s\n' "$rows" | ui_fields "$KIT_TITLE"
+}
+
 kit_help() {
   local t
   {
     printf '## Commands\n'
-    printf '%s\tpick one of the commands below and run it\n' "$KIT"
-    printf '%s ls\tthe commands below: what each does, its layer, ready or what it needs\n' "$KIT"
-    printf '%s install [part...]\tset up the %s parts the layers bring: a tab per group, then one question per change\t%s install ls lists them\n' "$KIT" "$KIT" "$KIT"
-    printf '%s uninstall [part...]\tremove them, putting your own settings back\n' "$KIT"
-    printf '%s configs\tthe presets its parts bring: the toolkit preset, the app default, what you had before, undo; your own patch on top\tpatches: ~/.config/unikit/patches\n' "$KIT"
-    printf '%s doctor\tevery check of its commands and parts, in one box\n' "$KIT"
+    printf '%s\tpick a command below and run it\n' "$KIT"
+    printf '%s ls\tthe commands below: their layer, ready or not\n' "$KIT"
+    printf '%s install [part...]\tset up the parts the layers bring\n' "$KIT"
+    printf '%s uninstall [part...]\tremove them, your own settings back\n' "$KIT"
+    printf '%s configs\teach app: the toolkit preset, its default or yours\n' "$KIT"
+    printf '%s doctor\tcheck every command and part\n' "$KIT"
+    printf '%s me\tabout this kit: version, layers, parts, needs\n' "$KIT"
     printf '%s help\tthis page\n' "$KIT"
     if declare -F kit_help_own >/dev/null; then printf '\n'; kit_help_own; fi
     printf '\n## From the layers\n'
     if (( ${#TOOLS[@]} )); then
-      for t in "${TOOLS[@]}"; do printf '%s\t%s\t%s\n' "$(field "$t" 1)" "$(field "$t" 3)" "$(field "$t" 6)"; done
+      for t in "${TOOLS[@]}"; do printf '%s\t%s\n' "$(field "$t" 1)" "$(field "$t" 3)"; done
     else
       printf '%s\n' "$KIT_EMPTY"
     fi
@@ -183,6 +264,7 @@ kit_main() {
     uninstall)      shift; exec "$ROOT/uninstall.sh" --kit="$KIT" "$@" ;;
     configs)        shift; exec bash "$ROOT/lib/configs.sh" "$KIT" "$@" ;;
     doctor)         kit_doctor ;;
+    me)             kit_me ;;
     help|-h|--help) kit_help ;;
     *)
       if declare -F kit_own >/dev/null; then
