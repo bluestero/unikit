@@ -30,7 +30,7 @@ like `bluetools` for work tools, `bluefeels` for the look, or one you write for 
 | `tk` | **toolkit**, what you work with | layers like bluetools |
 | `fk` | **feelkit**, how it looks | layers like bluefeels |
 
-### Layers
+## Layers
 
 The kits are empty until a layer fills them. These are the ones to start with:
 

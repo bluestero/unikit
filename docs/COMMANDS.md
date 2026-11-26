@@ -16,7 +16,7 @@ part, only where no other program has the name.
 |---|---|
 | `uk status` | the folder, the layers, how much of each kit is set up ("6 of 11 parts set up → fk install"), the version |
 | `uk layers` | lists the layers: what's there, the kits it feeds, where from, which version. enter: set up or remove its parts, or remove it; alt-a adds one; alt-i shows what each one is |
-| `uk layer add <git URL>` | clones it into `layers/<name>` (a `unix-` prefix and `-toolkit` are dropped), shows what runs here, asks, offers to set it up |
+| `uk layer add <name or git URL>` | `bluetools` and `bluefeels` by name, any other by its git URL: clones it into `layers/<name>` (a `unix-` prefix and `-toolkit` are dropped), shows what runs here, asks, offers to set it up |
 | `uk layer rm <name>` | deletes it (refuses while it has unpushed work) |
 | `uk layer check <dir>` | checks a layer you're making before you push it: well formed, no clashes with unikit or the layers here |
 | `uk doctor` | checks the whole: the commands are unikit's, each layer is well formed and at the commit you trusted, no two bring the same part or command |

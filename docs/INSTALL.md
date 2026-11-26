@@ -20,8 +20,21 @@ their parts: the latest release for your CPU, in `~/.local`, with no sudo where 
 
 ## Get it
 
-One command clones unikit into `~/.local/share/unikit` (or updates it if it's there), adds the `tk`
-command, and adds the layers you name. Nothing else changes yet.
+```bash
+git clone https://github.com/bluestero/unikit.git ~/unikit   # any folder you'll keep: the commands point into it
+~/unikit/install.sh
+```
+
+**The first run** (no layers yet) starts with a list of the layers unikit knows, bluetools and
+bluefeels, nothing ticked. The ones you tick are added (each shows what of it runs here and asks
+first), then the installer goes on with their parts. Skip them and the list comes back next run,
+until there's a layer. Its `commands` part puts `uk`, `tk` and `fk` in `~/.local/bin`.
+
+**Adding a layer later:** `uk layer add bluetools` (or `bluefeels`; any other layer by its git URL), or
+alt-a in `uk layers`. It shows what of the layer runs here, asks, and offers to set up its parts.
+
+**Or in one line**, with `bootstrap.sh`: it clones unikit into `~/.local/share/unikit` (or updates it if
+it's there), adds the `tk` command and the layers you name. Nothing else changes yet; `tk install` next.
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unikit/main/bootstrap.sh) --layer bluetools --layer bluefeels
@@ -31,17 +44,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unikit/main/bootst
 |---|---|
 | `--dir <folder>` | puts unikit somewhere else |
 | `--layer <name or git URL>` | adds a layer (`bluetools` and `bluefeels` by name); repeat it for more |
-
-Or step by step, over SSH (needs an SSH key on your GitHub account; `ssh -T git@github.com` checks it):
-
-```bash
-git clone git@github.com:bluestero/unikit.git ~/.local/share/unikit
-mkdir -p ~/.local/bin && ln -sfn ~/.local/share/unikit/bin/tk ~/.local/bin/tk
-~/.local/share/unikit/bin/uk layer add git@github.com:bluestero/bluetools.git
-```
-
-Layers are added the same way later: `uk layer add <git URL>`, or alt-a in `uk layers`. It shows what
-of the layer runs here, asks, and offers to set up its parts.
 
 ## Set up the parts
 
