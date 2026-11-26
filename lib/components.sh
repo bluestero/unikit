@@ -23,8 +23,8 @@ RECOMMENDED=(bash zsh-hook commands fzf)
 # Components with a settings look: naming one that is installed opens the keep / look / defaults menu
 LOOK_PARTS=()   # components with a settings menu; a layer adds its own (LOOK_PARTS+=)
 CLAUDE_PARTS=(claude-skill)
-# Which repo a component comes from: the toolkit, or the layer that adds it (bluefeels, ...).
-repo_of() { echo "${LAYER_OF[$1]:-toolkit}"; }
+# Which repo a component comes from: unikit, or the layer that adds it (bluefeels, ...).
+repo_of() { echo "${LAYER_OF[$1]:-unikit}"; }
 # the layer a part comes from, for the installers' LAYER column (unikit: the base's own)
 layer_name() { echo "${LAYER_OF[$1]:-unikit}"; }
 # Two layers (or a layer and unikit) setting up the same thing. A part says what it changes
@@ -155,14 +155,14 @@ state_bash() {
   else STATE=missing; fi
 }
 install_bash() {
-  local b tmp
+  local b
   [[ -f "$rc" ]] && grep -qxF "$init_line" "$rc" && { ok "already there"; return; }
   if grep -qE "$init_re" "$rc" 2>/dev/null; then
     ask "Update ~/.bashrc's unikit line (this folder, the current form)?" || { skip; return; }
     dry && return
-    b=$(backup "$rc"); tmp=$(mktemp)
-    awk -v re="$init_re" -v l="$init_line" '$0 ~ re { if (!done) print l; done = 1; next } { print }' "$rc" >"$tmp"
-    cat "$tmp" >"$rc"; rm -f "$tmp"; ok "done (backup: ${b/#$HOME/\~})"
+    b=$(backup "$rc")
+    put_out "$rc" awk -v re="$init_re" -v l="$init_line" '$0 ~ re { if (!done) print l; done = 1; next } { print }' "$rc" &&
+      ok "done (backup: ${b/#$HOME/\~})"
   else
     ask "Add unikit's line to ~/.bashrc?" || { skip; return; }
     dry && return
@@ -171,10 +171,10 @@ install_bash() {
   fi
 }
 uninstall_bash() {
-  local b tmp
+  local b
   grep -qE "$init_re" "$rc" 2>/dev/null || { ok "not loaded from ~/.bashrc"; return; }
-  b=$(backup "$rc"); tmp=$(mktemp)
-  grep -vE "$init_re" "$rc" | cat -s >"$tmp"; cat "$tmp" >"$rc"; rm -f "$tmp"
+  b=$(backup "$rc")
+  put_out "$rc" eval 'grep -vE "$init_re" "$rc" | cat -s'
   ok "removed unikit's line (backup: ${b/#$HOME/\~})"
   warn "bash no longer loads unikit and its layers."
 }
@@ -351,7 +351,7 @@ look_apply() {   # look_apply PATH FILE NAME
   [[ -s $2 ]] || { fail "the look ${2#"$repo"/} is missing, so nothing was applied"; return 1; }
   local f; for f in $(look_refs "$2"); do mkdir -p "$(look_copy "$2")" && cp "$(dirname "$2")/$f" "$(look_copy "$2")/$f"; done
   mkdir -p "$orig_dir"
-  [[ -f "$orig_dir/$3.dconf" ]] || dconf dump "$1" >"$orig_dir/$3.dconf" 2>/dev/null
+  [[ -f "$orig_dir/$3.dconf" ]] || put_out "$orig_dir/$3.dconf" dconf dump "$1" 2>/dev/null   # kept once: never half
   look_file "$2" | dconf load "$1"
   [[ -f $(look_patch "$3") ]] && dconf load "$1" <"$(look_patch "$3")"
   return 0
@@ -399,7 +399,7 @@ look_do() {
             dconf reset -f "$path"; dconf load "$path" <"$first" &&
               ok "$nice settings back to how they were before the toolkit ${D}($(look_note "$path" "$before"); the menu can undo it)${R}" ;;
     "$LOOK_KPT") local pf; pf=$(look_patch "$name"); mkdir -p "${pf%/*}"
-            python3 -I "$repo/lib/dconf_patch.py" diff "${6:-}" <(printf '%s\n' "$before") <(look_file "$file") >"$pf" &&
+            put_out "$pf" python3 -I "$repo/lib/dconf_patch.py" diff "${6:-}" <(printf '%s\n' "$before") <(look_file "$file") &&
               ok "$nice: your changes are your patch now ${D}(${pf/#$HOME/\~}; re-applying the look keeps them)${R}" ;;
     "$LOOK_DRP") mkdir -p "$orig_dir"; printf '%s\n' "$before" >"$last"; mv "$(look_patch "$name")" "$(look_patch "$name").dropped"
             look_apply "$path" "$file" "$name" && ok "$nice: patch dropped, the plain look is back ${D}($(look_note "$path" "$before"); the menu can undo it)${R}" ;;
@@ -594,7 +594,7 @@ gh_tool() {
   tmp=$(mktemp -d)
   if fetch_checked "$GH_URL" "$GH_SHA" "$tmp/dl"; then
     if [[ $2 == *.tar.gz ]]; then tar xzf "$tmp/dl" -C "$tmp" "$3" 2>>"$log_file" && mv "$tmp/$3" "$tmp/dl"; fi &&
-      mkdir -p "$HOME/.local/bin" && install -m 755 "$tmp/dl" "$HOME/.local/bin/$3" && rc=0
+      mkdir -p "$HOME/.local/bin" && put_copy -m 755 "$tmp/dl" "$HOME/.local/bin/$3" && rc=0
   fi
   rm -rf "$tmp"
   (( rc )) || logf "$3 $GH_VER installed to ~/.local/bin"

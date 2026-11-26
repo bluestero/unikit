@@ -50,7 +50,7 @@ u_retired() {
     install_$f() { u_clean '$1'; }
     uninstall_$f() { :; }"
   U_GONE[$1]=1; COMPONENTS+=("$1")
-  [[ ${U_FROM[$1]:-toolkit} == toolkit ]] || LAYER_OF[$1]=${U_FROM[$1]}
+  case ${U_FROM[$1]:-unikit} in unikit|toolkit) ;; *) LAYER_OF[$1]=${U_FROM[$1]} ;; esac   # toolkit: older code
 }
 for _id in "${!U_BEFORE[@]}"; do
   [[ " ${COMPONENTS[*]} " == *" $_id "* ]] && continue
@@ -63,9 +63,9 @@ while IFS= read -r _id; do
 done < <(cut -f1 <<<"$U_DEAD" | sort -u | { [[ -n $U_DEAD ]] && cat; })
 unset _id
 
-# Tabs: the toolkit, then each layer
+# Tabs: unikit, then each layer
 group_of() { repo_of "$1"; }
-GROUP_ABOUT[toolkit]="The toolkit's own parts."
+GROUP_ABOUT[unikit]="unikit's own parts."
 for _l in $(printf '%s\n' "${LAYER_OF[@]}" | sort -u); do
   GROUP_ABOUT[$_l]="The $_l layer's parts."
   [[ ${LAYER_KIT[$_l]:-tk} == tk ]] || GROUP_ABOUT[$_l]="The $_l layer's parts (on their own: ${LAYER_KIT[$_l]} install sets them up)."

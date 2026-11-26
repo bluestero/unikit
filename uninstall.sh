@@ -116,10 +116,13 @@ logf ""; logf "=== uninstall $ts ${chosen[*]}"
 order=()
 [[ " ${chosen[*]} " == *" login-shell "* ]] && order+=(login-shell)
 for id in "${chosen[@]}"; do [[ "$id" == login-shell ]] || order+=("$id"); done
+run_start "${again/install/uninstall}" "${order[@]}"   # cut short: says what's done and what isn't
 for id in "${order[@]}"; do
+  run_part "$id"
   say "${B}$id${R}"
   "$(fn uninstall "$id")"
 done
+run_finished
 
 say ""
 summary=""

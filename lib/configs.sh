@@ -82,14 +82,16 @@ cfg_ids() {
 cfg_patched() { [[ -n $patch && -f $patch ]] && grep -qvE '^[[:space:]]*(#|//|$)' "$patch"; }
 # a new patch: what it is, then the preset as comments to start from
 cfg_new_patch() {
+  mkdir -p "$patch_dir"; put_out "$patch" _cfg_patch_text   # whole or not at all: it's made once
+}
+_cfg_patch_text() {
   local c='#'; [[ $patch == *.rasi ]] && c='//'
-  mkdir -p "$patch_dir"
   { printf "%s Your patch for %s: read after the toolkit's preset, so what you set here wins.\n" "$c" "$nice"
     printf '%s The toolkit never changes this file. The preset (%s) is below as comments:\n' "$c" "${src#"$repo"/}"
     printf '%s uncomment a line and change it, or add your own.\n' "$c"
     [[ $patch == *.toml ]] && printf '%s A setting under [a table] needs its [table] line uncommented too.\n' "$c"
     echo
-    sed "s|^|$c |" "$src"; } >"$patch"
+    sed "s|^|$c |" "$src"; }
 }
 
 # the preset changed in the repo (no git: never)
@@ -97,7 +99,7 @@ cfg_dirty() { git -C "$(dirname "$src")" rev-parse --git-dir >/dev/null 2>&1 && 
 # the preset as committed, back in the repo
 cfg_clean() {
   local top; top=$(git -C "$(dirname "$src")" rev-parse --show-toplevel 2>/dev/null)
-  [[ $kind != block ]] && cfg_dirty && git -C "$top" show "HEAD:${src#"$top"/}" >"$src"; return 0
+  [[ $kind != block ]] && cfg_dirty && put_out "$src" git -C "$top" show "HEAD:${src#"$top"/}"; return 0
 }
 
 # CS: preset (as committed), edited (the preset, changed), own (your file), default (none);
@@ -140,8 +142,8 @@ cfg_word() {
 # keep what is there now, for undo: link (the preset's text, edits and all), file, or none
 cfg_snap() {
   mkdir -p "$snap_dir"
-  if [[ $kind == link ]] && linked "$live" "$src"; then cp "$src" "$snap_dir/$id.last"; echo link >"$snap_dir/$id.kind"
-  elif [[ -f $live ]]; then cp "$live" "$snap_dir/$id.last"; echo file >"$snap_dir/$id.kind"
+  if [[ $kind == link ]] && linked "$live" "$src"; then put_copy "$src" "$snap_dir/$id.last"; echo link >"$snap_dir/$id.kind"
+  elif [[ -f $live ]]; then put_copy "$live" "$snap_dir/$id.last"; echo file >"$snap_dir/$id.kind"
   else rm -f "$snap_dir/$id.last"; echo none >"$snap_dir/$id.kind"; fi
 }
 # your file from before the toolkit (empty when there was none)
@@ -206,7 +208,7 @@ cfg_do() {
       if [[ $kind == block ]]; then drop_block "$live"; else rm -f "$live"; fi
       echo "✓ $nice: the app's default" ;;
     "$CH_OLD") local o; o=$(cfg_before); cfg_snap; cfg_clean
-      rm -f "$live"; mkdir -p "${live%/*}"; cp -p "$o" "$live"
+      rm -f "$live"; mkdir -p "${live%/*}"; put_copy "$o" "$live"
       echo "✓ $nice: what you had before the toolkit" ;;
     "$CH_UND") cfg_undo ;;
     "$CH_DRP") cfg_snap; mv "$patch" "$patch.dropped"; [[ $kind == merge ]] && "$(fn merge_build "$id")"
@@ -223,8 +225,8 @@ cfg_undo() {
   [[ $k == none ]] || cp "$snap_dir/$id.last" "$t"
   cfg_snap
   case $k in
-    link) rm -f "$live"; mkdir -p "${live%/*}"; cat "$t" >"$src"; ln -s "$src" "$live" ;;
-    file) rm -f "$live"; mkdir -p "${live%/*}"; cat "$t" >"$live" ;;
+    link) rm -f "$live"; mkdir -p "${live%/*}"; put_out "$src" cat "$t"; ln -s "$src" "$live" ;;
+    file) rm -f "$live"; mkdir -p "${live%/*}"; put_out "$live" cat "$t" ;;
     none) rm -f "$live" ;;
   esac
   rm -f "$t"

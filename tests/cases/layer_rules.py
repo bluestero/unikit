@@ -197,3 +197,54 @@ def test_a_lock_left_by_a_gone_run_is_cleared(sb):
     code, out = run(sb, repo, "install.sh", "--yes", "one-conf")
     assert code == 0 and "Waiting" not in out, out
     assert open(sb.home + "/one.conf").read().strip() == "one-conf", out
+
+
+def test_a_run_cut_short_says_what_is_left_and_writes_nothing_by_half(sb):
+    """ctrl-c in the middle of a part: the file it was writing is still the old one (no temp
+    left beside it), the run says what's done and what isn't, the lock goes, and running
+    what it names finishes the job. A file that's a link (a dotfiles repo's) stays a link."""
+    import signal
+    import time
+    repo = copy(sb)
+    h = sb.home
+    sb.write("~/dotfiles/cutrc", "mine\n")
+    os.symlink(h + "/dotfiles/cutrc", h + "/.cutrc")
+    sb.write("~/b.conf", "old\n")
+    slow = f"echo first-half; touch {h}/b-started; sleep 30; echo second-half"
+    layer(repo, "cut",
+          'COMPONENTS+=(cut-a cut-b cut-c)\n'
+          'for p in a b c; do eval "group_cut_$p() { echo Demo; }; label_cut_$p() { echo cut-$p; }; '
+          'title_cut_$p() { echo cut-$p; }; detail_cut_$p() { :; }; uninstall_cut_$p() { :; }"; done\n'
+          f'state_cut_a() {{ NOTE=""; has_block {h}/.cutrc a && STATE=installed || STATE=missing; }}\n'
+          f'install_cut_a() {{ set_block {h}/.cutrc a; ok "block"; }}\n'
+          f'state_cut_b() {{ NOTE=""; grep -qx second-half {h}/b.conf && STATE=installed || STATE=missing; }}\n'
+          f'install_cut_b() {{ put_out {h}/b.conf bash -c "$CUT_B"; ok "b"; }}\n'
+          f'state_cut_c() {{ NOTE=""; [[ -f {h}/c.conf ]] && STATE=installed || STATE=missing; }}\n'
+          f'install_cut_c() {{ echo c >{h}/c.conf; ok "c"; }}\n')
+    sb.env["CUT_B"] = slow
+    p = subprocess.Popen([repo + "/install.sh", "--yes", "cut-a", "cut-b", "cut-c"], env=sb.env, cwd=h,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, start_new_session=True)
+    for _ in range(200):
+        if os.path.exists(h + "/b-started"):
+            break
+        time.sleep(0.05)
+    assert os.path.exists(h + "/b-started"), "cut-b never started"
+    os.killpg(p.pid, signal.SIGINT)   # what ctrl-c does: the whole foreground group
+    out = p.communicate(timeout=20)[0]
+    assert p.returncode == 130, out
+    assert "Stopped (ctrl-c) in the middle of cut-b" in out, out
+    assert "done:     cut-a" in out and "not done: cut-b cut-c" in out, out
+    assert "carry on: ./install.sh cut-b cut-c" in out, out
+    assert sb.read("~/b.conf") == "old\n", "b.conf was half written"
+    assert not [f for f in os.listdir(h) if ".unikit-" in f], os.listdir(h)
+    assert not os.path.exists(h + "/c.conf"), out
+    assert os.path.islink(h + "/.cutrc") and "# >>> work toolkit >>>\na\n" in sb.read("~/dotfiles/cutrc"), out
+    state = h + "/.local/state/unikit"
+    assert not os.path.exists(state + "/run.lock"), out
+    assert "Stopped (ctrl-c)" in open(state + "/setup.log").read()
+    # the next run picks up
+    sb.env["CUT_B"] = "echo first-half; echo second-half"
+    code, out = run(sb, repo, "install.sh", "--yes", "cut-b", "cut-c")
+    assert code == 0 and "Stopped" not in out, out
+    assert sb.read("~/b.conf") == "first-half\nsecond-half\n" and os.path.exists(h + "/c.conf"), out

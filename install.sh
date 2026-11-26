@@ -227,7 +227,9 @@ done
 todo=()
 for id in "${COMPONENTS[@]}"; do [[ -v in_run[$id] ]] && todo+=("$id"); done
 
+dry || run_start "$again" "${todo[@]}"   # cut short: says what's done and what isn't
 for id in "${todo[@]}"; do
+  run_part "$id"
   say "${B}$("$(fn label "$id")")${R}  ${D}$id · $("$(fn title "$id")")${R}"
   (( details )) && say "      ${D}$("$(fn detail "$id")")${R}"
   if [[ -n ${ND[$id]} ]]; then   # it needed other parts: set up now?
@@ -256,6 +258,7 @@ for id in "${todo[@]}"; do
   fi
   "$(fn install "$id")"
 done
+run_finished
 
 say ""
 if dry; then

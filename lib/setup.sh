@@ -54,7 +54,36 @@ run_lock() {
       sleep 1
     else rm -f "$run_lock_file"; fi   # left by a run that's gone
   done
-  trap 'rm -f "$run_lock_file"' EXIT
+  trap run_end EXIT
+}
+
+# A run cut short (ctrl-c, a part that exits, the terminal closed) says what it did and what it
+# didn't, on screen and in the log, so the next run picks up from there: every part checks
+# its state first, so running it again finishes what was half done. No file is left half
+# written (put_out below; its temp file goes too). install.sh and uninstall.sh:
+#   run_start "<how to run a part again>" <parts...>   once the lock is held
+#   run_part <id>                                       before each part
+#   run_finished                                        after the last; nothing more is said
+RUN_TODO=() RUN_DONE=() RUN_AT="" RUN_AGAIN="" PUT_TMP=""
+run_start() {
+  RUN_AGAIN=$1; shift; RUN_TODO=("$@") RUN_DONE=() RUN_AT=""
+  trap run_end EXIT; trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
+}
+run_part() { [[ -n $RUN_AT ]] && RUN_DONE+=("$RUN_AT"); RUN_AT=$1; }
+run_finished() { RUN_TODO=() RUN_AT=""; }
+run_end() {
+  local rc=$? id left=() pad="      "
+  [[ -n $PUT_TMP ]] && rm -f "$PUT_TMP"
+  [[ -n ${run_lock_file:-} ]] && rm -f "$run_lock_file"
+  (( ${#RUN_TODO[@]} )) || return "$rc"
+  for id in "${RUN_TODO[@]}"; do [[ " ${RUN_DONE[*]} " == *" $id "* ]] || left+=("$id"); done
+  trap - INT TERM HUP
+  say ""
+  say "${Y}!${R} ${B}Stopped${R} $( ((rc == 130)) && echo "(ctrl-c)" || echo "(exit $rc)")${RUN_AT:+ in the middle of ${B}$RUN_AT${R}}."
+  say "${pad}${D}done:${R}     ${RUN_DONE[*]:-nothing}"
+  say "${pad}${D}not done:${R} ${left[*]}${RUN_AT:+ ${D}($RUN_AT may be half done: what it finished stays)${R}}"
+  say "${pad}${D}carry on:${R} $RUN_AGAIN ${left[*]}"
+  return "$rc"
 }
 
 # ask "<question>" [default y|n] → 0 = go ahead
@@ -68,7 +97,7 @@ ask() {
     "$GUM" confirm "$(printf '%s' "$q" | sed 's/\x1b\[[0-9;]*m//g')" \
       --default="$([[ "$def" == y ]] && echo true || echo false)" --no-show-help </dev/tty >/dev/tty
     rc=$?
-    (( rc == 130 )) && { say ""; say "Stopped. What's done so far stays; run it again to carry on."; exit 130; }
+    (( rc == 130 )) && { (( ${#RUN_TODO[@]} )) || { say ""; say "Stopped. What's done so far stays; run it again to carry on."; }; exit 130; }   # in a run: run_end says more
     say "  ${C}?${R} $q ${D}$( (( rc )) && echo no || echo yes)${R}"
     return "$rc"
   fi
@@ -160,7 +189,7 @@ install_gum() {
   bin=$(find "$tmp" -type f -name gum | head -1)
   [[ -n "$bin" ]] || { warn "no gum binary in the download"; rm -rf "$tmp"; return 1; }
   mkdir -p "$HOME/.local/bin"
-  install -m 755 "$bin" "$HOME/.local/bin/gum"
+  put_copy -m 755 "$bin" "$HOME/.local/bin/gum"
   rm -rf "$tmp"
   logf "gum $GUM_VERSION installed to ~/.local/bin/gum"
 }
@@ -191,7 +220,7 @@ fetch_fzf() {
   fi
   tar xzf "$tmp/$f" -C "$tmp" fzf 2>>"$log_file" || { warn "no fzf in the download"; rm -rf "$tmp"; return 1; }
   mkdir -p "$HOME/.local/bin"
-  install -m 755 "$tmp/fzf" "$HOME/.local/bin/fzf"
+  put_copy -m 755 "$tmp/fzf" "$HOME/.local/bin/fzf"
   rm -rf "$tmp"
   logf "fzf $FZF_VERSION installed to ~/.local/bin/fzf"
   unset _UI_FZF_VER
@@ -226,6 +255,27 @@ fetch_checked() {
 }
 
 # --------------------------------------------------------------- files ---
+# put_out <file> <command...>: the command's output becomes <file> all at once, and only when
+# the command succeeds: written beside it under a temp name, then renamed over it (a rename in
+# one folder can't be cut in half; a cut-short run leaves the old file or the new one). A link
+# (a dotfiles repo's ~/.bashrc) stays a link: the file it points at is replaced. Mode kept.
+put_out() {
+  local f=$1; shift
+  [[ -L $f ]] && f=$(readlink -f -- "$f")
+  PUT_TMP="$f.unikit-$$"
+  if "$@" >"$PUT_TMP" && { [[ ! -e $f ]] || chmod --reference="$f" -- "$PUT_TMP"; } &&
+     mv -f -- "$PUT_TMP" "$f"; then PUT_TMP=""; return 0; fi
+  rm -f -- "$PUT_TMP"; PUT_TMP=""; return 1
+}
+# put_copy [-m <mode>] <from> <to>: cp -p (or install -m <mode>), all at once like put_out
+put_copy() {
+  local m="" f; [[ $1 == -m ]] && { m=$2; shift 2; }
+  f=$2; [[ -L $f ]] && f=$(readlink -f -- "$f")
+  PUT_TMP="$f.unikit-$$"
+  if { if [[ -n $m ]]; then install -m "$m" -- "$1" "$PUT_TMP"; else cp -p -- "$1" "$PUT_TMP"; fi; } &&
+     mv -f -- "$PUT_TMP" "$f"; then PUT_TMP=""; return 0; fi
+  rm -f -- "$PUT_TMP"; PUT_TMP=""; return 1
+}
 
 # ------------------------------------------------------------ originals ---
 # What you had before the toolkit, kept once and never overwritten, so uninstall
@@ -239,7 +289,7 @@ keep_original() {
   [[ "${setup_phase:-}" == install && -f "$1" && ! -L "$1" ]] || return 0
   local o; o=$(orig_path "$1")
   [[ -e "$o" ]] && return 0
-  mkdir -p "${o%/*}" && cp -p "$1" "$o" && logf "original kept: $1 -> $o"
+  mkdir -p "${o%/*}" && put_copy "$1" "$o" && logf "original kept: $1 -> $o"
 }
 # original_of <file>: your copy from before the toolkit; else the oldest backup (older installs)
 original_of() {
@@ -258,7 +308,7 @@ forget_setting() { [[ -f "$orig_dir/settings" ]] && sed -i "/^$1=/d" "$orig_dir/
 backup() {
   [[ -f "$1" && ! -L "$1" ]] || return 0
   keep_original "$1"
-  cp -p "$1" "$1.bak-$ts" && printf '%s' "$1.bak-$ts"
+  put_copy "$1" "$1.bak-$ts" && printf '%s' "$1.bak-$ts"
 }
 
 # latest_backup <file>: newest <file>.bak-* (empty if none)
@@ -279,10 +329,9 @@ linked() { points_at "$1" "$2" && [[ -e "$1" ]]; }
 # Every link the installer makes is recorded with the part that made it ("part TAB link TAB
 # target" per line), so uk update can tell when one is left pointing nowhere.
 links_file="$log_dir/links"
+_link_note() { grep -vF $'\t'"$1"$'\t' "$links_file" 2>/dev/null; printf '%s\t%s\t%s\n' "${TK_PART:-}" "$1" "$2"; }
 link_note() {
-  local tmp; tmp=$(mktemp)
-  { grep -vF $'\t'"$1"$'\t' "$links_file" 2>/dev/null; printf '%s\t%s\t%s\n' "${TK_PART:-}" "$1" "$2"; } >"$tmp"
-  mv "$tmp" "$links_file"
+  put_out "$links_file" _link_note "$@"
 }
 # link_records: that record, plus the "link" lines of setup.log (installs from before the
 # record; the part is the one whose heading came last)
@@ -322,7 +371,7 @@ unlink_file() {
   rm -f "$link"
   b=$(latest_backup "$link")
   if [[ -n "$b" ]]; then mv "$b" "$link"; ok "removed, put back ${b/#$HOME/\~}"
-  elif b=$(orig_path "$link") && [[ -f "$b" ]]; then cp -p "$b" "$link"; ok "removed, put back your original"
+  elif b=$(orig_path "$link") && [[ -f "$b" ]]; then put_copy "$b" "$link"; ok "removed, put back your original"
   else ok "removed"; fi
 }
 
@@ -356,7 +405,7 @@ set_block() {
       printf '%s\n%s\n%s\n' "$BLOCK_START" "$body" "$BLOCK_END"; } >"$tmp"
   fi
   [[ -f "$file" ]] && b=$(backup "$file")
-  cat "$tmp" >"$file"; rm -f "$tmp"
+  put_out "$file" cat "$tmp"; rm -f "$tmp"
   logf "block set in $file${b:+ (backup: $b)}"
 }
 
@@ -368,7 +417,7 @@ drop_block() {
   tmp=$(mktemp)
   awk -v s="$BLOCK_START" -v e="$BLOCK_END" '$0==s{skip=1;next} $0==e{skip=0;next} !skip' "$file" |
     cat -s >"$tmp"
-  if grep -qvE '^[[:space:]]*(#.*)?$' "$tmp"; then cat "$tmp" >"$file"
+  if grep -qvE '^[[:space:]]*(#.*)?$' "$tmp"; then put_out "$file" cat "$tmp"
   else rm -f "$file"; fi
   rm -f "$tmp"
   logf "block removed from $file"
