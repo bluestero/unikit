@@ -37,7 +37,7 @@ touches_of() { local f; f=$(fn touches "$1"); declare -F "$f" >/dev/null && "$f"
 shared_keep() {
   local o; o=$(touch_clash "$1") || return 1; o=${o%%$'\t'*}
   if [[ $mode != yes ]] && ask "$o ($(layer_name "$o")) has it set up too. Remove it anyway?" n; then return 1; fi
-  ok "left as it is: $o ($(layer_name "$o")) has it set up too"
+  kept "$o ($(layer_name "$o")) has it too" "left as it is: $o ($(layer_name "$o")) has it set up too"
 }
 # touch_clash <id>: "part TAB thing" for each set-up part of another layer that changes what it does; 1 when none
 touch_clash() {
@@ -602,7 +602,7 @@ get_tool() {
 # drop_tool <command>: removes ours from ~/.local/bin; one installed another way stays
 drop_tool() {
   if [[ -e "$HOME/.local/bin/$1" ]]; then rm -f "$HOME/.local/bin/$1"; ok "removed $1"
-  elif type -P "$1" >/dev/null; then ok "$1 wasn't installed by the toolkit ($(type -P "$1")), so it stays"
+  elif type -P "$1" >/dev/null; then kept "not installed by the toolkit" "$1 wasn't installed by the toolkit ($(type -P "$1")), so it stays"
   else ok "not installed"; fi
 }
 # gh_tool <owner/repo> <asset> <command>: newest release asset (a tar.gz holding <command>, or the program itself) into ~/.local/bin
@@ -627,7 +627,7 @@ apt_drop() {
   pkg_installed "$1" || { ok "not installed"; return 0; }
   if ask "Also remove the $2 package? (apt, needs sudo)" n; then
     dry || { as_root apt-get remove -y "$1" >>"$log_file" 2>&1 && ok "package removed" || fail "apt failed (see $log_file)"; }
-  else ok "$2 stays"; fi
+  else kept "you kept the package" "$2 stays"; fi
 }
 
 # -------------------------------------------------------------- claude ---

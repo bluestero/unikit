@@ -124,10 +124,13 @@ order=()
 [[ " ${chosen[*]} " == *" login-shell "* ]] && order+=(login-shell)
 for id in "${chosen[@]}"; do [[ "$id" == login-shell ]] || order+=("$id"); done
 run_start "${again/install/uninstall}" "${order[@]}"   # cut short: says what's done and what isn't
+declare -A kept_why=()   # what a part left on purpose (kept in lib/setup.sh)
 for id in "${order[@]}"; do
   run_part "$id"
   say "${B}$id${R}"
+  KEPT=""
   "$(fn uninstall "$id")"
+  kept_why[$id]=$KEPT
 done
 run_finished
 
@@ -135,7 +138,9 @@ say ""
 summary=""
 for id in "${order[@]}"; do
   "$(fn state "$id")"
-  if [[ "$STATE" == installed || "$STATE" == partial ]]; then summary+="${Y}◐${R} $("$(fn label "$id")")"$'\x1f'"${D}still partly there · see the log${R}"$'\n'
+  if [[ ( "$STATE" == installed || "$STATE" == partial ) && -n ${kept_why[$id]} ]]; then
+    summary+="${G}✓${R} $("$(fn label "$id")")"$'\x1f'"${D}kept · ${kept_why[$id]}${R}"$'\n'
+  elif [[ "$STATE" == installed || "$STATE" == partial ]]; then summary+="${Y}◐${R} $("$(fn label "$id")")"$'\x1f'"${D}still partly there · see the log${R}"$'\n'
   else summary+="${G}✓${R} $("$(fn label "$id")")"$'\x1f'"${D}removed · $again $id puts it back${R}"$'\n'; fi
 done
 printf '%s' "$summary" | print_table 3 | sed 's/\x1b\[[0-9;]*m//g' >>"$log_file"

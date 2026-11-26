@@ -22,6 +22,8 @@ B=$C_BOLD D=$C_DIM G=$C_GREEN Y=$C_YELLOW Rd=$C_RED C=$C_CYAN R=$C_RESET
 logf() { printf '%s\n' "$*" >>"$log_file"; }
 say()  { printf '%s\n' "$*"; printf '%s\n' "$*" | sed 's/\x1b\[[0-9;]*m//g' >>"$log_file"; }
 ok()   { say "${ok_pad-      }${G}✓${R} $*"; }
+# kept <why> [line]: an uninstall leaving something on purpose; uninstall's summary shows "kept · <why>"
+kept() { KEPT=$1; ok "${2:-$1}"; }
 skip() { say "${ok_pad-      }${D}– skipped${R}${1:+ ($1)}"; }
 warn() { say "      ${Y}!${R} $*"; }
 fail() { say "      ${Rd}✗${R} $*"; }

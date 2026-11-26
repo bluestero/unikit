@@ -110,3 +110,14 @@ def test_the_work_toolkit_folders_move_to_their_unikit_names(sb):
     n = len(sb.calls("dconf"))
     sh(sb, repo, "true")                                                  # once: nothing more the second time
     assert len(sb.calls("dconf")) == n, sb.calls("dconf")
+
+
+def test_uninstall_says_what_it_kept_and_why(sb):
+    """A program the toolkit didn't install stays, and the summary says so (not "still partly there")."""
+    repo = copy(sb)
+    sb.fake("direnv", "")                                  # direnv from apt, say: not in ~/.local/bin
+    p = subprocess.run([repo + "/uninstall.sh", "--yes", "direnv"], env=sb.env, cwd=sb.home,
+                       capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
+    out = p.stdout + p.stderr
+    assert p.returncode == 0, out
+    assert "kept · not installed by the toolkit" in out and "still partly" not in out, out
