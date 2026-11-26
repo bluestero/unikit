@@ -12,6 +12,18 @@ cd ~/code/acme-layer && git init
 uk layer check .                                       # well formed, no clashes
 ```
 
+## Managing layers
+
+```bash
+uk layers                                            # the list: what's there, the kits it feeds, where from, which version; alt-i: about it
+uk layer add git@github.com:acme/acme-toolkit.git   # clones into layers/acme (a unix- prefix and -toolkit are dropped), asks, offers to set it up
+uk layer rm acme                                     # deletes it (refuses while it has unpushed work)
+uk layer check ~/code/acme-toolkit                   # a layer you're making: well formed, no clashes with unikit or the layers here
+```
+
+`layers/` is gitignored; there's nothing to register. Copying a folder into `layers/` works too
+(no updates then). `lib/layers.sh` has the list below in short.
+
 ## What a layer can hold
 
 All optional. A layer with none of these is an error (`uk doctor` says so).
@@ -28,7 +40,7 @@ All optional. A layer with none of these is an error (`uk doctor` says so).
 | `workspaces` | a shared workspace list (`lib/workspaces.sh`: bluetools' ws opens them, `ws_var NAME` gives its folders to any layer) (folder and GitHub repo per line); `@<name>` in a person's own list brings it in |
 | `claude/skills/<skill>/SKILL.md` | Claude Code skills, linked by unikit's `claude-skill` part (a picker of skills and profiles, also `uk skills`). A skill lives with the command it documents |
 | `claude/plugins` | Claude Code plugins from GitHub, a line each: `plugin@marketplace\|owner/repo\|what it gives` (`#` comments). The same picker installs them in the profiles picked (`claude plugin install`) |
-| `README.md` | its first paragraph is the about card in `uk layers` (alt-i) |
+| `README.md` | its first paragraph is the about card in `uk layers` (alt-i): keep it plain text, right under the `#` title (no images or badges before it) |
 | `VERSION` | optional; shown next to its commit in `uk version` and `uk layers` |
 
 ## Installer parts (`components.sh`)
@@ -107,6 +119,7 @@ commands, `components.sh` whenever the installer or `tk` runs, its skills as ins
   `--yes` pulls everything else and holds those back.
 - `uk doctor` says when a layer moved past its pin some other way (a `git pull` by hand, or commits
   made in it): `uk update` shows those and moves the pin.
+- Layers added before pins existed are pinned where they are on the first `uk update`.
 - `uk doctor` notes, under each layer, the files that call `sudo` or the network (`sudo:`,
   `network:` for curl, wget, git, pip, npm): to see, not a problem.
 
