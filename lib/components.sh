@@ -266,7 +266,7 @@ uninstall_commands() {
 fzf_mine="$HOME/.local/bin/fzf"
 fzf_ver() { "${1:-fzf}" --version 2>/dev/null | awk '{print $1}'; }
 label_fzf() { echo "fzf (current)"; }
-title_fzf() { echo "Newer fzf for every picker: shows where you are (12/426), k-theme's tabs"; }
+title_fzf() { echo "A newer fzf, which every picker needs"; }
 detail_fzf() { echo "fzf $FZF_VERSION from GitHub (checksum-checked) in ~/.local/bin; apt's fzf, if any, stays as the fallback"; }
 state_fzf() {
   local v; v=$(fzf_ver); NOTE=""
@@ -711,7 +711,7 @@ cp_rm() {
   forget_setting "claude-marketplace-$m"
 }
 label_claude_skill() { echo "Claude skill"; }
-title_claude_skill() { echo "Claude Code knows your layers' commands (their skills) and gets the plugins they list, in every repo"; }
+title_claude_skill() { echo "Claude Code learns your layers' commands and plugins"; }
 detail_claude_skill() { echo "skills/<name> in each Claude profile links to claude/skills/<name> (and each layer's); a layer's claude/plugins are installed with claude plugin install, picked in the list"; }
 state_claude_skill() { claude_state cs_has; }
 cs_install() { local l t

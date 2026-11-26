@@ -92,7 +92,8 @@ fi
 badge() {   # badge <state> [what it needs] [note]
   case "$1" in
     installed) printf '%s✓ installed%s' "$G" "$R" ;;
-    partial)   printf '%s◐ partly%s' "$Y" "$R" ;;
+    partial)   if [[ ${3:-} == "update: "* ]]; then printf '%s↑ %s%s' "$Y" "${3#update: }" "$R"   # what you have → the newest
+               else printf '%s◐ partly%s' "$Y" "$R"; fi ;;
     missing)   printf '%s○ not installed%s' "$Y" "$R" ;;
     needs)     printf '%s○ needs %s%s' "$Y" "${2// /, }" "$R" ;;
     unsupported) printf '%s⊘ not supported here%s' "$D" "$R" ;;
@@ -123,8 +124,9 @@ for id in "${wanted[@]}"; do
     [[ -n "$prev" ]] && table+=$'\n'
     prev=$(group_of "$id"); table+="${D}$prev${R}"$'\n'
   fi
-  if (( list )); then table+="  $id"$'\x1f'"$D$(layer_name "$id")$R"$'\x1f'"$(badge "$STATE" "$NEED" "$NOTE")"$'\x1f'"$D${NOTE}$R"$'\n'
-  else table+="  $id"$'\x1f'"$(badge "$STATE" "$NEED" "$NOTE")"$'\x1f'"$D${NOTE}$R"$'\n'; fi
+  shown_note=$NOTE; [[ $STATE == partial && $NOTE == "update: "* ]] && shown_note=""   # the badge says it
+  if (( list )); then table+="  $id"$'\x1f'"$D$(layer_name "$id")$R"$'\x1f'"$(badge "$STATE" "$NEED" "$NOTE")"$'\x1f'"$D${shown_note}$R"$'\n'
+  else table+="  $id"$'\x1f'"$(badge "$STATE" "$NEED" "$NOTE")"$'\x1f'"$D${shown_note}$R"$'\n'; fi
   [[ "$STATE" == missing || "$STATE" == partial || "$STATE" == needs || "$STATE" == fix || "$STATE" == new || "$STATE" == removed ]] && todo+=("$id")
   # named on the command line and installed already: still offer its settings menu (keep / look / defaults)
   (( named )) && [[ "$STATE" == installed && " ${LOOK_PARTS[*]} " == *" $id "* ]] && todo+=("$id")
