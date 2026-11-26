@@ -30,6 +30,10 @@ like `bluetools` for work tools, `bluefeels` for the look, or one you write for 
 | `tk` | **toolkit**, what you work with | layers like bluetools |
 | `fk` | **feelkit**, how it looks | layers like bluefeels |
 
+### Layers
+
+The kits are empty until a layer fills them. These are the ones to start with:
+
 | Layer | Kit | What it brings |
 |---|---|---|
 | [bluetools](https://github.com/bluestero/bluetools) | `tk` | AWS profiles, Kubernetes per terminal, Twingate, workspaces in your IDE, accounts per folder |
@@ -46,18 +50,16 @@ Made for Ubuntu with GNOME. unikit and bluetools only need bash and Linux; on ot
 installer marks what can't run there.
 
 ```bash
-sudo apt install git curl
+sudo apt install git curl                                     # if you don't have them
 
-# 1. Get unikit and the layers you want
-bash <(curl -fsSL https://raw.githubusercontent.com/bluestero/unikit/main/bootstrap.sh) --layer bluetools --layer bluefeels
-
-# 2. Pick what to set up (nothing is ticked until you tick it)
-tk install
-fk install
-
-# 3. Open a new terminal and check
-uk status
+git clone https://github.com/bluestero/unikit.git ~/unikit   # 1. download it (any folder you'll keep)
+~/unikit/install.sh                                           # 2. pick layers, then what to set up
 ```
+
+The first run offers the two layers above, nothing ticked; skip them and it offers them again next
+time. Later, add one with `uk layer add bluetools` (or `bluefeels`, or any layer's git URL).
+Nothing changes without asking. Then open a new terminal: `uk status` shows what's set up, and
+`fk install` sets up bluefeels' look.
 
 Removing it is `tk uninstall` (or `fk uninstall`): pick what goes, and what you had comes back.
 
